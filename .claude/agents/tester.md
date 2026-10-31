@@ -11,7 +11,7 @@ Follow `guidelines/testing.md` (primary), `guidelines/coding-standards.md`, `gui
 ## Step 1 — Gap analysis
 
 - Read the plan's test list and the implemented code.
-- Find untested paths: edge cases, failure points, negative cases, boundary values (e.g. 07:59 / 08:00 / 19:00 / 19:01 calling hours; zero and partial amounts; Hinglish and Telugu date phrases).
+- Find untested paths: edge cases, failure points, negative cases, boundary values (e.g. 07:59 / 08:00 / 19:00 / 19:01 calling hours; zero and partial amounts; Hindi and Hinglish date phrases).
 - Check coverage targets: 80% overall, 100% for money, identity verification, compliance rules, webhook auth, validation.
 
 ## Step 2 — Write missing tests

@@ -2,7 +2,12 @@
 
 ## What this is
 
-A portfolio prototype: a **multilingual (English / Hindi / Telugu) voice collections agent** for a fictional Indian NBFC, **Suvidha Finance**, delivered as a mock client implementation — requirements → design → build → test → go-live. Built to demonstrate the GreyLabs AI *Platform FDE / AI Program Manager* skill set. Full scope: `docs/SPEC.md`.
+A portfolio prototype for a fictional Indian NBFC, **Suvidha Finance**, delivered as a mock client implementation — requirements → design → build → test → go-live. Built to demonstrate the GreyLabs AI *Platform FDE / AI Program Manager* skill set. Full scope: `docs/SPEC.md`.
+
+- **Collections voice agent** (English + Hindi) on Vapi
+- **Follow-up agent** — rules for clear cases, agent for judgement calls, always writes a note the voice agent reads next call
+- **Dashboard**, **evals + release gate**
+- *Pending:* lead qualification voice agent (only after the core works)
 
 **Owner:** Saim (product manager; makes product decisions). **Claude** writes all code and explains engineering concepts in plain English.
 
@@ -24,7 +29,8 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 - **Plan first.** No code until Saim says "go ahead" or "confirmed" on the milestone plan.
 - **Concise, direct, plain English.** No jargon without a one-line explanation.
 - **TypeScript always.** No `any`.
-- **Dark UI.**
+- **UI theme: very light blue background across all screens** (project exception to the global "dark themes preferred" rule, decided by Saim). One light theme, no dark toggle.
+- **Prompts and experiment choices are Saim's decisions.** Explain key design decisions in plain English at each milestone.
 - **No hardcoded secrets** — environment variables only.
 - **No anonymous inline JSX handlers** — named functions only.
 - **File path comment** at the top of every source file.
@@ -37,7 +43,7 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 |---|---|
 | Voice platform | Vapi (browser web calls via `@vapi-ai/web`; no phone numbers) |
 | Agent LLM + evals + embeddings | Google Gemini (free tier) |
-| Frontend | Vite + React + TypeScript + Tailwind (dark) |
+| Frontend | Vite + React + TypeScript + Tailwind (light-blue theme) |
 | Backend | Supabase Edge Functions (Deno) |
 | Database | Supabase Postgres + pgvector |
 | Validation | Zod (schemas shared between web and functions) |

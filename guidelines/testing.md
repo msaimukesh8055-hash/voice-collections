@@ -17,6 +17,7 @@ Two different kinds of testing exist in this project. Keep them separate.
   - Money: dues, overdue amount, late-fee and part-payment calculations
   - Identity verification (`verify_customer`)
   - Compliance rules: calling hours, attempt limits, third-party disclosure, "verify before disclose"
+  - Follow-up rules and follow-up tool guards (hours, attempt limits, policy windows)
   - Webhook authentication (Vapi secret check)
   - Tool argument / LLM-output validation
 
@@ -63,7 +64,7 @@ Two different kinds of testing exist in this project. Keep them separate.
 
 ## Agent evals (summary — full design in SPEC)
 
-- ~24 scenarios: persona × intent × language (EN/HI/TE).
+- ~20 collections scenarios: persona × intent × language (EN/HI), plus ~6 follow-up agent decision scenarios.
 - An LLM plays the customer; the agent runs with the same prompt and tool logic; an LLM judge scores.
 - Metrics: task completion, intent accuracy, entity accuracy, compliance (zero-tolerance items), correct handoff, quality (1–5).
 - Every prompt change re-runs evals; results compared with the previous version in `docs/reports/evals-vN.md`.
@@ -73,5 +74,5 @@ Two different kinds of testing exist in this project. Keep them separate.
 After each test run, save `docs/reports/<milestone>-test-results.md` with:
 - Totals: run / passed / failed / skipped, coverage %
 - Each failure: test name, error message, likely cause
-- Failure patterns (e.g. "3 of 4 failures are Telugu date parsing")
+- Failure patterns (e.g. "3 of 4 failures are Hinglish date parsing")
 - Recommendations

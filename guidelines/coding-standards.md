@@ -78,8 +78,8 @@ Applies to all code in this repo — frontend (React + Vite + Tailwind), backend
 - Wrap pages with forms or live call state in an **error boundary**.
 - **Routes:** only add a route after its component file exists and passes lint + typecheck. A bad route import breaks the whole app.
 - Explicit return types on all service/data functions (functions that call APIs or Supabase).
-- **i18n:** dashboard is English-only in v1. Agent language content (greetings, fallback lines, few-shot examples) must exist for **every** supported language (EN, HI, TE) — a missing language version is a bug.
-- Dark theme only; use the shared Tailwind tokens, no ad-hoc colours.
+- **i18n:** dashboard is English-only in v1. Agent language content (greetings, fallback lines, few-shot examples) must exist for **every** supported language (EN, HI) — a missing language version is a bug.
+- One light theme: very light blue background across all screens. Use the shared Tailwind tokens, no ad-hoc colours; text must meet WCAG AA contrast on the light-blue background.
 
 ## Performance
 

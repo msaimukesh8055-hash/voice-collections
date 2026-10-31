@@ -18,7 +18,7 @@ Save `docs/reports/<M>-codebase-review.md` (keep it short):
   - Lint config present and not disabled; typecheck strict
   - No `any`; service/data functions have explicit return types
   - Every route import resolves to a real, lint-clean file
-  - Agent language content exists for EN, HI and TE
+  - Agent language content exists for EN and HI
   - Zod schemas exist once in `_shared/schemas/` (no copies)
   - Every env var used is listed in `.env.example`
 

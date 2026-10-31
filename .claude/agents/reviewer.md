@@ -34,7 +34,7 @@ Review against `guidelines/coding-standards.md`, `guidelines/security.md`, `guid
 **High (quality / correctness)**
 - Amount or date not sourced from a tool result
 - Prompt/agent-config change with no eval scenario covering it
-- Missing language version (EN/HI/TE) of agent content
+- Missing language version (EN/HI) of agent content
 - Missing error handling, empty catch, unvalidated external input
 - Functions > 50 lines, files > 800 lines, nesting > 4
 - Mutation of state/inputs; `any`; inline JSX handlers; `console.log`
