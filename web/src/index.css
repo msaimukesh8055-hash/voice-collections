@@ -1,0 +1,21 @@
+/* web/src/index.css */
+@import 'tailwindcss';
+
+/* Design tokens — one light theme, very light blue background (see coding-standards.md). */
+@theme {
+  --color-canvas: #f0f6ff;
+  --color-surface: #ffffff;
+  --color-border: #d6e4f5;
+  --color-ink: #0f1f33;
+  --color-ink-muted: #4a5d75;
+  --color-brand: #1d5fd1;
+  --color-brand-strong: #154aa6;
+  --color-success: #13795b;
+  --color-warning: #a35c00;
+  --color-danger: #b42318;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-canvas text-ink font-sans antialiased;
+}

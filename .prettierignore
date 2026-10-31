@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+supabase/.temp
+supabase/functions
+package-lock.json
+*.md
+*.sql
+.claude
