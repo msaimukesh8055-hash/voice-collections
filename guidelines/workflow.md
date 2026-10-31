@@ -23,7 +23,11 @@ designer (short plan + test list) ─► [STOP 1: approve plan]
 | 4 | coordinator | **Quality gate** (below) — all must pass |
 | 5 | coordinator + user | **Smoke test** — the milestone's "Done when" from SPEC, run for real (e.g. an actual voice call) |
 | **STOP 2** | user | Sees gate results + smoke test outcome; approves |
-| 6 | coordinator | Asks permission to commit |
+| 6 | coordinator | Updates `docs/BUILD-LOG.md`, then asks permission to commit (the log entry is committed with the work) |
+
+### Build log
+
+`docs/BUILD-LOG.md` is the running, newest-first record of the build. The coordinator adds or updates an entry at **every** approval point — plan written (🟡 Planned), milestone done (✅ Done), checkpoint scored — with: what was built, key decisions, evidence (tests, smoke tests, scores), problems hit and fixes, and commit hashes.
 
 ### Quality gate (every milestone, non-negotiable)
 
