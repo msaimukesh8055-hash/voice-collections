@@ -1,6 +1,6 @@
 # M1 Plan — Voice Spike (English + Hindi)
 
-**Branch:** `feature/M1-voice-spike` · **Time box:** 45 min · **Status:** awaiting approval (STOP 1)
+**Branch:** `feature/M1-voice-spike` · **Time box:** 45 min · **Status:** ✅ done — see `docs/reports/M1-voice-spike.md`
 
 ## Goal
 

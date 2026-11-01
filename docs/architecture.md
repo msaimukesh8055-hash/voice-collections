@@ -23,7 +23,7 @@ Status: M0 (foundation). Updated by the `architect` agent when decisions change.
    ▼                                                                  ▼
  Saim / collections manager                         Postgres + pgvector (RLS on all tables)
                                                                       ▲
- Gemini (free tier): agent model · summary · compliance AI check ·    │
+ Gemini (free tier): summary · compliance AI check ·                 │
  follow-up judgement · embeddings · eval simulator + judge ───────────┘ (server-side only)
 ```
 
@@ -31,7 +31,7 @@ Status: M0 (foundation). Updated by the `architect` agent when decisions change.
 
 | Component | Responsibility | Location |
 |---|---|---|
-| Vapi assistant | Live voice: speech-to-text, LLM turn-taking, text-to-speech, interruptions | Config in `agent/collections/` |
+| Vapi assistant | Live voice: Deepgram speech-to-text, Vapi-hosted `gpt-4.1-mini`, Azure Indian voices, interruptions (ADR-0007) | Config in `agent/collections/` |
 | `vapi-webhook` | Verify Vapi secret; dispatch tool calls; record audit; run post-call steps and follow-up agent | `supabase/functions/vapi-webhook/` |
 | `calls-api` | REST read/write API for the dashboard (`/v1/...`); demo controls | `supabase/functions/calls-api/` |
 | Shared core | Env, errors, Zod schemas, compliance rules, tools, follow-up rules | `supabase/functions/_shared/` |
@@ -67,6 +67,7 @@ See `supabase/migrations/20261031000001_schema.sql` (SPEC §10). Lead-qualificat
 | [0001](adr/ADR-0001-vapi-browser-web-calls.md) | Vapi browser web calls, no phone numbers |
 | [0002](adr/ADR-0002-single-webhook-tool-registry.md) | Single webhook + typed tool registry |
 | [0003](adr/ADR-0003-supabase-cloud-only.md) | Supabase cloud only; no local Docker stack |
-| [0004](adr/ADR-0004-gemini-free-tier.md) | Gemini free tier for agent, AI steps, embeddings, evals |
+| [0004](adr/ADR-0004-gemini-free-tier.md) | Gemini free tier for AI steps, embeddings, evals (live agent: see 0007) |
 | [0005](adr/ADR-0005-verify-before-disclose-in-code.md) | Verify-before-disclose enforced in code |
 | [0006](adr/ADR-0006-live-agent-plus-followup-agent.md) | One live voice agent + follow-up agent; rules before agent |
+| [0007](adr/ADR-0007-voice-stack.md) | Voice stack: Vapi-hosted GPT, Deepgram (EN + Hinglish), Azure Indian voices |

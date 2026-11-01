@@ -5,12 +5,15 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 const sharedDir = fileURLToPath(new URL('../supabase/functions/_shared', import.meta.url));
+const agentDir = fileURLToPath(new URL('../agent', import.meta.url));
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   // Read VITE_* vars from the repo-root .env (single env file for the whole project).
   envDir: '..',
-  resolve: { alias: { '@shared': sharedDir } },
+  resolve: { alias: { '@shared': sharedDir, '@agent': agentDir } },
+  // Test coverage reports must not trigger page reloads (a reload drops a live call).
+  server: { watch: { ignored: ['**/coverage/**'] } },
   test: {
     environment: 'jsdom',
     globals: true,

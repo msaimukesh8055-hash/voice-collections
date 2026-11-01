@@ -10,14 +10,16 @@
     "build": "npm run build -w web",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w web",
-    "test": "npm run test -w web",
+    "test": "vitest run --coverage && npm run test -w web",
+    "agent:push": "node --env-file=.env scripts/agent-push.ts",
+    "check:secrets": "node --env-file-if-exists=.env scripts/check-bundle-secrets.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fn:lint": "cd supabase/functions && deno lint",
     "fn:check": "cd supabase/functions && deno check **/*.ts",
     "fn:test": "cd supabase/functions && deno test --coverage=../../coverage/functions",
     "fn:coverage": "cd supabase/functions && deno coverage ../../coverage/functions",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run fn:lint && npm run fn:check && npm run fn:test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run fn:lint && npm run fn:check && npm run fn:test",
     "db:push": "node --env-file=.env scripts/db-push.ts",
     "db:check-seed": "node --env-file=.env scripts/check-seed.ts"
   },
@@ -25,6 +27,7 @@
     "@eslint/js": "^9.39.5",
     "@supabase/supabase-js": "^2.118.0",
     "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^4.1.12",
     "deno": "^2.9.6",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
@@ -34,6 +37,10 @@
     "jiti": "^2.7.0",
     "prettier": "^3.9.10",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^4.1.12"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }
