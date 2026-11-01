@@ -63,7 +63,7 @@ supabase/
     _shared/              schemas/, compliance/, tools/, db, errors, env
     vapi-webhook/         tool calls + end-of-call reports from Vapi
     calls-api/            /v1/calls, /v1/loans for the dashboard
-agent/                    prompt framework, few-shots, Vapi assistant config (as code)
+voice-agents/             the product's voice agents as code: prompt, languages, voice, model, tools (pushed to Vapi)
 knowledge/                fake NBFC policy documents (RAG source)
 evals/                    scenarios, simulator, judge, runner
 docs/                     SPEC, architecture, ADRs, BUILD-LOG, milestones (plan + results), reviews (checkpoints)

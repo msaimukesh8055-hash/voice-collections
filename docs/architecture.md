@@ -16,7 +16,7 @@ Status: M0 (foundation). Updated by the `architect` agent when decisions change.
         ▲                                             │  ├ post-call: summary,         │
         │ agent config (as code, release-gated)       │  │   compliance check          │
         │                                             │  └ follow-up agent (rules →    │
- agent/<use-case>/ ── npm run agent:publish ──►       │      agent, guarded tools)     │
+ voice-agents/<use-case>/ ── npm run agent:push ──►   │      agent, guarded tools)     │
                                                       └───────────────┬───────────────┘
  Dashboard (Vite/React, light-blue)                                   │ service role
    │ HTTPS (anon key) → calls-api Edge Function ──────────────────────┤
@@ -31,7 +31,7 @@ Status: M0 (foundation). Updated by the `architect` agent when decisions change.
 
 | Component | Responsibility | Location |
 |---|---|---|
-| Vapi assistant | Live voice: Deepgram speech-to-text, Vapi-hosted `gpt-4.1-mini`, Azure Indian voices, interruptions (ADR-0007) | Config in `agent/collections/` |
+| Vapi assistant | Live voice: Deepgram speech-to-text, Vapi-hosted `gpt-4.1-mini`, Azure Indian voices, interruptions (ADR-0007) | Config in `voice-agents/collections/` |
 | `vapi-webhook` | Verify Vapi secret; dispatch tool calls; record audit; run post-call steps and follow-up agent | `supabase/functions/vapi-webhook/` |
 | `calls-api` | REST read/write API for the dashboard (`/v1/...`); demo controls | `supabase/functions/calls-api/` |
 | Shared core | Env, errors, Zod schemas, compliance rules, tools, follow-up rules | `supabase/functions/_shared/` |

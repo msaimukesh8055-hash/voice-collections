@@ -1,4 +1,4 @@
-// agent/collections/assistant.config.ts
+// voice-agents/collections/assistant.config.ts
 // Collections voice agent — M1 spike configuration.
 // The system prompt here is a placeholder for the voice test only; the full prompt
 // framework (persona, objectives, constraints, few-shots) is written in M3 and reviewed by Saim.

@@ -2,7 +2,7 @@
 // Thin wrapper around the Vapi Web SDK. Pages depend on the VoiceClient interface,
 // so tests can pass a fake and never open a real call.
 import VapiSdk from '@vapi-ai/web';
-import type { VariantOverrides } from '@agent/vapi-payload.ts';
+import type { VariantOverrides } from '@voice-agents/vapi-payload.ts';
 
 type Vapi = InstanceType<typeof VapiSdk>;
 

@@ -48,7 +48,7 @@ M1 had to prove a real browser call works in English and Hindi/Hinglish, with in
 - Gemini stays the model for everything that isn't real-time (summary, compliance check, follow-up judgement, embeddings, eval simulator and judge) — ADR-0004 amended.
 - Evals (M6) must run the agent prompt against `gpt-4.1-mini` behaviour to be meaningful, while the judge stays on Gemini; noted for the M6 plan.
 - The Gemini key is no longer stored on Vapi by the push script (the credential created earlier still exists in the Vapi account; safe to delete there).
-- Model choice stays one line in `agent/collections/assistant.config.ts`, validated by `agent/schema.ts`.
+- Model choice stays one line in `voice-agents/collections/assistant.config.ts`, validated by `voice-agents/schema.ts`.
 
 ## SDK issues found and handled (in `web/src/lib/vapiClient.ts`)
 - The Vapi Web SDK is CommonJS; the dev server hands back `{ default: Vapi }` instead of the class → resolved both shapes.

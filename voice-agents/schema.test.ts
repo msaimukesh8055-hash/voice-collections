@@ -1,4 +1,4 @@
-// agent/schema.test.ts
+// voice-agents/schema.test.ts
 import { describe, expect, it } from 'vitest';
 import { AgentConfigSchema } from './schema.ts';
 import { collectionsAgent } from './collections/assistant.config.ts';

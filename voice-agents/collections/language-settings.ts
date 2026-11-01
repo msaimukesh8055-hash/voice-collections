@@ -1,4 +1,4 @@
-// agent/collections/language-settings.ts
+// voice-agents/collections/language-settings.ts
 // Per-language speech settings and fixed lines. Applied when a call starts (ADR-0007).
 // Deepgram nova-3 for both languages: in the M1 smoke test it handled Hinglish better
 // than Azure hi-IN at about a third of the cost (ADR-0007).

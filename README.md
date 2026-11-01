@@ -25,7 +25,7 @@ A mock client implementation of a voice collections agent for a fictional Indian
 ```
 web/          dashboard (Vite + React + Tailwind, light-blue theme)
 supabase/     migrations, seed, Edge Functions (_shared core)
-agent/        agent configs as code (prompts, few-shots, tools)
+voice-agents/ voice agent configs as code (prompts, languages, tools) — pushed to Vapi
 knowledge/    policy documents for RAG
 evals/        simulated conversations, judge, release gate
 docs/         spec, architecture, ADRs, build log, milestones (plan + results), checkpoint reviews

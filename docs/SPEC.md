@@ -53,7 +53,7 @@ A mock client implementation for **Suvidha Finance**, a fictional Indian NBFC, b
 
 ## 4. Platform (shared)
 
-Each voice use case is a folder `agent/<use-case>/` holding **config as code**: prompt framework, few-shot examples (EN + HI), tool list, post-call schema, eval scenarios, KPI definitions. Shared pieces:
+Each voice use case is a folder `voice-agents/<use-case>/` holding **config as code**: prompt framework, few-shot examples (EN + HI), tool list, post-call schema, eval scenarios, KPI definitions. Shared pieces:
 
 | Shared piece | What it does |
 |---|---|
@@ -312,7 +312,7 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 | M7 | Go-live pack → **CP3** | 45 m | Sun |
 
 ### M0 — Foundation
-- Scaffold (`web/`, `supabase/`, `agent/`, `knowledge/`, `evals/`), lint/format/test tooling, `.env.example`
+- Scaffold (`web/`, `supabase/`, `voice-agents/`, `knowledge/`, `evals/`), lint/format/test tooling, `.env.example`
 - `docs/architecture.md` + ADRs: Vapi, single webhook + tool registry, Supabase, Gemini, verify-in-code, one live agent + follow-up agent handover, rules-before-agent
 - Migrations + RLS + seed data
 - **Done when:** lint/typecheck/test green on the scaffold; DB seeded

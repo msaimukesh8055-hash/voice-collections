@@ -1,4 +1,4 @@
-// agent/collections/language-settings.test.ts
+// voice-agents/collections/language-settings.test.ts
 import { describe, expect, it } from 'vitest';
 import { LANGUAGE_VARIANTS, VARIANT_IDS, type VariantId } from './language-settings.ts';
 

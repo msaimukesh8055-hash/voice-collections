@@ -9,7 +9,7 @@ The prototype needs real voice (ASR, TTS, interruptions) on an agent platform na
 ## Decision
 - Use **Vapi** as the voice platform.
 - Calls run in the **browser** via the Vapi Web SDK (WebRTC); no phone numbers.
-- Assistant configuration lives as code in `agent/` and is pushed via script.
+- Assistant configuration lives as code in `voice-agents/` and is pushed via script.
 
 ## Alternatives considered
 1) Retell AI (more no-code; similar cost; less control over server-side tools)

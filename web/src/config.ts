@@ -1,7 +1,7 @@
 // web/src/config.ts
 // Browser config, validated at startup. Only public values are allowed here (security.md).
 import { z } from 'zod';
-import assistantRecord from '@agent/collections/vapi-assistant.json';
+import assistantRecord from '@voice-agents/collections/vapi-assistant.json';
 
 const BrowserEnvSchema = z.object({
   VITE_VAPI_PUBLIC_KEY: z.string().trim().min(1),

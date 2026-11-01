@@ -1,4 +1,4 @@
-// agent/vapi-payload.test.ts
+// voice-agents/vapi-payload.test.ts
 import { describe, expect, it } from 'vitest';
 import { collectionsAgent } from './collections/assistant.config.ts';
 import { buildAssistantPayload, buildVariantOverrides } from './vapi-payload.ts';

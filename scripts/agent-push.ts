@@ -2,13 +2,13 @@
 // Validates the collections agent config and creates/updates it on Vapi.
 // M1: plain push. M6 wraps this in the release gate (evals must pass first).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { collectionsAgent } from '../agent/collections/assistant.config.ts';
-import { AgentConfigSchema } from '../agent/schema.ts';
-import { buildAssistantPayload } from '../agent/vapi-payload.ts';
+import { collectionsAgent } from '../voice-agents/collections/assistant.config.ts';
+import { AgentConfigSchema } from '../voice-agents/schema.ts';
+import { buildAssistantPayload } from '../voice-agents/vapi-payload.ts';
 import { pushAssistant, type HttpCall } from './lib/vapi-publish.ts';
 
 const VAPI_API = 'https://api.vapi.ai';
-const ID_FILE = new URL('../agent/collections/vapi-assistant.json', import.meta.url);
+const ID_FILE = new URL('../voice-agents/collections/vapi-assistant.json', import.meta.url);
 const REQUEST_TIMEOUT_MS = 15_000;
 
 function requireEnv(name: string): string {

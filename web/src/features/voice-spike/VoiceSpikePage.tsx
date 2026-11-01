@@ -2,9 +2,9 @@
 // M1 voice spike: start a browser call in a chosen language and watch the live transcript.
 // Replaced by the full call simulator in M5.
 import { useEffect, useState, type ChangeEvent } from 'react';
-import { collectionsAgent } from '@agent/collections/assistant.config.ts';
-import { VARIANT_IDS, type VariantId } from '@agent/collections/language-settings.ts';
-import { buildVariantOverrides } from '@agent/vapi-payload.ts';
+import { collectionsAgent } from '@voice-agents/collections/assistant.config.ts';
+import { VARIANT_IDS, type VariantId } from '@voice-agents/collections/language-settings.ts';
+import { buildVariantOverrides } from '@voice-agents/vapi-payload.ts';
 import type { CallStatus, TranscriptLine, VoiceClient } from '../../lib/vapiClient.ts';
 
 const STATUS_LABEL: Readonly<Record<CallStatus, string>> = {

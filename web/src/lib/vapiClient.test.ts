@@ -1,6 +1,6 @@
 // web/src/lib/vapiClient.test.ts
-import { collectionsAgent } from '@agent/collections/assistant.config.ts';
-import { buildVariantOverrides } from '@agent/vapi-payload.ts';
+import { collectionsAgent } from '@voice-agents/collections/assistant.config.ts';
+import { buildVariantOverrides } from '@voice-agents/vapi-payload.ts';
 import { createVapiClient, resolveVapiClass, type VoiceEventHandlers } from './vapiClient.ts';
 
 // Defined inside vi.hoisted because vi.mock runs before normal module code.

@@ -1,4 +1,4 @@
-// agent/schema.ts
+// voice-agents/schema.ts
 // Shape of an agent configuration. Validated before anything is pushed to Vapi.
 import { z } from 'zod';
 

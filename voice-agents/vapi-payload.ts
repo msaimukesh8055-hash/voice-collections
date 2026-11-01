@@ -1,4 +1,4 @@
-// agent/vapi-payload.ts
+// voice-agents/vapi-payload.ts
 // Turns an agent config into Vapi's assistant format. Shared by the push script (full
 // assistant) and the browser (per-call language overrides) so both use one definition.
 import type { AgentConfig } from './schema.ts';

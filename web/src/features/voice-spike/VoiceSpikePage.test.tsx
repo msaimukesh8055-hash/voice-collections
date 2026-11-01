@@ -1,6 +1,6 @@
 // web/src/features/voice-spike/VoiceSpikePage.test.tsx
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import type { VariantOverrides } from '@agent/vapi-payload.ts';
+import type { VariantOverrides } from '@voice-agents/vapi-payload.ts';
 import type { VoiceClient, VoiceEventHandlers } from '../../lib/vapiClient.ts';
 import { VoiceSpikePage } from './VoiceSpikePage.tsx';
 
