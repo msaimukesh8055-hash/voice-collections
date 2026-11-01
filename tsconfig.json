@@ -4,5 +4,5 @@
     "types": ["node"],
     "erasableSyntaxOnly": true
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["scripts/**/*.ts", "agent/**/*.ts", "vitest.config.ts"]
 }

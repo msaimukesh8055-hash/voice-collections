@@ -6,11 +6,14 @@ Each entry: **what was built** · **key decisions** · **evidence** (tests, smok
 
 ---
 
-## 2026-10-31 · M1 — Voice spike · 🟡 Planned
+## 2026-11-01 · M1 — Voice spike · ✅ Done
 
-- **Plan:** [`docs/plans/M1-plan.md`](plans/M1-plan.md) — first real browser call in English and Hindi; interruption and latency tests; answer whether Gemini can power the Vapi agent.
-- **Decisions proposed:** Gemini route fallback chain (built-in Google → OpenAI-compatible custom LLM → Vapi default); one assistant with per-call language settings; test Deepgram vs Azure for Hindi and choose by evidence.
-- **Waiting on:** Vapi + Gemini keys in `.env`; Saim's go-ahead.
+- **Built:** agent config as code (`agent/`: Zod schema, per-language settings, Vapi payload builder); `npm run agent:push` creates/updates the Vapi assistant; bundle secret scan in the quality gate; voice test page (language picker, start/end call, live status, transcript) on a thin, tested Vapi SDK wrapper.
+- **Key decisions (Saim, on evidence):** live agent runs on **Vapi-hosted `gpt-4.1-mini`** — Gemini's free tier didn't reply (503/429) and its one working model took 3–5 s; **Deepgram** for English and Hindi (handles Hinglish, ~⅓ of Azure's cost); Azure Indian voices; Hindi end-of-speech wait 0.8 s; 2-minute call cap including demo day. Recorded in [ADR-0007](adr/ADR-0007-voice-stack.md); ADR-0004 amended.
+- **Evidence:** smoke test 6/6 — English replies 1.15–1.27 s, Hinglish 1.26 s (target < 1.5 s); interruptions honoured every time; silence prompts once then ends cleanly. Tests: 20/20 agent+scripts (100%), 18/18 dashboard (94%), 14/14 Edge Functions (100%); secret scan clean. Credit used: **$0.65** (9 calls, 8.8 min).
+- **Problems → fixes:** blank page (Vapi SDK is CommonJS) → resolve both import shapes; Gemini no reply → model switch; every line shown twice (SDK's `removeAllListeners` removes nothing, React StrictMode left a listener attached — found by tapping SDK events during a real call) → remove listeners one by one, first wrong fix removed; false error banner at normal hang-up → treated as normal end; Hindi 2.4 s replies → 0.8 s wait; dev server reloading on coverage files (would drop a call) → ignored.
+- **Report:** [`docs/reports/M1-voice-spike.md`](reports/M1-voice-spike.md)
+- **Commits:** _pending Saim's approval_
 
 ---
 
