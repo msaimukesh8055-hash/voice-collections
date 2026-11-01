@@ -50,4 +50,4 @@ Follow `guidelines/coding-standards.md` and `guidelines/testing.md`.
 
 ## Report
 
-Write `docs/reports/<M>-fixes.md`: errors fixed (file paths + one-line cause), errors remaining, new errors introduced (must be 0), next steps. Never commit; never talk to the user directly.
+Add a short "Fixes" list to the Results of `docs/milestones/<M>.md`: errors fixed (file paths + one-line cause), errors remaining, new errors introduced (must be 0), next steps. Never commit; never talk to the user directly.

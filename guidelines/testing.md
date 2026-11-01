@@ -67,11 +67,11 @@ Two different kinds of testing exist in this project. Keep them separate.
 - ~20 collections scenarios: persona × intent × language (EN/HI), plus ~6 follow-up agent decision scenarios.
 - An LLM plays the customer; the agent runs with the same prompt and tool logic; an LLM judge scores.
 - Metrics: task completion, intent accuracy, entity accuracy, compliance (zero-tolerance items), correct handoff, quality (1–5).
-- Every prompt change re-runs evals; results compared with the previous version in `docs/reports/evals-vN.md`.
+- Every prompt change re-runs evals; results compared with the previous version in `docs/experiments.md`.
 
 ## Reporting
 
-After each test run, save `docs/reports/<milestone>-test-results.md` with:
+After each test run, record in the Results section of `docs/milestones/<M>.md`:
 - Totals: run / passed / failed / skipped, coverage %
 - Each failure: test name, error message, likely cause
 - Failure patterns (e.g. "3 of 4 failures are Hinglish date parsing")

@@ -1,7 +1,9 @@
 # SPEC — Suvidha Finance Voice AI Programme
 
-**Version:** 1.2 (prototype) · **Owner:** Saim · **Build window:** Saturday + Sunday (~9–10 h core)
-**Status:** Draft — awaiting "go ahead"
+**Version:** 1.3 (prototype) · **Owner:** Saim · **Build window:** Saturday + Sunday (~9–10 h core)
+**Status:** Approved — in build (M2 next)
+
+**Changes in 1.3 (2026-11-01, approved by Saim):** live voice model is Vapi-hosted `gpt-4.1-mini`, not Gemini (M1 evidence, ADR-0007) — Gemini stays for summaries, follow-ups, embeddings and evals; Deepgram for English and Hindi; client delivery docs (requirements, user stories) dropped; M7 go-live pack cut to one file, `docs/go-live.md`; docs layout: one file per milestone in `docs/milestones/`.
 
 ---
 
@@ -30,7 +32,7 @@ A mock client implementation for **Suvidha Finance**, a fictional Indian NBFC, b
 - Voice agent → follow-up agent handover (multi-agent workflow)
 - Evals with hallucination + consistency checks, experiment log, release gate
 - Polished light-blue dashboard with business KPIs
-- Client delivery pack: requirements, user stories, solution design, UAT, go-live checklist
+- Go-live pack (one document): solution design, UAT results, go-live checklist, path to real phone lines
 
 **Non-goals (v1)**
 - Telugu or other languages (documented as a v2 extension)
@@ -215,7 +217,7 @@ Text simulation on free Gemini: **customer-simulator LLM** (persona card + hidde
 
 ### 8.4 Experiment log
 
-`docs/reports/experiments.md` — per change: **Hypothesis** → **Change** → **Result** (before/after) → **Decision** (keep/revert). Saim chooses which experiments to run. At least one full v1 → v2 round.
+`docs/experiments.md` — per change: **Hypothesis** → **Change** → **Result** (before/after) → **Decision** (keep/revert). Saim chooses which experiments to run. At least one full v1 → v2 round.
 
 ### 8.5 Release gate
 
@@ -278,7 +280,7 @@ Seed: ~8 borrowers (EN/HI), some with previous calls, notes, and broken promises
 
 ## 13. Non-functional
 
-- Voice response latency target < 1.5 s typical (measured in M1).
+- Voice response latency target < 1.5 s typical (M1 measured: ~1.2 s English and Hinglish).
 - Coverage: 80% overall; 100% on money, identity, compliance, follow-up rules and guards, webhook auth, validation, release gate.
 - Secrets in env only; webhook secret verified; RLS everywhere; no personal data in logs.
 
@@ -313,12 +315,11 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 - Scaffold (`web/`, `supabase/`, `agent/`, `knowledge/`, `evals/`), lint/format/test tooling, `.env.example`
 - `docs/architecture.md` + ADRs: Vapi, single webhook + tool registry, Supabase, Gemini, verify-in-code, one live agent + follow-up agent handover, rules-before-agent
 - Migrations + RLS + seed data
-- `docs/delivery/requirements.md`, `user-stories.md`
 - **Done when:** lint/typecheck/test green on the scaffold; DB seeded
 
 ### M1 — Voice spike (EN + HI)
 - Vapi assistant from config as code; browser call from a bare page
-- Test EN and HI/Hinglish: transcription, voice, interruptions, latency; confirm Gemini usable as agent model with own key
+- Test EN and HI/Hinglish: transcription, voice, interruptions, latency; confirm Gemini usable as agent model with own key → **it wasn't**; Vapi-hosted `gpt-4.1-mini` chosen, Deepgram for both languages (ADR-0007)
 - **Done when:** 1-minute call works in EN and HI; findings in an ADR
 
 ### M2 — Platform core + collections tools + compliance
@@ -356,7 +357,7 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 
 ### M7 — Go-live pack
 - Deploy web to Vercel; final function and agent publishes
-- `docs/delivery/solution-design.md`, `uat-checklist.md` (executed), `go-live-checklist.md`, `telephony.md` (moving to real phone lines: SIP/number forwarding, consent, DLT, recording, voicemail detection), `alternatives.md` (LangGraph, Retell, Vapi Squads, adding languages)
+- `docs/go-live.md` — **one document**: solution design summary, UAT checklist (executed), go-live checklist, moving to real phone lines (SIP/number forwarding, consent, DLT, recording, voicemail detection), alternatives considered (LangGraph, Retell, Vapi Squads, adding languages)
 - README with demo script; Saim records a 3–5 minute demo video (backup for live demos)
 - **CP3:** refactor → review → score
 - **Done when:** live URL works end-to-end; CP1–CP3 Green
@@ -377,7 +378,7 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 | Hindi transcription/voice quality | Tested first in M1; tune transcriber/voice choice |
 | Vapi free credit smaller than expected (~$5) | Voice only for manual tests + demo; bulk testing as text evals |
 | Gemini free-tier rate limits during evals | Throttle; cheaper model for simulator; cap turns |
-| Gemini not usable as Vapi's agent model with own key | Vapi's cheapest built-in model within credit; recorded in ADR |
+| Gemini not usable as Vapi's agent model with own key | **Happened in M1** — switched to Vapi-hosted `gpt-4.1-mini` (ADR-0007) |
 | Voice debugging slower than estimated | Cut order; core protected |
 | Live demo failure in interview | Recorded video backup |
 | Interviewer probes design understanding | Saim reviews prompts and experiments; plain-English decision notes each milestone |
@@ -394,7 +395,7 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 | Testing across scenarios, personas, languages, paths | §8 |
 | Failure analysis, inconsistency, continuous improvement | §8.3–8.4 |
 | Evaluation frameworks and test datasets | §8 |
-| ASR, TTS, telephony | M1, `telephony.md` |
+| ASR, TTS, telephony | M1, `go-live.md` |
 | Multiple languages | English + Hindi (Hinglish) |
 | Collections; lead qualification | §5; §7 (pending) |
 | RAG, vector DB, knowledge base | §11 |
@@ -402,6 +403,6 @@ Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → qual
 | APIs, JSON, webhooks, integrations | §4, §6 |
 | BFSI compliance | §9 |
 | Performance data, transcript review | §12 |
-| Agent platforms (Vapi / Retell / LangGraph) | Vapi + `alternatives.md` |
-| Discovery → POC → UAT → go-live; user stories; implementation docs | `docs/delivery/`, M0, M7 |
+| Agent platforms (Vapi / Retell / LangGraph) | Vapi + `go-live.md` (alternatives) |
+| Discovery → POC → UAT → go-live; implementation docs | `docs/milestones/`, `docs/go-live.md` (M7) |
 | Execution with speed and quality | Lean workflow, quality gates, checkpoints, scoreboard |

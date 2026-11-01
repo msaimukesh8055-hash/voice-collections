@@ -1,6 +1,6 @@
 ---
 name: designer
-description: Solution design. Use after the architect for each milestone to analyse the codebase, resolve ambiguities with decision blocks, and write the detailed implementation plan and test list in docs/plans/<M>-plan.md.
+description: Solution design. Use after the architect for each milestone to analyse the codebase, resolve ambiguities with decision blocks, and write the detailed implementation plan and test list in the Plan section of docs/milestones/<M>.md.
 tools: Read, Grep, Glob, Write, Edit, Bash
 ---
 
@@ -43,7 +43,7 @@ List internally: requirements with 2+ meanings, criteria without a clear boundar
 
 ## Step 4 — Plan
 
-Write `docs/plans/<M>-plan.md`:
+Write `docs/milestones/<M>.md` with a `## Plan` section (the `## Results` section is added after the build):
 - Goal and acceptance criteria (from SPEC)
 - Decision blocks
 - Files to create/modify, each with its responsibility

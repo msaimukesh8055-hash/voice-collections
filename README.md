@@ -28,6 +28,6 @@ supabase/     migrations, seed, Edge Functions (_shared core)
 agent/        agent configs as code (prompts, few-shots, tools)
 knowledge/    policy documents for RAG
 evals/        simulated conversations, judge, release gate
-docs/         spec, architecture, ADRs, plans, reports, delivery docs
+docs/         spec, architecture, ADRs, build log, milestones (plan + results), checkpoint reviews
 guidelines/   coding, testing, security, workflow standards
 ```

@@ -11,16 +11,16 @@ Scoring rules come from `guidelines/workflow.md` (Scoring section).
 ## Step 0 — Artifact check (mandatory first)
 
 For every milestone `<M>` covered by checkpoint `CP<n>`, try to read each and log Y/N. Never assume content.
-- `docs/plans/<M>-plan.md`
-- `docs/reports/<M>-implementation.md` (includes test totals in lean mode)
-- `docs/reviews/CP<n>-review.md`
+- `docs/milestones/<M>.md` — Plan section
+- `docs/milestones/<M>.md` — Results section (includes test totals)
+- `docs/reviews/CP<n>.md` — review section
 
 A missing artifact scores **0** for the criteria that depend on it, and is listed under Gaps.
 
 ## Step 1 — Cross-validate
 
-- Every plan item has a matching entry in the implementation report.
-- Every file path in the report exists.
+- Every plan item has a matching entry in the Results section.
+- Every file path in the Results exists.
 - Test results are real: re-run the test commands and compare counts.
 - Review verdict is not Block.
 
@@ -37,8 +37,8 @@ Final = average. Rating: **< 7 🔴 Red** · **7 🟡 Yellow** · **> 7 🟢 Gre
 
 ## Output
 
-- `docs/scores/CP<n>-score.md`: artifact table, per-criterion score with evidence, Gaps, final score + rating. Overwrite on re-run.
-- `docs/scores/scoreboard.md`: one row per checkpoint (`| CP | Milestones | Arch | Complete | Tests | Standards | Final | Rating | Date |`). Update the existing row, never duplicate.
+- Score section of `docs/reviews/CP<n>.md`: artifact table, per-criterion score with evidence, Gaps, final score + rating. Overwrite on re-run.
+- `docs/reviews/scoreboard.md`: one row per checkpoint (`| CP | Milestones | Arch | Complete | Tests | Standards | Final | Rating | Date |`). Update the existing row, never duplicate.
 
 ## Rules
 

@@ -16,9 +16,9 @@ designer (short plan + test list) ─► [STOP 1: approve plan]
 
 | Step | Who | Output |
 |---|---|---|
-| 1 | `designer` | `docs/plans/<M>-plan.md` — one page: goal, decisions, files, test list |
+| 1 | `designer` | **Plan** section of `docs/milestones/<M>.md` — goal, decisions, files, test list |
 | **STOP 1** | user | Approves plan (or overrides decisions) |
-| 2 | `implementer` + `tester` | Code + tests; short `docs/reports/<M>-implementation.md` (built / deviations / gaps / test totals) |
+| 2 | `implementer` + `tester` | Code + tests; **Results** section appended to `docs/milestones/<M>.md` (built / deviations / gaps / test totals / fixes) |
 | 3 | `fixer` | Only when build, lint, typecheck or tests fail |
 | 4 | coordinator | **Quality gate** (below) — all must pass |
 | 5 | coordinator + user | **Smoke test** — the milestone's "Done when" from SPEC, run for real (e.g. an actual voice call) |
@@ -27,7 +27,7 @@ designer (short plan + test list) ─► [STOP 1: approve plan]
 
 ### Build log
 
-`docs/BUILD-LOG.md` is the running, newest-first record of the build. The coordinator adds or updates an entry at **every** approval point — plan written (🟡 Planned), milestone done (✅ Done), checkpoint scored — with: what was built, key decisions, evidence (tests, smoke tests, scores), problems hit and fixes, and commit hashes.
+`docs/BUILD-LOG.md` is the newest-first story of the build. The coordinator adds or updates an entry at **every** approval point — plan written (🟡 Planned), milestone done (✅ Done), checkpoint scored — in **exactly three lines**: (1) date · step · status, (2) the headline result or decisions in one sentence, (3) link to the milestone/review file + commit hashes. All detail (evidence, problems and fixes) goes in `docs/milestones/<M>.md` or `docs/reviews/CP<n>.md`, never repeated in the log.
 
 ### Quality gate (every milestone, non-negotiable)
 
@@ -50,7 +50,7 @@ At three checkpoints the full review agents run over everything built since the 
 | **CP2** | M4 (post-call + dashboard) | `reviewer` → `evaluator` |
 | **CP3** | M6 (before go-live sign-off) | `refactorer` → `reviewer` → `evaluator` |
 
-Outputs: `docs/reviews/CP<n>-review.md`, `docs/scores/CP<n>-score.md`, row in `docs/scores/scoreboard.md`. Critical/High issues are fixed before the next milestone starts.
+Outputs: `docs/reviews/CP<n>.md` (code review + score, and the refactor summary at CP3), row in `docs/reviews/scoreboard.md`. Critical/High issues are fixed before the next milestone starts.
 
 ### Agents used on demand
 
@@ -105,11 +105,12 @@ docs/
   SPEC.md                 requirements + milestones
   architecture.md         current architecture
   adr/ADR-XXXX-*.md       decisions
-  plans/<M>-plan.md       per-milestone implementation plan
-  reports/                implementation, test results, fixes, refactor, evals
-  reviews/                review summaries + review-backlog.md
-  scores/                 per-milestone scores + scoreboard.md
-  delivery/               client docs: requirements, user stories, UAT, go-live
+  BUILD-LOG.md            newest-first diary of every step (links to the files below)
+  milestones/<M>.md       one file per milestone: Plan (STOP 1) on top, Results (STOP 2) below
+  reviews/CP<n>.md        checkpoint code review + score (+ refactor at CP3)
+  reviews/scoreboard.md   one row per checkpoint
+  reviews/review-backlog.md  deferred review items
+  experiments.md          eval experiment log (M6)
 ```
 
 ## Fallbacks

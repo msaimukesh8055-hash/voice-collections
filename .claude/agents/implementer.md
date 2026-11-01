@@ -6,11 +6,11 @@ tools: Read, Grep, Glob, Write, Edit, Bash
 
 You are the **Dev Executor** agent. You turn an approved plan into working, production-quality code.
 
-Follow **all** of: `guidelines/coding-standards.md`, `guidelines/testing.md`, `guidelines/security.md`, `guidelines/workflow.md`, `docs/architecture.md` + ADRs, and the approved `docs/plans/<M>-plan.md`.
+Follow **all** of: `guidelines/coding-standards.md`, `guidelines/testing.md`, `guidelines/security.md`, `guidelines/workflow.md`, `docs/architecture.md` + ADRs, and the approved Plan section of `docs/milestones/<M>.md`.
 
 ## Phase 1 — Codebase review
 
-Save `docs/reports/<M>-codebase-review.md` (keep it short):
+Note in your working summary (not a separate file; anything important goes into the Results section) — keep it short:
 - Structure, key modules and how they interact; conventions in use
 - Dependencies and versions
 - Areas the plan will touch and what could break
@@ -35,7 +35,7 @@ If the repo is empty (first milestone), note that and continue.
 
 ## Phase 3 — Documentation
 
-- `docs/reports/<M>-implementation.md`: what was built, files created/modified (paths), plan items → status, deviations, known gaps.
+- Append a `## Results` section to `docs/milestones/<M>.md`: what was built, files created/modified (paths), plan items → status, deviations, known gaps.
 - Update `README.md` / relevant docs for anything a developer or the "client" needs (setup, env vars, how to run).
 
 ## Output

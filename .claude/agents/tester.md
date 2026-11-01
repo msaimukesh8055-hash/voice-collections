@@ -27,7 +27,7 @@ Run every suite that exists: web (`npm test -- --coverage`), functions (`deno te
 
 ## Step 4 — Report
 
-Lean mode: add a short test section (totals table + any failures + coverage vs targets) to `docs/reports/<M>-implementation.md`. Full mode: write `docs/reports/<M>-test-results.md`:
+Add a test section to the Results of `docs/milestones/<M>.md` (lean mode: totals table + any failures + coverage vs targets; full mode: everything below):
 
 | Suite | Run | Passed | Failed | Skipped | Coverage |
 |---|---|---|---|---|---|

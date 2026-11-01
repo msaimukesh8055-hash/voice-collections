@@ -64,7 +64,7 @@ The coordinator presents Critical/High cards to the user one at a time (Fix now 
 
 ## Step 5 — Summary
 
-Write `docs/reviews/CP<n>-review.md`:
+Write the review section of `docs/reviews/CP<n>.md`:
 
 | Severity | Count | Status |
 |---|---|---|

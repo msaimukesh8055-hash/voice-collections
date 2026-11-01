@@ -36,7 +36,7 @@ After dead code: merge near-duplicate functions (> 80% similar), redundant types
 
 ## Step 5 — Report
 
-Write `docs/reports/CP3-refactor.md`:
+Write the refactor section of `docs/reviews/CP3.md`:
 
 ```
 Deleted:  n functions · n files · n dependencies

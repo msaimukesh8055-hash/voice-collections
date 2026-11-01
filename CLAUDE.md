@@ -42,7 +42,9 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 | Layer | Choice |
 |---|---|
 | Voice platform | Vapi (browser web calls via `@vapi-ai/web`; no phone numbers) |
-| Agent LLM + evals + embeddings | Google Gemini (free tier) |
+| Live voice agent LLM | Vapi-hosted `gpt-4.1-mini` (ADR-0007; Gemini free tier too slow for live voice) |
+| Speech | Deepgram Nova-3 (English, Hindi/Hinglish) · Azure Indian neural voices |
+| Summaries, follow-ups, embeddings, evals | Google Gemini (free tier) |
 | Frontend | Vite + React + TypeScript + Tailwind (light-blue theme) |
 | Backend | Supabase Edge Functions (Deno) |
 | Database | Supabase Postgres + pgvector |
@@ -64,7 +66,7 @@ supabase/
 agent/                    prompt framework, few-shots, Vapi assistant config (as code)
 knowledge/                fake NBFC policy documents (RAG source)
 evals/                    scenarios, simulator, judge, runner
-docs/                     SPEC, architecture, ADRs, plans, reports, reviews, scores, delivery
+docs/                     SPEC, architecture, ADRs, BUILD-LOG, milestones (plan + results), reviews (checkpoints)
 guidelines/               shared standards
 ```
 
