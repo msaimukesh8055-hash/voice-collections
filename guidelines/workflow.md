@@ -47,8 +47,8 @@ At three checkpoints the full review agents run over everything built since the 
 | Checkpoint | After | Runs |
 |---|---|---|
 | **CP1** | M2 (tools + compliance) | `reviewer` → `evaluator` |
-| **CP2** | M4 (post-call + dashboard) | `reviewer` → `evaluator` |
-| **CP3** | M6 (before go-live sign-off) | `refactorer` → `reviewer` → `evaluator` |
+| **CP2** | M5 (WhatsApp + reminder loop) | `reviewer` → `evaluator` |
+| **CP3** | M7 (before go-live sign-off) | `refactorer` → `reviewer` → `evaluator` |
 
 Outputs: `docs/reviews/CP<n>.md` (code review + score, and the refactor summary at CP3), row in `docs/reviews/scoreboard.md`. Critical/High issues are fixed before the next milestone starts.
 

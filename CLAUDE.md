@@ -1,13 +1,13 @@
-# CLAUDE.md — Voice Collections Agent
+# CLAUDE.md — Easy Recovery AI
 
 ## What this is
 
-A portfolio prototype for a fictional Indian NBFC, **Suvidha Finance**, delivered as a mock client implementation — requirements → design → build → test → go-live. Built to demonstrate the GreyLabs AI *Platform FDE / AI Program Manager* skill set. Full scope: `docs/SPEC.md`.
+A portfolio prototype, **Easy Recovery AI**: a WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake persona Srinivas Reddy, Sri Lakshmi Traders) with ~100 fake shopkeepers. Built to pitch to **Sarvam AI**, delivered as a mock client implementation — requirements → design → build → test → go-live. Full scope: `docs/SPEC.md` (v2.0; v1.3 Suvidha/Vapi is in git history).
 
-- **Collections voice agent** (English + Hindi) on Vapi
-- **Follow-up agent** — rules for clear cases, agent for judgement calls, always writes a note the voice agent reads next call
-- **Dashboard**, **evals + release gate**
-- *Pending:* lead qualification voice agent (only after the core works)
+- **WhatsApp owner bot** (Meta test number): ledger, add credit by text or voice note, mark paid, due alerts with per-person Remind, insights, voice notes both ways
+- **Asha**, a reminder voice agent on Sarvam (browser calls; Saim plays Ramesh) with memory and a tone ladder; other shopkeepers get simulated text calls
+- **Follow-up agent** — rules for clear cases, agent for judgement calls, always writes a note Asha reads next call, sends the owner a WhatsApp summary
+- **Reliability score**, **dashboard**, **own evals + release gate**, platform feedback doc, unit economics
 
 **Owner:** Saim (product manager; makes product decisions). **Claude** writes all code and explains engineering concepts in plain English.
 
@@ -41,13 +41,14 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 
 | Layer | Choice |
 |---|---|
-| Voice platform | Vapi (browser web calls via `@vapi-ai/web`; no phone numbers) |
-| Live voice agent LLM | Vapi-hosted `gpt-4.1-mini` (ADR-0007; Gemini free tier too slow for live voice) |
-| Speech | Deepgram Nova-3 (English, Hindi/Hinglish) · Azure Indian neural voices |
-| Summaries, follow-ups, embeddings, evals | Google Gemini (free tier) |
+| Voice platform | Sarvam Voice Agents (browser web calls via `sarvam-conv-ai-sdk`; no phone numbers) |
+| Owner interface | Meta WhatsApp Cloud API (test number) |
+| WhatsApp brain, follow-ups, simulated calls | Sarvam LLM `sarvam-105b` (fixed commands parsed in code first) |
+| Speech (voice notes) | Sarvam Saaras (speech-to-text), Bulbul (text-to-speech) — Telugu, Hindi, English, code-mixed |
+| Eval judge, fallback | Google Gemini (free tier) |
 | Frontend | Vite + React + TypeScript + Tailwind (light-blue theme) |
 | Backend | Supabase Edge Functions (Deno) |
-| Database | Supabase Postgres + pgvector |
+| Database | Supabase Postgres |
 | Validation | Zod (schemas shared between web and functions) |
 | Tests | Vitest + React Testing Library, `deno test`, Playwright |
 | Hosting | Vercel (web), Supabase (functions + DB) |
@@ -55,16 +56,16 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 ## Repo layout (target)
 
 ```
-web/                      Vite React dashboard + call simulator
+web/                      Vite React dashboard + borrower phone page
 supabase/
   migrations/             SQL schema + RLS
-  seed.sql                fake customers and loans
+  seed.sql                1 fake owner, 100 fake shopkeepers, ledger history
   functions/
     _shared/              schemas/, compliance/, tools/, db, errors, env
-    vapi-webhook/         tool calls + end-of-call reports from Vapi
-    calls-api/            /v1/calls, /v1/loans for the dashboard
-voice-agents/             the product's voice agents as code: prompt, languages, voice, model, tools (pushed to Vapi)
-knowledge/                fake NBFC policy documents (RAG source)
+    whatsapp-webhook/     owner messages from Meta
+    sarvam-tools/         Asha's tool calls from Sarvam
+    calls-api/            call authorise, Sarvam URL proxy, phone page, dashboard
+voice-agents/             the product's voice agents as code: prompt, languages, voice, model, tools (pushed to Sarvam via MCP)
 evals/                    scenarios, simulator, judge, runner
 docs/                     SPEC, architecture, ADRs, BUILD-LOG, milestones (plan + results), reviews (checkpoints)
 guidelines/               shared standards
@@ -73,12 +74,12 @@ guidelines/               shared standards
 ## Budget guardrails
 
 - Target spend ₹0; hard cap ₹1,000.
-- Vapi free credit is small (~$5–10): **voice minutes are for manual testing and the demo only.** All bulk testing runs as text evals on free Gemini.
+- Sarvam voice is ₹3.50/min + GST: **voice minutes are for manual testing and the demo only.** All bulk testing runs as text evals.
 - Never add a paid service or phone number without asking.
 
 ## Mode
 
 **Lean mode** (8-hour build) — see `guidelines/workflow.md`:
 - Every milestone: short plan → STOP → build + tests → **quality gate** (build, lint, typecheck, tests, standards, security, deployed, smoke test) → STOP → ask to commit.
-- Full review (`reviewer` + `evaluator`) only at checkpoints CP1 (after M2), CP2 (after M4), CP3 (before go-live, with `refactorer`).
+- Full review (`reviewer` + `evaluator`) only at checkpoints CP1 (after M2), CP2 (after M5), CP3 (after M7, before go-live, with `refactorer`).
 - **Quality never relaxes; paperwork does.** If a time box runs out, cut scope using the SPEC cut order — never skip the quality gate.

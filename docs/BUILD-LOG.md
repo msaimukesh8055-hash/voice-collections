@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-02 · Pivot to Easy Recovery AI · ✅ SPEC v2.0 approved**
+Vapi → Sarvam Voice Agents (better voice and Hindi in testing); product becomes a WhatsApp-first credit-recovery assistant for a small trader, built to pitch to Sarvam.
+Adds voice notes both ways, per-person reminders, Asha's memory and tone ladder, reliability score, own evals, feedback doc, unit economics · D1–D5 approved as suggested; CP2 → after M5 · Details → [`SPEC.md`](SPEC.md)
+
 **2026-11-01 · Docs simplified · ✅ Done**
 Plan + report merged into one file per milestone; `delivery/` removed; build log cut to 3 lines per entry; SPEC updated (M7 go-live pack → one file, voice stack per ADR-0007).
 18 → 14 doc files (≈20 expected at go-live instead of ≈35); `agent/` renamed `voice-agents/` · commits `f78b78f`, `be0a3e0`
