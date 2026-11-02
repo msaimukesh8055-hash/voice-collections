@@ -1,10 +1,11 @@
 // web/src/features/voice-spike/VoiceSpikePage.tsx
-// M1 voice spike: start a browser call in a chosen language and watch the live transcript.
+// Test call page (M1 spike, M2 platform test): pick a fake borrower, authorise the call on our
+// server (pre-call compliance check), then talk to Asha in that borrower's language.
 // Replaced by the full call simulator in M5.
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { collectionsAgent } from '@voice-agents/collections/assistant.config.ts';
-import { VARIANT_IDS, type VariantId } from '@voice-agents/collections/language-settings.ts';
-import { buildVariantOverrides } from '@voice-agents/vapi-payload.ts';
+import { buildCallOverrides } from '@voice-agents/vapi-payload.ts';
+import type { AuthoriseResult, CallsApi, CustomerOption } from '../../lib/callsApi.ts';
 import type { CallStatus, TranscriptLine, VoiceClient } from '../../lib/vapiClient.ts';
 
 const STATUS_LABEL: Readonly<Record<CallStatus, string>> = {
@@ -14,6 +15,10 @@ const STATUS_LABEL: Readonly<Record<CallStatus, string>> = {
   ended: 'Call ended',
   error: 'Error',
 };
+
+const MIC_ERROR = 'Could not start the call. Allow microphone access and retry.';
+const SERVER_ERROR = 'Could not reach the server. Check your connection and retry.';
+const LOAD_ERROR = 'Could not reach the server to load customers. Refresh the page to retry.';
 
 interface CallState {
   readonly status: CallStatus;
@@ -29,8 +34,9 @@ const INITIAL_STATE: CallState = {
   error: null,
 };
 
-function isVariantId(value: string): value is VariantId {
-  return (VARIANT_IDS as readonly string[]).includes(value);
+interface PageProps {
+  readonly client: VoiceClient;
+  readonly api: CallsApi;
 }
 
 function useVoiceCall(
@@ -75,24 +81,86 @@ function useVoiceCall(
   return { ...state, setState };
 }
 
-export function VoiceSpikePage({ client }: { readonly client: VoiceClient }): React.JSX.Element {
-  const [variantId, setVariantId] = useState<VariantId>(collectionsAgent.defaultVariant);
+function useCustomers(api: CallsApi): {
+  readonly customers: readonly CustomerOption[];
+  readonly loadError: string | null;
+} {
+  const [customers, setCustomers] = useState<readonly CustomerOption[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(
+    function loadCustomers() {
+      let active = true;
+      api.listCustomers().then(
+        function applyCustomers(list) {
+          if (active) setCustomers(list);
+        },
+        function applyLoadError() {
+          if (active) setLoadError(LOAD_ERROR);
+        },
+      );
+      return function cancel() {
+        active = false;
+      };
+    },
+    [api],
+  );
+
+  return { customers, loadError };
+}
+
+function toServerError(): AuthoriseResult {
+  return { ok: false, message: SERVER_ERROR };
+}
+
+interface StartRequest {
+  readonly api: CallsApi;
+  readonly client: VoiceClient;
+  readonly customerId: string;
+}
+
+/** Authorises on our server first; returns the block reason, or null once the call starts. */
+async function authoriseAndStart({
+  api,
+  client,
+  customerId,
+}: StartRequest): Promise<string | null> {
+  const authorised = await api.authoriseCall(customerId).catch(toServerError);
+  if (!authorised.ok) return authorised.message;
+  const details = authorised.call;
+  await client.start(buildCallOverrides(collectionsAgent, details.language, details));
+  return null;
+}
+
+function PageHeader(): React.JSX.Element {
+  return (
+    <header>
+      <p className="text-sm font-medium uppercase tracking-wide text-brand">M2 · Platform test</p>
+      <h1 className="text-3xl font-semibold">Test call — Suvidha Finance collections</h1>
+    </header>
+  );
+}
+
+export function VoiceSpikePage({ client, api }: PageProps): React.JSX.Element {
+  const { customers, loadError } = useCustomers(api);
+  const [chosenId, setChosenId] = useState<string | null>(null);
   const call = useVoiceCall(client);
   const inCall = call.status === 'connecting' || call.status === 'live';
+  const customerId = chosenId ?? customers[0]?.id ?? null;
+  const errorMessage = call.error ?? loadError;
 
-  function handleVariantChange(event: ChangeEvent<HTMLInputElement>): void {
-    if (isVariantId(event.target.value)) setVariantId(event.target.value);
+  function handleCustomerChange(event: ChangeEvent<HTMLSelectElement>): void {
+    setChosenId(event.target.value);
   }
 
   async function handleStart(): Promise<void> {
+    if (customerId === null) return;
     call.setState({ ...INITIAL_STATE, status: 'connecting' });
     try {
-      await client.start(buildVariantOverrides(collectionsAgent, variantId));
+      const blocked = await authoriseAndStart({ api, client, customerId });
+      if (blocked !== null) call.setState({ status: 'idle', error: `Call blocked: ${blocked}` });
     } catch {
-      call.setState({
-        status: 'error',
-        error: 'Could not start the call. Allow microphone access and retry.',
-      });
+      call.setState({ status: 'error', error: MIC_ERROR });
     }
   }
 
@@ -102,15 +170,22 @@ export function VoiceSpikePage({ client }: { readonly client: VoiceClient }): Re
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
-      <header>
-        <p className="text-sm font-medium uppercase tracking-wide text-brand">M1 · Voice spike</p>
-        <h1 className="text-3xl font-semibold">Test call — Suvidha Finance assistant</h1>
-      </header>
-      <LanguagePicker selected={variantId} disabled={inCall} onChange={handleVariantChange} />
-      <CallControls inCall={inCall} onStart={handleStart} onStop={handleStop}>
+      <PageHeader />
+      <CustomerPicker
+        customers={customers}
+        selectedId={customerId}
+        disabled={inCall}
+        onChange={handleCustomerChange}
+      />
+      <CallControls
+        inCall={inCall}
+        canStart={customerId !== null}
+        onStart={handleStart}
+        onStop={handleStop}
+      >
         <StatusBadge status={call.status} agentSpeaking={call.agentSpeaking} />
       </CallControls>
-      {call.error ? <ErrorBanner message={call.error} /> : null}
+      {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
       <Transcript lines={call.transcript} />
     </main>
   );
@@ -118,18 +193,25 @@ export function VoiceSpikePage({ client }: { readonly client: VoiceClient }): Re
 
 interface CallControlsProps {
   readonly inCall: boolean;
+  readonly canStart: boolean;
   readonly onStart: () => Promise<void>;
   readonly onStop: () => Promise<void>;
   readonly children: React.ReactNode;
 }
 
-function CallControls({ inCall, onStart, onStop, children }: CallControlsProps): React.JSX.Element {
+function CallControls({
+  inCall,
+  canStart,
+  onStart,
+  onStop,
+  children,
+}: CallControlsProps): React.JSX.Element {
   return (
     <section className="flex items-center gap-3">
       <button
         type="button"
         onClick={onStart}
-        disabled={inCall}
+        disabled={inCall || !canStart}
         className="rounded-lg bg-brand px-5 py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-40"
       >
         Start call
@@ -155,36 +237,40 @@ function ErrorBanner({ message }: { readonly message: string }): React.JSX.Eleme
   );
 }
 
-interface LanguagePickerProps {
-  readonly selected: VariantId;
+interface CustomerPickerProps {
+  readonly customers: readonly CustomerOption[];
+  readonly selectedId: string | null;
   readonly disabled: boolean;
-  readonly onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  readonly onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
 }
 
-function LanguagePicker({ selected, disabled, onChange }: LanguagePickerProps): React.JSX.Element {
-  function renderOption(id: VariantId): React.JSX.Element {
+/** The call language follows the borrower's preferred language. */
+function CustomerPicker({
+  customers,
+  selectedId,
+  disabled,
+  onChange,
+}: CustomerPickerProps): React.JSX.Element {
+  function renderOption(customer: CustomerOption): React.JSX.Element {
+    const language = collectionsAgent.variants[customer.language].label;
     return (
-      <label
-        key={id}
-        className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2"
-      >
-        <input
-          type="radio"
-          name="variant"
-          value={id}
-          checked={selected === id}
-          disabled={disabled}
-          onChange={onChange}
-        />
-        {collectionsAgent.variants[id].label}
-      </label>
+      <option key={customer.id} value={customer.id}>
+        {customer.fullName} — {language} · {customer.city}
+      </option>
     );
   }
   return (
-    <fieldset className="flex flex-wrap gap-3">
-      <legend className="mb-2 text-sm font-medium text-ink-muted">Language</legend>
-      {VARIANT_IDS.map(renderOption)}
-    </fieldset>
+    <label className="flex flex-col gap-2 text-sm font-medium text-ink-muted">
+      Customer
+      <select
+        value={selectedId ?? ''}
+        disabled={disabled || customers.length === 0}
+        onChange={onChange}
+        className="rounded-lg border border-border bg-surface px-4 py-2.5 text-base text-ink"
+      >
+        {customers.map(renderOption)}
+      </select>
+    </label>
   );
 }
 

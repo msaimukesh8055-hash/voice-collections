@@ -31,12 +31,25 @@ export const VariantSchema = z.object({
   endCallMessage: NonEmptyText,
   /** Wait after the caller stops (no punctuation in the transcript) before replying. Vapi allows 0–3 s. */
   endOfSpeechWaitSeconds: z.number().min(0).max(3),
+  /** Language-specific text the system prompt pulls in as {{name}}, filled when a call starts. */
+  promptVariables: z.record(z.string().regex(/^[a-zA-Z]+$/), NonEmptyText),
+});
+
+/** A server-side tool in Vapi's format; parameters are JSON Schema generated from Zod. */
+export const FunctionToolSchema = z.object({
+  type: z.literal('function'),
+  function: z.object({
+    name: z.string().regex(/^[a-z_]+$/),
+    description: NonEmptyText,
+    parameters: z.record(z.string(), z.unknown()),
+  }),
 });
 
 export const AgentConfigSchema = z.object({
   name: NonEmptyText,
   model: z.object({ provider: z.literal('openai'), model: z.enum(VOICE_MODELS) }),
   systemPrompt: NonEmptyText,
+  tools: z.array(FunctionToolSchema).readonly(),
   variants: z.strictObject({
     en: VariantSchema,
     hi: VariantSchema,
@@ -52,4 +65,5 @@ export const AgentConfigSchema = z.object({
 });
 
 export type Variant = z.infer<typeof VariantSchema>;
+export type FunctionTool = z.infer<typeof FunctionToolSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;

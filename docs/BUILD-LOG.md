@@ -6,11 +6,11 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 **2026-11-01 · Docs simplified · ✅ Done**
 Plan + report merged into one file per milestone; `delivery/` removed; build log cut to 3 lines per entry; SPEC updated (M7 go-live pack → one file, voice stack per ADR-0007).
-18 → 14 doc files (≈20 expected at go-live instead of ≈35) · commit: pending
+18 → 14 doc files (≈20 expected at go-live instead of ≈35); `agent/` renamed `voice-agents/` · commits `f78b78f`, `be0a3e0`
 
-**2026-11-01 · M2 — Platform core + tools + compliance · 🟡 Planned**
-Webhook with secret check and audit, five collections tools with verify-before-disclose in code, compliance engine (hours, do-not-call; attempt limits built but off), call authorisation; database proposed to move to Oregon next to Vapi.
-Details → [`milestones/M2.md`](milestones/M2.md) · waiting on: Oregon project + go-ahead
+**2026-11-02 · M2 — Platform core + tools + compliance · ✅ Done**
+Webhook + 5 tools with verify-before-disclose in code, calling rules (switchable), call authorisation, customer picker; voice test found 8 issues (silent replies, hang-up mid-handover, slow tools…), all fixed; tools ~0.5 s.
+108 + 55 + 31 tests, gate passed, smoke 12/12, 6 voice calls · Details → [`milestones/M2.md`](milestones/M2.md) · next: commit, CP1
 
 **2026-11-01 · M1 — Voice spike · ✅ Done**
 English and Hinglish browser calls work, replies in ~1.2 s; voice model moved off Gemini (too slow/overloaded) to Vapi-hosted GPT; Deepgram chosen for Hindi; 6/6 smoke tests, $0.65 credit.

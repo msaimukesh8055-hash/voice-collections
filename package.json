@@ -16,12 +16,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fn:lint": "cd supabase/functions && deno lint",
+    "fn:fmt": "cd supabase/functions && deno fmt --check",
     "fn:check": "cd supabase/functions && deno check **/*.ts",
     "fn:test": "cd supabase/functions && deno test --coverage=../../coverage/functions",
     "fn:coverage": "cd supabase/functions && deno coverage ../../coverage/functions",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run fn:lint && npm run fn:check && npm run fn:test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run fn:fmt && npm run fn:lint && npm run fn:check && npm run fn:test",
     "db:push": "node --env-file=.env scripts/db-push.ts",
-    "db:check-seed": "node --env-file=.env scripts/check-seed.ts"
+    "db:check-seed": "node --env-file=.env scripts/check-seed.ts",
+    "functions:deploy": "node --env-file=.env scripts/functions-deploy.ts",
+    "smoke:webhook": "node --env-file=.env scripts/smoke-webhook.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

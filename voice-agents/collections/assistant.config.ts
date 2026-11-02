@@ -1,28 +1,24 @@
 // voice-agents/collections/assistant.config.ts
-// Collections voice agent — M1 spike configuration.
-// The system prompt here is a placeholder for the voice test only; the full prompt
-// framework (persona, objectives, constraints, few-shots) is written in M3 and reviewed by Saim.
+// Collections voice agent configuration.
+// M2: real tools with a temporary test prompt; the full prompt framework (persona, objectives,
+// constraints, few-shots) is written in M3 and reviewed by Saim.
 import type { AgentConfig } from '../schema.ts';
 import { LANGUAGE_VARIANTS } from './language-settings.ts';
-
-const SPIKE_SYSTEM_PROMPT = `You are Asha, a polite AI voice assistant for Suvidha Finance, an Indian lending company.
-This is a short TEST call to check voice quality. You do not have any customer or loan information yet.
-- Keep every reply to one or two short sentences, suitable for speaking aloud.
-- Reply in the same language the caller uses: English, Hindi, or Hinglish (mixed).
-- Chat naturally about how they are and whether they can hear you clearly.
-- Never mention amounts, loans or dues. If asked, say this is only a test call.
-- If the caller says goodbye, thank them and end politely.`;
+import { M2_TEST_PROMPT } from './test-prompt.ts';
+import { COLLECTIONS_TOOLS } from './tools.ts';
 
 export const collectionsAgent: AgentConfig = {
   name: 'suvidha-collections',
   // Non-reasoning model: replies start in about 1 s. Vapi picks backup models automatically.
   model: { provider: 'openai', model: 'gpt-4.1-mini' },
-  systemPrompt: SPIKE_SYSTEM_PROMPT,
+  systemPrompt: M2_TEST_PROMPT,
+  tools: COLLECTIONS_TOOLS,
   variants: LANGUAGE_VARIANTS,
   defaultVariant: 'en',
   // Barge-in: stop speaking as soon as the caller talks for 0.2 s, then wait 1 s before resuming.
   interruption: { numWords: 0, voiceSeconds: 0.2, backoffSeconds: 1 },
   idleTimeoutSeconds: 8,
-  // Credit guard for the spike: no test call can run past 2 minutes.
-  maxDurationSeconds: 120,
+  // Credit guard: no call runs past 4 minutes, demo day included. Saim's decision: 2 minutes in M1,
+  // raised to 4 in M2 after a full call (verify → dispute → promise) was cut off at 2:05.
+  maxDurationSeconds: 240,
 };

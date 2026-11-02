@@ -1,10 +1,11 @@
 // scripts/agent-push.ts
 // Validates the collections agent config and creates/updates it on Vapi.
-// M1: plain push. M6 wraps this in the release gate (evals must pass first).
+// The tool server (webhook URL + shared secret) is added here from .env, never stored in the repo.
+// M6 wraps this in the release gate (evals must pass first).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { collectionsAgent } from '../voice-agents/collections/assistant.config.ts';
 import { AgentConfigSchema } from '../voice-agents/schema.ts';
-import { buildAssistantPayload } from '../voice-agents/vapi-payload.ts';
+import { buildAssistantPayload, buildServerSettings } from '../voice-agents/vapi-payload.ts';
 import { pushAssistant, type HttpCall } from './lib/vapi-publish.ts';
 
 const VAPI_API = 'https://api.vapi.ai';
@@ -43,8 +44,14 @@ function readSavedId(): string | null {
 const config = AgentConfigSchema.parse(collectionsAgent);
 const vapi = createVapiClient(requireEnv('VAPI_PRIVATE_KEY'));
 
+const toolServer = {
+  url: `${requireEnv('SUPABASE_URL')}/functions/v1/vapi-webhook`,
+  secret: requireEnv('VAPI_WEBHOOK_SECRET'),
+  region: requireEnv('SUPABASE_REGION'),
+};
+
 const assistantId = await pushAssistant(vapi, {
-  payload: buildAssistantPayload(config),
+  payload: { ...buildAssistantPayload(config), ...buildServerSettings(toolServer) },
   savedId: readSavedId(),
 });
 const record = { assistantId, model: config.model.model, pushedAt: new Date().toISOString() };

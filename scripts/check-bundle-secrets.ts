@@ -10,6 +10,7 @@ const SECRET_NAMES = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_DB_PASSWORD',
   'SUPABASE_ACCESS_TOKEN',
+  'VAPI_WEBHOOK_SECRET',
 ] as const;
 
 function listFiles(dir: string): string[] {

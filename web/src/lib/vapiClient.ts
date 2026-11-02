@@ -2,7 +2,7 @@
 // Thin wrapper around the Vapi Web SDK. Pages depend on the VoiceClient interface,
 // so tests can pass a fake and never open a real call.
 import VapiSdk from '@vapi-ai/web';
-import type { VariantOverrides } from '@voice-agents/vapi-payload.ts';
+import type { CallOverrides } from '@voice-agents/vapi-payload.ts';
 
 type Vapi = InstanceType<typeof VapiSdk>;
 
@@ -21,7 +21,7 @@ export interface VoiceEventHandlers {
 }
 
 export interface VoiceClient {
-  start: (overrides: VariantOverrides) => Promise<void>;
+  start: (overrides: CallOverrides) => Promise<void>;
   stop: () => Promise<void>;
   subscribe: (handlers: VoiceEventHandlers) => () => void;
 }
@@ -103,7 +103,7 @@ export function createVapiClient(publicKey: string, assistantId: string): VoiceC
   const VapiClass = resolveVapiClass(VapiSdk);
   const vapi = new VapiClass(publicKey);
 
-  async function start(overrides: VariantOverrides): Promise<void> {
+  async function start(overrides: CallOverrides): Promise<void> {
     // The SDK's override type is mutable; our config objects are readonly — copy, don't cast.
     await vapi.start(assistantId, structuredClone(overrides) as Parameters<Vapi['start']>[1]);
   }

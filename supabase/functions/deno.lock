@@ -2,7 +2,10 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/crypto@1": "1.1.0",
     "jsr:@std/internal@^1.0.12": "1.0.14",
+    "jsr:@std/testing@1": "1.0.21",
     "npm:zod@^4.1.0": "4.6.7"
   },
   "jsr": {
@@ -12,8 +15,17 @@
         "jsr:@std/internal"
       ]
     },
+    "@std/crypto@1.1.0": {
+      "integrity": "b8d6d0a6377a32b213af2661ed7bf1062d94feac0c57def5526a8e74a95c3ec8"
+    },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/testing@1.0.21": {
+      "integrity": "a0d14b2519005242821565091127c7d6fa96ca1b330e84e9249afcd602ee764f",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.19"
+      ]
     }
   },
   "npm": {
@@ -24,6 +36,8 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
+      "jsr:@std/crypto@1",
+      "jsr:@std/testing@1",
       "npm:zod@^4.1.0"
     ]
   }

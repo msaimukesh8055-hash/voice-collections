@@ -58,7 +58,7 @@ See `supabase/migrations/20261031000001_schema.sql` (SPEC §10). Lead-qualificat
 - RLS is enabled on every table with **no** anon/authenticated policies — the browser cannot read data directly; Edge Functions use the service role server-side.
 - Vapi → webhook requests must carry the shared secret.
 - Gemini key, Vapi private key and service-role key live only in Edge Function secrets / local `.env`.
-- Prototype hosted in Supabase **EU (Ireland)**; production for an Indian NBFC would use the Mumbai region (data localisation).
+- Prototype hosted in Supabase **US West (Oregon)**, next to Vapi, so tool calls stay in one region (ADR-0008); production for an Indian NBFC would need data in India and an India-hosted voice platform (data localisation).
 
 ## Decisions (ADRs)
 

@@ -19,6 +19,9 @@ A mock client implementation of a voice collections agent for a fictional Indian
 | `npm run fn:coverage` | Edge Function coverage report |
 | `npm run db:push` | Apply migrations + seed |
 | `npm run db:check-seed` | Seed + RLS smoke test |
+| `npm run functions:deploy` | Upload function secrets, deploy `vapi-webhook` + `calls-api` |
+| `npm run smoke:webhook` | End-to-end tool-call check on the deployed functions (no voice credit) |
+| `npm run agent:push` | Publish Asha's config (tools, prompt, webhook address) to Vapi |
 
 ## Repository layout
 

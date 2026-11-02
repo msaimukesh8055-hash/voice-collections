@@ -1,6 +1,6 @@
 // web/src/lib/vapiClient.test.ts
 import { collectionsAgent } from '@voice-agents/collections/assistant.config.ts';
-import { buildVariantOverrides } from '@voice-agents/vapi-payload.ts';
+import { buildCallOverrides } from '@voice-agents/vapi-payload.ts';
 import { createVapiClient, resolveVapiClass, type VoiceEventHandlers } from './vapiClient.ts';
 
 // Defined inside vi.hoisted because vi.mock runs before normal module code.
@@ -66,9 +66,13 @@ function latestSdk(): FakeVapi {
 }
 
 describe('createVapiClient', () => {
-  it('starts the saved assistant with the chosen language overrides', async () => {
+  it('starts the saved assistant with the per-call overrides', async () => {
     const client = createVapiClient('pub-key', 'asst_1');
-    const overrides = buildVariantOverrides(collectionsAgent, 'hi');
+    const overrides = buildCallOverrides(collectionsAgent, 'hi', {
+      callToken: 'token-1',
+      customerName: 'Ravi Sharma',
+      today: 'Sunday, 2026-11-01',
+    });
     await client.start(overrides);
     expect(latestSdk().publicKey).toBe('pub-key');
     expect(latestSdk().startCalls[0]).toEqual(['asst_1', overrides]);
