@@ -6,7 +6,11 @@ Deno.test('toClientError › maps a known code to its safe message and status', 
   // Act
   const result = toClientError('UNAUTHORIZED');
   // Assert
-  assertEquals(result, { code: 'UNAUTHORIZED', message: ERROR_CODES.UNAUTHORIZED.message, status: 401 });
+  assertEquals(result, {
+    code: 'UNAUTHORIZED',
+    message: ERROR_CODES.UNAUTHORIZED.message,
+    status: 401,
+  });
 });
 
 Deno.test('toClientError › every code has a non-empty message and an HTTP status', () => {

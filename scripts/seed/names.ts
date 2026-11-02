@@ -1,0 +1,116 @@
+// scripts/seed/names.ts
+// FAKE names for the seed: common first names and generic shop words, combined by the generator.
+// No real person or business is meant. Areas are generic town localities.
+import type { Language } from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
+
+export const OWNER = {
+  id: '0e000000-0000-4000-8000-000000000001',
+  name: 'Srinivas Reddy',
+  businessName: 'Sri Lakshmi Traders',
+  city: 'Anantapur',
+  language: 'te',
+} as const;
+
+/** Ramesh is the shopkeeper Saim plays on the phone page (SPEC D1). */
+export const RAMESH = {
+  name: 'Ramesh',
+  shopName: 'Ramesh Kirana',
+  area: 'Old Town',
+} as const;
+
+export const FIRST_NAMES: Readonly<Record<Language, readonly string[]>> = {
+  te: [
+    'Suresh',
+    'Venkatesh',
+    'Lakshmi',
+    'Padma',
+    'Naresh',
+    'Mahesh',
+    'Ravi',
+    'Prasad',
+    'Nagaraju',
+    'Sujatha',
+    'Kavitha',
+    'Raju',
+    'Krishna',
+    'Gopal',
+    'Murali',
+    'Siva',
+    'Bhaskar',
+    'Chandra',
+    'Lokesh',
+    'Harish',
+    'Kiran',
+    'Praveen',
+    'Sai',
+    'Anil',
+    'Sunil',
+    'Vijay',
+    'Mohan',
+    'Ramana',
+    'Obulesu',
+    'Narasimha',
+    'Hanumanth',
+    'Pullaiah',
+    'Eswar',
+    'Madhu',
+    'Sridevi',
+    'Saritha',
+    'Vani',
+    'Radha',
+    'Jyothi',
+    'Swapna',
+    'Usha',
+    'Aruna',
+    'Bharathi',
+    'Hema',
+    'Latha',
+    'Manjula',
+    'Nirmala',
+    'Pushpa',
+    'Rekha',
+    'Shanthi',
+    'Vasantha',
+    'Balaji',
+    'Chinna',
+  ],
+  hi: [
+    'Imran',
+    'Salim',
+    'Rakesh',
+    'Sanjay',
+    'Farooq',
+    'Ayesha',
+    'Mukesh',
+    'Deepak',
+    'Rafiq',
+    'Nazia',
+  ],
+  en: ['Joseph', 'Mary', 'Thomas', 'David', 'Grace', 'Paul'],
+};
+
+export const SHOP_WORDS = [
+  'Kirana',
+  'General Stores',
+  'Provisions',
+  'Kirana & General',
+  'Fancy Store',
+  'Super Market',
+  'Bakery',
+  'Agencies',
+] as const;
+
+export const AREAS = [
+  'Old Town',
+  'Ram Nagar',
+  'Sai Nagar',
+  'Kamala Nagar',
+  'Housing Board Colony',
+  'Gandhi Bazaar',
+  'Clock Tower Road',
+  'Bus Stand Road',
+  'Subash Road',
+  'Aravinda Nagar',
+  'Ganesh Nagar',
+  'Market Street',
+] as const;

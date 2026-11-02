@@ -1,20 +1,24 @@
 // web/src/config.test.ts
 import { loadBrowserConfig } from './config.ts';
 
+const ENV = {
+  VITE_SUPABASE_URL: 'https://ref.supabase.co/',
+  VITE_SUPABASE_ANON_KEY: 'anon-key',
+  VITE_SUPABASE_REGION: 'ap-south-1',
+};
+
 describe('loadBrowserConfig', () => {
-  it('returns the public key and assistant id when both are present', () => {
-    const config = loadBrowserConfig(
-      { VITE_VAPI_PUBLIC_KEY: 'pub-key' },
-      { assistantId: 'asst_1' },
+  it('returns the public anon key, region and the calls-api URL', () => {
+    expect(loadBrowserConfig(ENV)).toEqual({
+      appApiUrl: 'https://ref.supabase.co/functions/v1/calls-api',
+      anonKey: 'anon-key',
+      region: 'ap-south-1',
+    });
+  });
+
+  it('fails clearly, naming each missing variable', () => {
+    expect(() => loadBrowserConfig({})).toThrow(
+      /VITE_SUPABASE_URL.*VITE_SUPABASE_ANON_KEY.*VITE_SUPABASE_REGION/,
     );
-    expect(config).toEqual({ vapiPublicKey: 'pub-key', assistantId: 'asst_1' });
-  });
-
-  it('fails clearly when the public key is missing', () => {
-    expect(() => loadBrowserConfig({}, { assistantId: 'asst_1' })).toThrow('VITE_VAPI_PUBLIC_KEY');
-  });
-
-  it('fails clearly when the assistant has not been pushed', () => {
-    expect(() => loadBrowserConfig({ VITE_VAPI_PUBLIC_KEY: 'pub-key' }, {})).toThrow('agent:push');
   });
 });

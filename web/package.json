@@ -11,9 +11,9 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
-    "@vapi-ai/web": "^3.1.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "sarvam-conv-ai-sdk": "0.0.42"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -11,6 +11,7 @@ supabase/.temp/
 coverage/
 playwright-report/
 test-results/
+voice-agents/asha/build/
 
 # OS / editor
 .DS_Store

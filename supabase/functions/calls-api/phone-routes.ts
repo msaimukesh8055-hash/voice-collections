@@ -1,0 +1,119 @@
+// supabase/functions/calls-api/phone-routes.ts
+// The borrower phone page (SPEC §7.1): it asks every 2 s whether a call is ringing, then
+// accepts, declines or reports the end of the call. Each step is a compare-and-set on the call's
+// status, so a call can't be accepted twice or accepted after it was declined.
+import { z } from 'zod';
+import { istDayLabel, resolveNow } from '../_shared/clock.ts';
+import { isStillRinging } from '../_shared/calls/ringing.ts';
+import type { CallSession } from '../_shared/db/repository.ts';
+import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
+import type { CallStatus } from '../_shared/schemas/shopkeeper.ts';
+import type { RouteContext } from './types.ts';
+
+const MAX_CALL_SECONDS = 3600;
+const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
+const LIVE: readonly CallStatus[] = ['accepted', 'in_progress'];
+
+const EndedBodySchema = z.object({
+  /** Sarvam's id, e.g. "20261102/…"; absent when the call never connected. */
+  interactionId: z.string().regex(/^[\w./-]{1,160}$/).optional(),
+  seconds: z.number().int().min(0).max(MAX_CALL_SECONDS),
+});
+
+const NO_CALL = { call: null } as const;
+
+/** The call named by the path's token, or null for a malformed or unknown token. */
+async function findCall({ deps, params }: RouteContext): Promise<CallSession | null> {
+  const token = z.uuid().safeParse(params[0]);
+  return token.success ? await deps.repo.getCallSession(token.data) : null;
+}
+
+async function markMissed(call: CallSession, ctx: RouteContext): Promise<Response> {
+  await ctx.deps.repo.transitionCall(call.callId, RINGABLE, { status: 'missed' });
+  ctx.deps.log('info', 'call_missed', { callId: call.callId });
+  return jsonResponse(NO_CALL, 200, ctx.cors);
+}
+
+export async function getIncomingCall(_req: Request, ctx: RouteContext): Promise<Response> {
+  const { repo, clock } = ctx.deps;
+  const { liveShopkeeperId } = await repo.getDemoSettings();
+  if (liveShopkeeperId === null) return jsonResponse(NO_CALL, 200, ctx.cors);
+  const [call, shopkeeper] = await Promise.all([
+    repo.findRingingCall(liveShopkeeperId),
+    repo.getShopkeeper(liveShopkeeperId),
+  ]);
+  if (!call || !shopkeeper) return jsonResponse(NO_CALL, 200, ctx.cors);
+  const now = clock();
+  if (!isStillRinging(call, now)) return markMissed(call, ctx);
+  if (call.status === 'queued') {
+    // The 30-second ring starts when a phone page first sees the call.
+    await repo.transitionCall(call.callId, ['queued'], {
+      status: 'ringing',
+      ringingAt: now.toISOString(),
+    });
+  }
+  const incoming = { callToken: call.callId, callerName: shopkeeper.businessName };
+  return jsonResponse({ call: incoming }, 200, ctx.cors);
+}
+
+export async function acceptCall(_req: Request, ctx: RouteContext): Promise<Response> {
+  const { repo, clock, sarvam } = ctx.deps;
+  const call = await findCall(ctx);
+  if (!call) return errorResponse('NOT_FOUND', ctx.cors);
+  if (sarvam.appId === null) return errorResponse('VOICE_NOT_CONFIGURED', ctx.cors);
+  const now = clock();
+  const answerable = call.status === 'ringing' && isStillRinging(call, now);
+  const patch = { status: 'accepted', acceptedAt: now.toISOString() } as const;
+  const [accepted, shopkeeper, settings] = await Promise.all([
+    answerable ? repo.transitionCall(call.callId, ['ringing'], patch) : Promise.resolve(false),
+    repo.getShopkeeper(call.shopkeeperId),
+    repo.getDemoSettings(),
+  ]);
+  if (!accepted || !shopkeeper) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
+  ctx.deps.log('info', 'call_accepted', { callId: call.callId });
+  return jsonResponse(
+    {
+      callToken: call.callId,
+      language: call.language,
+      shopkeeperName: shopkeeper.name,
+      shopName: shopkeeper.shopName,
+      ownerName: shopkeeper.ownerName,
+      businessName: shopkeeper.businessName,
+      // Lets Asha turn "Monday" into a date for log_promise (demo clock aware).
+      today: istDayLabel(resolveNow(settings.demoClock, now)),
+      sarvam: { orgId: sarvam.orgId, workspaceId: sarvam.workspaceId, appId: sarvam.appId },
+    },
+    200,
+    ctx.cors,
+  );
+}
+
+export async function declineCall(_req: Request, ctx: RouteContext): Promise<Response> {
+  const call = await findCall(ctx);
+  if (!call) return errorResponse('NOT_FOUND', ctx.cors);
+  const declined = await ctx.deps.repo.transitionCall(call.callId, RINGABLE, {
+    status: 'declined',
+  });
+  if (!declined) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
+  ctx.deps.log('info', 'call_declined', { callId: call.callId });
+  return jsonResponse({ status: 'declined' }, 200, ctx.cors);
+}
+
+export async function endCall(req: Request, ctx: RouteContext): Promise<Response> {
+  const body = EndedBodySchema.safeParse(await readJson(req));
+  if (!body.success) return errorResponse('BAD_REQUEST', ctx.cors);
+  const call = await findCall(ctx);
+  if (!call) return errorResponse('NOT_FOUND', ctx.cors);
+  const { interactionId, seconds } = body.data;
+  // Never overwrite an id already stored (e.g. one fetched from Sarvam's analytics later).
+  const keepsId = call.interactionId !== null || interactionId === undefined;
+  const ended = await ctx.deps.repo.transitionCall(call.callId, LIVE, {
+    status: 'completed',
+    endedAt: ctx.deps.clock().toISOString(),
+    durationSeconds: seconds,
+    ...(keepsId ? {} : { interactionId }),
+  });
+  if (!ended) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
+  ctx.deps.log('info', 'call_ended', { callId: call.callId, seconds });
+  return jsonResponse({ status: 'completed' }, 200, ctx.cors);
+}

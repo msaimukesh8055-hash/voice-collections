@@ -1,7 +1,7 @@
 # ADR-0007: Voice stack — Vapi-hosted GPT, Deepgram, Azure Indian voices
 
 ## Status
-Accepted (M1 voice spike, 2026-11-01; chosen by Saim on smoke-test evidence)
+Superseded by ADR-0012 (M3, 2026-11-02). Was: accepted in the M1 voice spike, 2026-11-01.
 
 ## Context
 M1 had to prove a real browser call works in English and Hindi/Hinglish, with interruptions and acceptable reply time (target: under 1.5 s from the caller stopping to the agent starting). The plan assumed the live agent's model would be Gemini on the free tier (ADR-0004), and left the Hindi speech-to-text provider to be chosen by test.
@@ -36,7 +36,7 @@ M1 had to prove a real browser call works in English and Hindi/Hinglish, with in
 - **One assistant**, language applied per call (transcriber, voice, fixed lines, end-of-speech wait) — plan Decision 2(b) confirmed working.
 - **End-of-speech wait** (Vapi `onNoPunctuationSeconds`): English 1.5 s (Vapi default), Hindi **0.8 s** (Saim's choice — Hindi transcripts often lack punctuation, so the full wait applied on every turn).
 - **Interruption:** stop when the caller speaks for 0.2 s (`numWords 0`), resume after 1 s. Kept fast on purpose; revisit in M3 if background noise or "haan" backchannels cut the agent off too often.
-- **Call cap:** 2 minutes per call, including on demo day (Saim's choice; credit guard).
+- **Call cap:** 4 minutes per call, including on demo day (Saim's choice; credit guard). Was 2 minutes in M1; raised in M2 (2026-11-02) because a full call takes 2.5–3 minutes. 16 test calls cost $1.34 in total.
 
 ## Alternatives considered
 1) **Gemini 2.5 Flash via Vapi** — ₹0 and works, but 3–5 s of silence before each reply; unusable for a live demo.

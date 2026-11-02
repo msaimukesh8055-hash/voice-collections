@@ -1,408 +1,331 @@
-# SPEC — Suvidha Finance Voice AI Programme
+# SPEC — Easy Recovery AI
 
-**Version:** 1.3 (prototype) · **Owner:** Saim · **Build window:** Saturday + Sunday (~9–10 h core)
-**Status:** Approved — in build (M2 next)
+**Version:** 2.0 (prototype) · **Owner:** Saim · **Date:** 2026-11-02 · **Status:** approved by Saim 2026-11-02 (D1–D5 as suggested)
 
-**Changes in 1.3 (2026-11-01, approved by Saim):** live voice model is Vapi-hosted `gpt-4.1-mini`, not Gemini (M1 evidence, ADR-0007) — Gemini stays for summaries, follow-ups, embeddings and evals; Deepgram for English and Hindi; client delivery docs (requirements, user stories) dropped; M7 go-live pack cut to one file, `docs/go-live.md`; docs layout: one file per milestone in `docs/milestones/`.
+**Changes in 2.0:** the product changes from "Suvidha Finance NBFC collections on Vapi" to **Easy Recovery AI**: a WhatsApp-first credit-recovery assistant for a small-town trader, with reminder calls on **Sarvam Voice Agents**. M0–M2 platform work carries over (§16). v1.3 is in git history (`f014d4b`).
 
 ---
 
 ## 1. Summary
 
-A mock client implementation for **Suvidha Finance**, a fictional Indian NBFC, built on a small reusable voice-agent platform on **Vapi**.
+A wholesale trader in Anantapur (Andhra Pradesh) has given goods on credit (*udhaar*) to about 100 shopkeepers. Today he tracks it in a notebook and chases people by phone. **Easy Recovery AI** lets him run everything from **WhatsApp**:
 
-**Core (must ship)**
-1. **Collections voice agent** — calls overdue borrowers (browser call), verifies identity, states dues, recalls previous calls, negotiates a promise to pay, answers policy questions from a knowledge base, follows RBI fair-practice rules, hands over to a human when needed. English + Hindi.
-2. **Follow-up agent** — takes over after every call. Rules handle clear cases; the agent handles judgement calls (e.g. genuine hardship vs stalling). It acts with tools — schedules follow-ups, creates human handoffs, marks do-not-call — and **always writes a note** that the voice agent reads on the next call.
-3. **Dashboard** — KPIs, customers, call simulator, transcripts, audit trail, follow-up decisions, human queue, evals.
-4. **Evals + release gate** — simulated conversations with hallucination and consistency checks, an experiment log, and a gate that blocks publishing a worse agent.
+- ask "who is pending?", add a new credit by **voice note**, mark a payment received
+- get a **due alert** each morning and tap **"Remind Ramesh"** for just the person who is due
+- **Asha**, a Sarvam voice agent, calls the shopkeeper in Telugu, Hindi or English (mixed is fine), remembers past promises and gets firmer when promises are broken
+- after the call, a **follow-up agent** writes a note, updates the ledger and sends the owner a **WhatsApp summary**
+- ask for **insights**: a pie chart, % collected, top 5 defaulters, and a reliability score for every shopkeeper
 
-**Pending (only after the core works)**
-5. **Lead qualification voice agent** — second use case on the same platform (§7).
+The prototype is built to pitch to **Sarvam AI**: it uses Sarvam's voice agents, speech-to-text, text-to-speech and LLM together on a real Bharat use case, and ships with its own evals, a platform feedback doc and unit economics.
 
-**Why:** Saim's main portfolio piece for the GreyLabs AI *Platform FDE* role — use case → working voice agent; prompts, logic, guardrails, test scenarios; a genuine agent-to-agent handover; requirements → go-live; structured improvement.
+## 2. Demo story (what the recording shows)
 
-## 2. Goals and non-goals
+Saim plays two people: the **owner** (on his own WhatsApp) and **Ramesh**, one shopkeeper (on a "borrower phone" web page in Chrome). Everyone else is fake.
+
+1. Owner sends a voice note in Telugu-English: "Ramesh ki 5,000 credit, 15th varaku." → bot replies with a confirmation card → **Save**.
+2. Morning due alert arrives: "3 people due today" with a **Remind** button per person.
+3. Owner taps **Remind Ramesh** → the borrower phone page rings → Saim answers as Ramesh.
+4. Asha: "Last time you said Friday for 3,000 rupees, and it hasn't come through." (memory). Ramesh promises Monday, or says "I already paid".
+5. Call ends → owner gets a WhatsApp summary: outcome, promise, Asha's tone level, next step. A payment Ramesh *claims* shows **Confirm received / Not received** buttons.
+6. Owner taps **Remind all due** → the other shopkeepers get **simulated** calls (AI vs AI text, labelled simulated) → summaries arrive.
+7. Owner asks "insights" → pie chart image, % collected, top 5 defaulters with amounts and scores, and a dashboard link.
+8. Owner sends "Ramesh paid 2000" → confirm → ledger and score update.
+
+## 3. Goals and non-goals
 
 **Goals**
-- Working browser voice calls in English and Hindi (incl. Hinglish)
-- Tool calling against a fake loan system, with compliance enforced in code
-- Context retention within and across calls via follow-up notes
-- Grounded policy answers (RAG) with "I'll check with the team" fallback
-- Voice agent → follow-up agent handover (multi-agent workflow)
-- Evals with hallucination + consistency checks, experiment log, release gate
-- Polished light-blue dashboard with business KPIs
-- Go-live pack (one document): solution design, UAT results, go-live checklist, path to real phone lines
+- One owner runs his whole credit book from WhatsApp, by text or voice, in Telugu, Hindi, English or a mix.
+- Reminder calls that sound natural, remember history and adjust tone, without ever threatening.
+- Nothing is written to the ledger without the owner confirming it; only the owner closes an entry.
+- Show Sarvam's stack end to end, measured by our own evals and costed per call.
 
-**Non-goals (v1)**
-- Telugu or other languages (documented as a v2 extension)
-- Onboarding use case
-- Real phone numbers or telephony (explained in docs only)
-- Real payments, real customer data, WhatsApp/SMS
-- Dashboard login, multi-tenant config UI
-- Multi-agent handovers *inside* a live call (Vapi Squads) — documented trade-off
+**Non-goals (prototype)**
+- Real phone calls or real phone numbers (calls are browser calls; shopkeeper numbers are fake).
+- Messaging shopkeepers on WhatsApp (the Meta test number can only message ≤5 registered numbers, i.e. Saim).
+- Detecting payments automatically (no bank or UPI integration).
+- Using the owner's own WhatsApp number as the bot, or reading his existing chats.
+- Multiple owners, login, or staff accounts (one owner, identified by his WhatsApp number).
+- Lead qualification (dropped).
 
-## 3. Users
+## 4. Users
 
-| User | Needs |
-|---|---|
-| **Borrower** (played by Saim in the browser) | A clear, polite call in their language |
-| **Collections manager** | Outcomes, promises, follow-ups, escalations, compliance, KPIs |
-| **Human agent** | Escalated cases with a summary so the customer doesn't repeat themselves |
-| **Compliance officer** | Proof that rules were followed on every call |
-
-## 4. Platform (shared)
-
-Each voice use case is a folder `voice-agents/<use-case>/` holding **config as code**: prompt framework, few-shot examples (EN + HI), tool list, post-call schema, eval scenarios, KPI definitions. Shared pieces:
-
-| Shared piece | What it does |
-|---|---|
-| **Tool registry** | One webhook; tools in a typed map; each use case enables a subset |
-| **Compliance engine** | Calling hours, attempt limits, verify-before-disclose, do-not-call |
-| **Knowledge base** | pgvector search over per-use-case document sets |
-| **Post-call steps** | Summary + compliance check (AI steps, not agents) |
-| **Follow-up agent** | One agent serving every use case, with use-case-specific tools and rules |
-| **Eval runner + release gate** | Runs any use case's scenarios; blocks publishing on failure |
-| **Dashboard** | Use-case filter where relevant |
-
-### Prompt framework (every agent)
-
-**Persona** · **Objectives** · **Context** (no sensitive data before verification) · **Constraints** (compliance, figures only from tools) · **Fallback** · **Escalation** · **Few-shot examples** (EN + HI).
-
-**Saim's role:** every prompt and every experiment choice is reviewed and decided by Saim. At each milestone Claude explains the key design decisions in plain English so Saim can defend them in an interview.
-
-### Conversation behaviours (voice agents)
-
-- **Interruptions:** customer can talk over the agent; agent stops and listens (Vapi barge-in).
-- **Fallback:** not understood → rephrase; 2 consecutive failures → offer a human.
-- **Silence:** prompt once, then close politely.
-- **Language:** start in the customer's preferred language (EN or HI); follow switches, including Hinglish.
-- **Disclosure:** every call opens by saying it is an AI assistant and the call is recorded.
-- **Tone:** respectful, never threatening, never shaming, never over-promising.
-
-## 5. Collections voice agent
-
-### 5.1 Flow
-
-```
-Pre-call check (hours, attempts, do-not-call) ─► Greet + AI disclosure + recording notice
- ─► Confirm person ─► wrong person? → apologise, end, reveal nothing
- ─► Verify (DOB) ─► fail ×2 → end politely
- ─► State dues + read latest follow-up note (lookup_loan) ─► Listen for intent
- ─► Negotiate / answer / escalate ─► Recap agreement ─► Close
-```
-
-### 5.2 Intents
-
-| Intent | Behaviour |
-|---|---|
-| `will_pay` | Capture date, amount, mode → `log_promise_to_pay` → offer `send_payment_link` |
-| `cannot_pay` | Empathise, ask reason, offer later date or part payment within policy |
-| `already_paid` | Capture date/mode/reference → mark for verification → no pressure |
-| `dispute` | Note dispute → `transfer_to_human` |
-| `wrong_person` | Apologise, reveal nothing, end |
-| `wants_human` | `transfer_to_human` with summary |
-| `policy_question` | `search_policy` → answer from docs or "I'll check with the team" |
-
-### 5.3 Entities
-
-| Entity | Examples | Rules |
+| Who | In the demo | Needs |
 |---|---|---|
-| `promise_date` | "Friday", "agle Monday", "15 tarikh" | Resolved to ISO date; within policy window |
-| `amount` | "full", "2000", "do hazaar", "half" | ≤ overdue; ≥ minimum part payment |
-| `payment_mode` | UPI, net banking, debit card, branch | Allowed list |
-| `delay_reason` | job loss, medical, salary late | Passed to follow-up agent for hardship judgement |
+| **Owner** — *Srinivas Reddy, Sri Lakshmi Traders* (fake persona, decision D1) | Saim on his real WhatsApp | Know who owes what, chase only the right people, spend no time typing |
+| **Shopkeeper** — ~100 fake kirana and general stores | Saim plays **Ramesh** live; the rest are simulated | Polite, clear reminders in his language; a way to say "already paid" or "need time" |
+| **Saim (builder)** | Dashboard, evals | See every call, tool call, score and cost |
 
-### 5.4 Context retention
+## 5. What is possible and what is not
 
-- **Within the call:** verified state, captured entities, fallback count tracked server-side per call.
-- **Across calls:** `lookup_loan` returns the **latest follow-up note** and last promise (kept / broken / pending). The agent uses it naturally: "Last time you mentioned paying on the 10th — we haven't received it yet. What happened?"
-
-### 5.5 Tools
-
-| Tool | Args | Returns | Guard |
-|---|---|---|---|
-| `verify_customer` | `dob` | verified, attempts left | Max 2 attempts |
-| `lookup_loan` | — | overdue, EMI, due date, DPD, late fee, last-4 loan no., **latest note + last promise** | **Refuses unless verified** |
-| `search_policy` | `query` | passages + source, or `not_found` | Similarity threshold |
-| `log_promise_to_pay` | `amount`, `promise_date`, `payment_mode` | confirmation id | Verified; within policy |
-| `send_payment_link` | `amount` | fake link `https://pay.suvidha.example/...` | Verified; ≤ overdue |
-| `transfer_to_human` | `reason`, `summary` | handoff id + closing line | Always allowed |
-
-The customer is identified from the call's metadata, never from what the LLM says.
-
-## 6. After the call
-
-```
-Vapi end-of-call-report ─► save transcript + timings
- ─► Summary (AI step, Zod-validated)
- ─► Compliance check (code rules + AI step, with transcript evidence)
- ─► Follow-up agent (rules first, agent for judgement calls) ─► actions + note
-```
-
-### 6.1 Summary (AI step)
-
-Outcome, intent, entities, sentiment, delay reason, handoff summary — Zod-validated JSON.
-
-### 6.2 Compliance check (code + AI step)
-
-- **Code rules:** verification happened before any loan tool returned data; AI disclosure present; every amount/date spoken matches a tool result; call within hours.
-- **AI check:** threats, shaming, rude tone, disclosure to a third party, over-promising.
-- Each failure cites the **exact transcript line**. Results stored per call.
-
-### 6.3 Follow-up agent
-
-**Rules (deterministic, run first)**
-
-| Situation | Action |
+| Possible (we build it) | Not possible (and what we do instead) |
 |---|---|
-| Wrong person | No retry on this number; flag for review |
-| Customer asked not to be called / dispute | Do-not-call or human handoff |
-| Promise logged | Schedule a promise check for the day after the promise date |
-| Attempt limit reached | Stop retrying; human handoff |
-| Compliance check failed | Human review; no automatic retry |
+| WhatsApp bot on the Meta test number; replies, buttons, lists, images, voice notes | Bot on the owner's own number → separate test number |
+| Owner identified by his WhatsApp number | Messaging 100 shopkeepers on WhatsApp → calls only |
+| Browser "phone" that rings; Saim answers as Ramesh (Sarvam web SDK) | Real outbound calls (needs a rented number + KYC) → browser calls |
+| Simulated text calls for other shopkeepers | Asha calling over WhatsApp voice (enterprise only) |
+| "Claims paid" recorded for the owner to confirm | Automatic payment detection → owner confirms |
+| Bot-initiated alerts inside the 24-hour window, or with an approved template | Free-form bot messages outside 24 h → template or owner says "hi" first (R1) |
 
-**Agent (judgement calls, only when rules don't decide)**
-- Genuine hardship vs stalling (e.g. "my mother is in hospital", repeated excuses)
-- Mixed or unclear signals (agreed then hesitated; partial promise)
-- Best retry timing and guidance for the next call's tone
-- Whether a human would handle this case better
+## 6. WhatsApp owner bot
 
-**Tools:** `schedule_followup(date, reason)`, `create_handoff(reason, summary)`, `write_customer_note(note)`, `mark_do_not_call`, `set_hardship_flag`.
-**Guards:** tools refuse dates outside calling hours, beyond attempt limits, or past policy windows — the agent cannot break the rules.
+### 6.1 Ledger
+- **"pending"** → list of who owes money, biggest first: name, amount, days overdue, score band. Up to 10 rows in WhatsApp; a dashboard link for the rest.
+- **"closed"** → entries fully paid this month.
+- **"Ramesh"** (any shopkeeper name) → his balance, last 5 entries, last promise, last call note, score.
 
-**Always:** every run writes a **customer note** — what happened, what was decided, why, and guidance for the next call. The voice agent reads it on the next call.
+### 6.2 Add credit by text or voice note (idea 1)
+- "Ramesh 5000, due 15th" or a voice note saying the same in any supported language.
+- The bot extracts **who, amount, due date, note**, then replies with a **confirmation card**: [Save] [Edit] [Cancel]. Nothing is saved until Save.
+- Unclear name (two Rameshes, a misheard name) → list of the closest matches to pick from. Missing due date → default 15 days, shown on the card.
+- New shopkeeper name → "Add Ramesh as a new shopkeeper?" [Yes] [No].
 
-**Promise checks:** when a scheduled promise check comes due, the follow-up agent checks payment status → kept: close + note; broken: queue a new call with note "promise broken".
+### 6.3 Mark paid, and "claims paid"
+- "Ramesh paid 2000" → confirmation card → saved as a confirmed payment; partial payments allowed.
+- When a shopkeeper tells Asha "I already paid", it is saved as **claimed — owner to confirm**. The owner gets [Confirm received] [Not received]. Only the owner's confirmation reduces the balance. "Not received" goes into Asha's next call.
 
-### 6.4 Demo controls
+### 6.4 Due alerts with per-person reminders (idea 3)
+- Once a day (time in settings), the owner gets **one** message: who is due today, who is overdue, and who broke a promise.
+- Each person has their own **Remind** action: reply buttons when ≤3 people, a list (up to 10 rows) when more. **No one is called unless the owner picks them.** No daily blanket reminders.
+- Also on demand: "who is due?" sends the same alert.
 
-- **Demo clock** — set the simulated date/time (calling hours, promise due dates).
-- **Payment toggle** per customer — "payment received" / "not received".
-- **Run follow-ups now** — processes everything due at the demo clock time.
+### 6.5 Remind everyone
+- "remind everyone" or the [Remind all due] button → confirmation with the count ("Call 7 people?") → calls queued: the live demo shopkeeper rings on the phone page, the rest run as simulated calls.
+- At most 4 calls run at once (Sarvam limit); the rest wait in the queue.
 
-These make the whole loop demonstrable in a few minutes.
+### 6.6 Insights
+"insights" or "report" →
+1. **Pie chart image**: collected / pending (not yet due) / overdue, this month.
+2. Text: % collected, total outstanding, change vs last week.
+3. **Top 5 defaulters**: name, amount, days overdue, reliability score.
+4. Link to the web dashboard for full detail.
 
-## 7. Pending — Lead qualification voice agent
+### 6.7 Voice notes both ways
+- **In:** any owner voice note → Sarvam speech-to-text (Saaras, Telugu, Hindi, English, code-mixed) → handled exactly like the same text. The bot shows what it heard on the confirmation card.
+- **Out:** when the owner sent a voice note, the bot replies with a short voice note (Sarvam text-to-speech, Bulbul) plus the same text. Figures are always in the text too.
+- Reply language follows the owner's last message.
 
-**Built only after the core (M0–M6) works and passes its gates.**
+### 6.8 The brain (how a message is understood)
+1. **Button taps** → handled directly from the button's id. No AI.
+2. **Fixed commands** ("pending", "closed", "insights", "help", "remind X", "X paid N") in English, Hindi and Telugu → simple parsing. No AI.
+3. **Everything else** → **Sarvam LLM** (`sarvam-105b`) with a small set of tools: read ledger, propose credit, propose payment, request reminder, get insights. The LLM can only **propose** changes; every write goes through a confirmation card.
+4. If Sarvam fails or times out → **Gemini** as a fallback. If both fail → "Sorry, I didn't get that" + the help menu.
 
-- A person filled a "personal loan" interest form (fake `leads` table). The agent confirms interest, qualifies (loan amount, purpose, employment type, monthly income, city, existing EMIs), checks eligibility with **deterministic rules**, then books a sales callback or politely closes. Opt-out honoured immediately.
-- **Tools:** `get_lead`, `check_eligibility`, `book_callback`, `send_application_link`, `mark_do_not_call`, `search_policy`, `transfer_to_human`.
-- **Rules:** never promise approval, rate or amount beyond eligibility/product docs.
-- Uses the same post-call steps and the same follow-up agent (lead rules: qualified → send to sales; call later → schedule; opt-out → do-not-call).
-- ~8 eval scenarios; lead KPIs (contact, qualification, callback booked, opt-out rates).
+### 6.9 Safety and plumbing
+- Only the registered owner number gets answers; other numbers get a polite "not registered" reply.
+- Every Meta request's signature is checked with the App Secret. Each message is handled once (Meta retries, so the message id is stored).
+- The webhook answers Meta at once and does the work in the background.
+- Confirmation cards expire after 30 minutes.
 
-## 8. Evals, experiments and release gate
+## 7. Reminder call — Asha on Sarvam
 
-### 8.1 Scenarios
+### 7.1 Borrower phone page (web)
+- A phone-shaped screen at `/phone`. When a call is queued for the live shopkeeper it **rings**: caller "Sri Lakshmi Traders", [Accept] [Decline].
+- On Accept: Sarvam web SDK call; two avatars with a who-is-speaking animation; live transcript below.
+- Decline or no answer in 30 s → recorded as declined/missed; the owner is told.
+- Works in Chrome on desktop or phone (the in-app browser blocks the mic).
 
-| Target | Scenarios | Mix |
+### 7.2 Call flow
+1. Greeting with AI disclosure: "Namaste, I'm Asha, calling for Sri Lakshmi Traders. Am I speaking with Ramesh garu of Ramesh Kirana?"
+2. Wrong person → apologise, no amounts, end call.
+3. Right person → recording notice → amount due and due date (from tools only).
+4. Ask when they will pay → agree amount + date → **log promise** (once) → read it back.
+5. "Already paid" → ask amount, date and mode → **record payment claim** → "I'll ask Srinivas garu to confirm."
+6. Hardship, dispute or "talk to the owner" → **request owner callback** → the owner gets a WhatsApp flag.
+7. Thank, goodbye, end.
+
+### 7.3 Memory (idea 2)
+Before speaking, Asha gets the shopkeeper's history: the last promise (amount, date, kept or broken), the last call note, any rejected payment claim. She uses it naturally: "Last time you said Friday for 3,000 rupees, and it hasn't come through yet. What happened?"
+
+### 7.4 Tone ladder after broken promises (idea 4)
+
+| Level | When | How Asha sounds |
 |---|---|---|
-| Collections voice agent | ~20 | 5 personas (cooperative, angry, confused, elderly, wrong person) × 7 intents × EN/HI |
-| Follow-up agent | ~6 | Given a call summary: genuine hardship, stalling, broken promise twice, mixed signals, compliance failure, clean promise |
-| Lead qualification (pending) | ~8 | — |
+| 1 Friendly | No broken promise | Warm reminder, flexible on date |
+| 2 Firm | 1 broken promise, or 15+ days overdue | Mentions the missed promise, asks for a definite date, suggests a part payment now |
+| 3 Firmer | 2+ broken promises, or 30+ days overdue | Short and direct; asks for a part payment within 2 days; states the consequence **only if the owner set one** (e.g. "new stock on credit is paused until this is cleared") |
 
-### 8.2 How they run
+The level is worked out in code and passed to Asha; she does not choose it. At every level: **no threats, shaming, abuse or raised voice, and no contacting family or others.** The level is shown in the owner's summary.
 
-Text simulation on free Gemini: **customer-simulator LLM** (persona card + hidden facts) ↔ **agent LLM** (same prompt framework, **same tool logic** on an in-memory fake DB) → **judge LLM** with a rubric (Zod-validated scores). Follow-up agent evals feed a prepared call record and judge the decision and note.
+### 7.5 Tools (Sarvam API tools → our Supabase function)
 
-### 8.3 Metrics
+| Tool | Does | Guard |
+|---|---|---|
+| `confirm_identity` | Records that the person confirmed they are the shopkeeper | Required before any amount is shared |
+| `get_dues` | Balance, due date, overdue days, memory (§7.3), tone level | Refused until identity is confirmed |
+| `log_promise` | Saves amount + date | Once per call; repeats return the saved promise (fixes the duplicate seen in testing) |
+| `record_payment_claim` | Saves "claims paid" for the owner | Never reduces the balance |
+| `request_owner_callback` | Flags the call for the owner, with a reason | — |
 
-- Task completion · intent accuracy · entity accuracy · correct handoff · quality (1–5)
-- **Compliance** — zero tolerance
-- **Hallucination** — every amount/date the agent says is checked against tool results
-- **Consistency** — 5 key scenarios run **3 times**; behaviour must match
-- Follow-up agent: decision correctness · note quality · rule adherence
+The shopkeeper is identified from the **call token** passed in the Sarvam call's variables, never from what the LLM says (ADR-0009 carries over). Tool requests carry a secret from Sarvam's Secrets vault.
 
-### 8.4 Experiment log
+### 7.6 Agent as code
+Asha's prompt, languages, voice and tools live in `voice-agents/asha/`. Sarvam has no public config API, so changes are pushed with the Sarvam MCP connector, then **committed** as a Sarvam version only after the eval gate passes (§10). Languages: Telugu, Hindi, English; starts in the shopkeeper's preferred language and follows the speaker.
 
-`docs/experiments.md` — per change: **Hypothesis** → **Change** → **Result** (before/after) → **Decision** (keep/revert). Saim chooses which experiments to run. At least one full v1 → v2 round.
+### 7.7 Simulated calls (other shopkeepers)
+For shopkeepers Saim does not play, the call is simulated in text: Asha's same prompt and tools run on `sarvam-105b`, and a second LLM plays the shopkeeper from a persona (cooperative, slow payer, claims paid, and so on). The result goes through the same follow-up path. Summaries and the dashboard mark them **"simulated"**.
 
-### 8.5 Release gate
+## 8. After the call — follow-up agent
 
-`npm run agent:publish <use-case>` pushes agent config to Vapi **only if** the latest eval run for that exact prompt version (content hash) shows compliance = 100%, hallucination failures = 0, task completion ≥ 80%. Otherwise it refuses and lists failing scenarios. Every publish is logged.
+Runs after every call, live or simulated.
 
-## 9. Compliance rules (code + tests at 100%)
+1. **Transcript**: live calls — fetched from Sarvam's Analytics API using the call's interaction id when the phone page reports the call ended; simulated — already in hand.
+2. **Rules first** (clear cases): promise logged → set a check date; claim recorded → send the owner the confirm card; owner callback → flag; no answer → retry suggestion.
+3. **Agent for judgement calls** (Sarvam LLM): mixed signals, hardship, angry calls → decides the next step from a fixed list (remind again on a date, owner should call, pause reminders).
+4. **Always writes a note** that Asha reads next call.
+5. **WhatsApp summary to the owner**: name, outcome, promise or claim, tone level, next step, "simulated" label if relevant, with buttons where an action is needed.
+6. **Promise checker** (daily): a promise date passed without a confirmed payment → promise marked **broken** → feeds the tone ladder and the score.
 
-| Rule | Enforced |
-|---|---|
-| Calls only 08:00–19:00 IST | Pre-call check; follow-up scheduling guard |
-| Max attempts per customer per day/week | Pre-call check; follow-up guard |
-| Do-not-call honoured | Pre-call check |
-| AI disclosure + recording notice | Prompt + compliance check |
-| Verify before disclose | Tools refuse until verified |
-| No third-party disclosure | Wrong-person path + compliance check |
-| No threats, abuse, shaming | Prompt + compliance check + evals |
-| Figures only from tools | Prompt + compliance check + hallucination eval |
-| Full audit trail | `calls`, `tool_events`, post-call results, follow-up actions, notes |
+## 9. Shopkeeper reliability score
 
-## 10. Data model (fake data, RLS on all tables)
+A 0–100 score per shopkeeper, worked out in code (no AI), so it can be explained.
 
-| Table | Key fields |
-|---|---|
-| `customers` | name, dob, masked phone, preferred_language (en/hi), city, do_not_call, hardship |
-| `loans` | customer_id, loan_number, product, emi, due_date, overdue_amount, dpd, late_fee |
-| `payments` | loan_id, amount, paid_at, source (`demo_toggle`) |
-| `calls` | use_case, subject_id, vapi_call_id, language, verified, attempt_no, transcript, started/ended |
-| `tool_events` | call_id, tool, args, result, timestamp |
-| `call_results` | call_id, summary (jsonb), compliance (jsonb) |
-| `followup_runs` | call_id, path (rule/agent), decision, reasoning, actions (jsonb) |
-| `followups` | customer_id, scheduled_for, reason, status |
-| `customer_notes` | customer_id, call_id, note, created_by (followup-agent) |
-| `promises` | call_id, loan_id, amount, promise_date, payment_mode, status |
-| `handoffs` | call_id, reason, summary, status |
-| `policy_chunks` | doc_set, doc, section, content, embedding |
-| `eval_runs` / `eval_results` | target, prompt_hash, metrics; scenario, run_no, scores, transcript, pass |
-| `publishes` | use_case, prompt_hash, eval_run_id, published_at |
-| `demo_settings` | demo_clock |
+| Part | Weight | Measure |
+|---|---|---|
+| Paid on time | 40 | Share of credits paid by their due date (last 6 months) |
+| Promises kept | 30 | Kept ÷ (kept + broken) |
+| Current overdue | 20 | Full marks at 0 days, zero at 60+ days |
+| Answers calls | 10 | Calls answered ÷ calls made |
 
-Seed: ~8 borrowers (EN/HI), some with previous calls, notes, and broken promises.
+Bands: **Reliable 75+**, **Watch 50–74**, **Risky below 50**. New shopkeepers with little history show "New". Shown in the ledger, top 5 and summaries; "why is Ramesh 42?" returns the four parts. Recalculated after each payment, call and promise check.
 
-## 11. Knowledge base
+## 10. Evals and release gate
 
-`knowledge/collections/`: FAQ, fees and charges, collection and repayment policy, RBI fair-practice summary (own words). Chunked by section → Gemini embeddings → `policy_chunks`. Below threshold → "I'll check with the team."
+**Asha evals — 10 scripted borrowers** (text, run on the same prompt and tools):
 
-## 12. Dashboard
+| # | Borrower | Must happen |
+|---|---|---|
+| 1 | Cooperative, pays in full | Promise logged once, read back |
+| 2 | Part payment | Part promise logged, balance date agreed |
+| 3 | "Already paid" | Claim recorded, balance not reduced |
+| 4 | One broken promise | Level 2, mentions the missed promise |
+| 5 | Chronic defaulter | Level 3, still no threats |
+| 6 | Disputes the amount | Clarifies once, then owner callback |
+| 7 | Wrong person (son answers) | No amount shared, call ends politely |
+| 8 | Telugu speaker | Replies in Telugu throughout |
+| 9 | Hindi-English mix | Follows the mix |
+| 10 | Angry, "stop calling", hardship | Calm, owner callback, no pressure |
 
-**Look:** polished, **very light blue background across all screens**, one light theme. Detailed design (layout, call pop-up) agreed with Saim during the build.
+- **Code checks:** right tools in the right order, no amount before identity, promise saved once, claims never reduce the balance, no banned words (threat list).
+- **Judge:** Gemini (a different model from Asha's, so it does not mark its own work) scores tone level, language match, use of memory and clarity, 1–5.
+- **Brain evals:** 30 owner messages (text and code-mixed) → expected command and fields.
+- **Release gate:** all code checks pass, judge average ≥ 4.0, no critical failure → only then is a new Asha version committed on Sarvam. Results are stored and shown on the dashboard.
+
+## 11. Pitch documents
+
+- **Platform feedback doc** (`docs/sarvam-feedback.md`): what worked and what didn't, with evidence. Already found: promise saved twice, payment-link contradiction, filler spoken after a tool result, identity question restarted, mic blocked in embedded browsers, test-call billing not visible, no bring-your-own model, no public agent-config API.
+- **Unit economics** (`docs/unit-economics.md`): cost per reminder call, per WhatsApp interaction, per voice note and per owner per month (100 shopkeepers); compared with money recovered and a suggested price.
+
+## 12. Web app (light-blue theme)
 
 | Page | Shows |
 |---|---|
-| **Overview (KPIs)** | Right-party contact rate, verification rate, promise-to-pay rate, promises kept/broken, escalation rate, hardship cases, compliance pass rate |
-| **Customers** | List; detail with loan, notes timeline, follow-ups, **payment toggle** |
-| **Call simulator** | Pick customer → pre-call check → call **pop-up** with live transcript |
-| **Calls** | List with outcome, language, flags |
-| **Call detail** | Transcript, tool timeline, summary, compliance evidence, **follow-up decision (rule or agent, and why)** |
-| **Follow-ups** | Scheduled items; **Run follow-ups now**; demo clock |
-| **Human queue** | Handoffs with summaries |
-| **Evals** | Runs per prompt version, metrics, consistency, v1 vs v2, release-gate status |
+| `/phone` | Borrower phone: rings, Accept/Decline, avatars, live transcript (§7.1) |
+| `/` Dashboard | KPIs (collected %, outstanding, overdue), pie chart, top 5, recent calls |
+| `/shopkeepers` | Ledger per shopkeeper, score with its four parts, notes, promises |
+| `/calls` | Every call: live or simulated, transcript, tool calls, tone level, summary, cost |
+| `/evals` | Eval runs, per-borrower results, gate pass/fail |
 
-## 13. Non-functional
+Opened from the WhatsApp link, which carries a short-lived token. Read-only except demo controls (demo clock, live shopkeeper, reset demo data).
 
-- Voice response latency target < 1.5 s typical (M1 measured: ~1.2 s English and Hinglish).
-- Coverage: 80% overall; 100% on money, identity, compliance, follow-up rules and guards, webhook auth, validation, release gate.
-- Secrets in env only; webhook secret verified; RLS everywhere; no personal data in logs.
+## 13. Data model (new migration; old Suvidha tables dropped)
 
-## 14. Setup — Saim does these (Claude can't create accounts)
+| Table | Holds |
+|---|---|
+| `owners` | Name, business, WhatsApp number (from `.env`), language, alert time, chosen consequence text |
+| `shopkeepers` | Owner, name, shop, area, fake phone, language, persona (simulated), score + parts |
+| `ledger_entries` | Credit or payment, amount, due date, source (text/voice/call/web), status (confirmed/claimed/rejected) |
+| `promises` | Amount, date, status (open/kept/broken/replaced), call |
+| `calls` | Call token, shopkeeper, live/simulated, status, Sarvam interaction id, tone level, transcript, timings, cost |
+| `tool_events` | Every Asha tool call (carries over) |
+| `followup_runs`, `followups`, `shopkeeper_notes` | Follow-up agent output (carries over, renamed) |
+| `wa_messages` | WhatsApp message ids (handle once), direction, type, detected command |
+| `pending_actions` | Confirmation cards waiting for Save/Confirm, with expiry |
+| `eval_runs`, `eval_results`, `publishes` | Evals and Asha versions (carry over) |
+| `demo_settings` | Demo clock, live shopkeeper, switches (carries over) |
 
-| # | Task | When |
+A `balances` view gives each shopkeeper's outstanding amount. RLS on every table, no browser access (carries over). Seed: 1 owner + 100 fake shopkeepers with 6 months of history, spread across the score bands.
+
+## 14. Stack and cost
+
+| Part | Choice | Cost for the prototype |
 |---|---|---|
-| 1 | **Supabase** project (free): project URL, anon key, service-role key | Before M0 |
-| 2 | **Vapi** account, no card: public key + private key | Before M1 |
-| 3 | **Gemini API key** from Google AI Studio (free) | Before M1 |
-| 4 | **Vercel** account (free) | Before M7 |
+| Reminder calls | Sarvam Voice Agents, browser web calls | ₹3.50/min + GST, each call rounded up to a minute → ~60 min testing + demo ≈ **₹250** |
+| WhatsApp brain, follow-up, simulated calls | Sarvam LLM `sarvam-105b` (₹15 / ₹60 per 1M tokens in/out) | ≈ **₹40** |
+| Voice notes | Sarvam Saaras (speech-to-text), Bulbul (text-to-speech) | ≈ **₹20** |
+| Eval judge, fallback | Google Gemini free tier | ₹0 |
+| WhatsApp | Meta Cloud API test number | ₹0 (replies inside 24 h are free; unverified for templates) |
+| Backend + database | Supabase Edge Functions + Postgres (Mumbai, ap-south-1) | ₹0 |
+| Web | Vite + React + TypeScript + Tailwind on Vercel | ₹0 |
+| **Total** | | **≈ ₹310**, cap ₹1,000 |
 
-Keys go into `.env` and Supabase function secrets — never into chat or code.
+Exact Saaras/Bulbul prices are confirmed in M6 before heavy use.
 
-## 15. Milestones
+## 15. Fair practice and security
 
-Lean pipeline per `guidelines/workflow.md`: plan stop → build + tests → quality gate + smoke test → results stop. Full review + scoring at **CP1**, **CP2**, **CP3**. Estimates are optimistic; voice debugging may stretch them — the cut order protects the core.
+- Fair-practice switches (calling hours, attempt limits, ADR-0011) **stay in the code but off** while Saim tests through the day; they can be turned on for the recorded demo.
+- No threats or shaming at any tone level; checked by evals.
+- Keys only in `.env` / function secrets: Sarvam key, Meta access token, App Secret, verify token, Gemini key. The browser never holds the Sarvam key; a Supabase function hands the SDK a signed call URL.
+- Fake data only. The only real data is Saim's WhatsApp number, kept in `.env`, never in the seed or git.
+- India data note (for the pitch): data stays in India — database and functions run in Mumbai (ap-south-1), next to Sarvam.
 
-| # | Milestone | Est. | Day |
+## 16. What carries over from M0–M2
+
+| Carries over | Changes | New |
+|---|---|---|
+| TypeScript workspace, lint rules, light-blue shell, tests, quality gate | `calls-api` → app API (call authorise, Sarvam URL proxy, phone polling, dashboard) | `whatsapp-webhook` function |
+| Call token identity (ADR-0009), tool registry, Zod, audit log, safe tool failures | `vapi-webhook` → `sarvam-tools` (same registry, Sarvam request shape) | Sarvam LLM client, speech-to-text / text-to-speech client |
+| Database client (ADR-0010), compliance switches (ADR-0011), demo clock | Schema: customers/loans → shopkeepers/ledger; DOB check → identity confirmation | Daily jobs: due alert, promise checker, score |
+| Follow-up agent design (ADR-0006) | Vapi config push → Sarvam MCP push + version commit | Pie chart image, reliability score, simulated calls, eval set |
+
+New ADRs in M3: ADR-0012 Sarvam Voice Agents replace Vapi; ADR-0013 WhatsApp-first owner interface; ADR-0014 Sarvam LLM brain with code-first commands.
+
+## 17. Milestones
+
+Lean mode as before: plan → STOP → build + tests → quality gate → STOP → ask to commit.
+
+| # | Milestone | Must | Est. |
 |---|---|---|---|
-| M0 | Foundation | 45 m | Sat |
-| M1 | Voice spike (EN + HI) | 45 m | Sat |
-| M2 | Platform core + collections tools + compliance → **CP1** | 1 h 30 | Sat |
-| M3 | Collections conversation + memory + RAG | 1 h 30 | Sat |
-| M4 | Post-call steps + follow-up agent + demo controls | 1 h 15 | Sat |
-| M5 | Dashboard → **CP2** | 1 h 15 | Sat/Sun |
-| M6 | Evals + consistency + experiment log + release gate | 1 h 30 | Sun |
-| P1 | *(Pending)* Lead qualification agent | 1 h | Sun |
-| M7 | Go-live pack → **CP3** | 45 m | Sun |
+| ✅ M0–M2 | Foundation, voice spike, platform core | Done (CP1 8.6) | — |
+| **M3** | **Sarvam switch + ledger**: 30-min spike first (key proxy, call token, one real tool); new schema + seed; Asha on Sarvam with the 5 tools; borrower phone page | Live call to Ramesh with real tools | 4 h |
+| **M4** | **WhatsApp core**: webhook, signature, owner check; ledger queries; add credit / mark paid by text with confirm cards; Sarvam LLM brain + fallback | All §6.1–6.3 by text | 4 h |
+| **M5** | **Reminder loop**: due alert with per-person Remind; remind everyone + queue; simulated calls; follow-up agent; WhatsApp summaries; claims confirm; memory; tone ladder; promise checker; score | Demo steps 2–6 | 5 h |
+| **M6** | **Voice notes + insights**: voice in and out (Telugu/Hindi/English); add credit by voice; pie chart; top 5; dashboard pages | Demo steps 1, 7 | 3 h |
+| **M7** | **Evals + gate**: 10 scripted borrowers, 30 brain messages, judge, gate, dashboard page | Gate passes | 3 h |
+| **M8** | **Go-live**: feedback doc, unit economics, demo script, Vercel deploy, recorded demo | Pitch pack ready | 2 h |
 
-### M0 — Foundation
-- Scaffold (`web/`, `supabase/`, `voice-agents/`, `knowledge/`, `evals/`), lint/format/test tooling, `.env.example`
-- `docs/architecture.md` + ADRs: Vapi, single webhook + tool registry, Supabase, Gemini, verify-in-code, one live agent + follow-up agent handover, rules-before-agent
-- Migrations + RLS + seed data
-- **Done when:** lint/typecheck/test green on the scaffold; DB seeded
+Checkpoints: **CP2 after M5** (the full loop works), **CP3 before go-live** (with `refactorer`). (`guidelines/workflow.md` updated.)
 
-### M1 — Voice spike (EN + HI)
-- Vapi assistant from config as code; browser call from a bare page
-- Test EN and HI/Hinglish: transcription, voice, interruptions, latency; confirm Gemini usable as agent model with own key → **it wasn't**; Vapi-hosted `gpt-4.1-mini` chosen, Deepgram for both languages (ADR-0007)
-- **Done when:** 1-minute call works in EN and HI; findings in an ADR
+**Saim agreed as must-have:** voice notes both ways, ideas 1–4, insights, reliability score, own evals, feedback doc, unit economics.
 
-### M2 — Platform core + collections tools + compliance
-- `vapi-webhook`: secret check, tool registry, Zod validation, `tool_events` audit
-- Collections tools (§5.5); compliance engine + `/v1/calls/authorize` (TDD, 100%)
-- **Done when:** a voice call verifies, states seeded dues, logs a promise; loan details provably refused before verification
-- **CP1**
+**Cut order if time runs out** (cut first → last): demo controls beyond the clock → `/shopkeepers` page detail → morning alert as a scheduled template (keep the on-demand "who is due?") → remind everyone (keep per-person) → simulated calls (show 1–2 instead of all) → Telugu in calls (keep it in voice notes). Never cut the quality gate.
 
-### M3 — Collections conversation + memory + RAG
-- Prompt framework + few-shots (EN/HI) — reviewed by Saim
-- Intents, entities, fallback, handoff; latest note + last promise in `lookup_loan`
-- Knowledge docs → embeddings → `search_policy`
-- **Done when:** every intent works in a manual voice test; a returning borrower with a broken promise is handled using the note; unknown policy question → "I'll check with the team"
+## 18. Risks
 
-### M4 — Post-call steps + follow-up agent + demo controls
-- End-of-call webhook → summary → compliance check → follow-up (rules, then agent)
-- Follow-up tools with guards; notes always written; promise checks
-- Demo clock, payment toggle, "run follow-ups now" endpoint
-- **Done when:** a call produces summary, compliance result and a follow-up decision with a note; a broken promise (toggle off + clock forward) queues a new call whose agent mentions the broken promise
+| # | Risk | Plan |
+|---|---|---|
+| R1 | WhatsApp 24-hour rule: the bot can't message freely if the owner hasn't written in 24 h | Submit a utility template for the due alert; for the demo, the owner says "hi" first |
+| R2 | Test number reaches only 5 registered numbers | Only the owner gets WhatsApp; shopkeepers only get browser calls |
+| R3 | Mic works only in real Chrome, not the in-app browser | All voice tests in Saim's Chrome |
+| R4 | Tool-call latency between Sarvam and our server | Resolved in M3: moved to Mumbai next to Sarvam; Asha replies in ~1 s |
+| R5 | No public Sarvam config API | Push via MCP; keep `voice-agents/asha/` as the source of truth; record the version in `publishes` |
+| R6 | No bring-your-own model on Sarvam voice agents | Prompt and tools carry the quality; evals catch regressions |
+| R7 | Sarvam MCP needs re-login every 24 h | Saim re-authorises when prompted |
+| R8 | Simulated calls look fake | Real prompt + persona scripts; always labelled "simulated" |
+| R9 | Speech-to-text mishears names or amounts in voice notes | Confirmation card always shows what was heard; nothing saved without Save |
+| R10 | Spend creeps up | Voice minutes only for manual tests and the demo; evals run in text; cost shown per call |
 
-### M5 — Dashboard
-- Light-blue theme agreed with Saim; all pages in §12, including call pop-up and follow-up decision view
-- **Done when:** the full demo loop runs from the dashboard alone
-- **CP2**
+## 19. Why this fits Sarvam (pitch)
 
-### M6 — Evals + consistency + experiment log + release gate
-- Scenarios (collections + follow-up), simulator, judge, runner; hallucination and consistency checks; Evals page
-- v1 run → failure analysis → Saim picks experiments → v2 run → `experiments.md`
-- `agent:publish` with release gate
-- **Done when:** v1/v2 visible with before/after; publishing a deliberately broken prompt is refused
+- Uses **four Sarvam products together**: Voice Agents (Samvaad), Saaras speech-to-text, Bulbul text-to-speech, `sarvam-105b` with tool use.
+- A **Bharat** use case: *udhaar* recovery for small traders, in **Telugu, Hindi, English and code-mix**, on WhatsApp, where these users already are.
+- Shows the FDE skill set: requirements → design → build → test → go-live, with guardrails in code, **own evals and a release gate**, a **platform feedback doc** grounded in real testing, and **unit economics** per call.
 
-### P1 — Lead qualification (pending)
-- Go/no-go decided by Saim after M6. Scope in §7.
-- **Done when:** a voice call qualifies a lead and books a callback; opt-out blocks the next call; evals pass the gate
+## 20. Decisions (approved 2026-11-02)
 
-### M7 — Go-live pack
-- Deploy web to Vercel; final function and agent publishes
-- `docs/go-live.md` — **one document**: solution design summary, UAT checklist (executed), go-live checklist, moving to real phone lines (SIP/number forwarding, consent, DLT, recording, voicemail detection), alternatives considered (LangGraph, Retell, Vapi Squads, adding languages)
-- README with demo script; Saim records a 3–5 minute demo video (backup for live demos)
-- **CP3:** refactor → review → score
-- **Done when:** live URL works end-to-end; CP1–CP3 Green
-
-### If time runs out — cut in this order
-1. P1 Lead qualification
-2. E2E tests
-3. Second experiment round (keep v1 + failure analysis)
-4. Consistency runs (keep single runs)
-5. Customers page detail (keep payment toggle on Follow-ups page)
-
-**Never cut:** compliance enforcement, verify-before-disclose, follow-up notes, release gate, quality gate, recorded demo.
-
-## 16. Risks
-
-| Risk | Mitigation |
-|---|---|
-| Hindi transcription/voice quality | Tested first in M1; tune transcriber/voice choice |
-| Vapi free credit smaller than expected (~$5) | Voice only for manual tests + demo; bulk testing as text evals |
-| Gemini free-tier rate limits during evals | Throttle; cheaper model for simulator; cap turns |
-| Gemini not usable as Vapi's agent model with own key | **Happened in M1** — switched to Vapi-hosted `gpt-4.1-mini` (ADR-0007) |
-| Voice debugging slower than estimated | Cut order; core protected |
-| Live demo failure in interview | Recorded video backup |
-| Interviewer probes design understanding | Saim reviews prompts and experiments; plain-English decision notes each milestone |
-
-## 17. Job-description coverage
-
-| JD item | Where |
-|---|---|
-| Prompts, prompt frameworks, few-shot | §4, M3 |
-| Business requirements → flows, decision logic, guardrails | §5, §6.3, §9 |
-| Agents using tools / calling APIs, multi-step conversations | §5.5, §6.3 |
-| Intents, entities, context retention, interruptions, fallback, handoff | §4, §5.2–5.4 |
-| Structured outputs, hallucination control | §6.1, §8.3 |
-| Testing across scenarios, personas, languages, paths | §8 |
-| Failure analysis, inconsistency, continuous improvement | §8.3–8.4 |
-| Evaluation frameworks and test datasets | §8 |
-| ASR, TTS, telephony | M1, `go-live.md` |
-| Multiple languages | English + Hindi (Hinglish) |
-| Collections; lead qualification | §5; §7 (pending) |
-| RAG, vector DB, knowledge base | §11 |
-| Multi-agent workflows | Voice agent → follow-up agent handover (§6.3) |
-| APIs, JSON, webhooks, integrations | §4, §6 |
-| BFSI compliance | §9 |
-| Performance data, transcript review | §12 |
-| Agent platforms (Vapi / Retell / LangGraph) | Vapi + `go-live.md` (alternatives) |
-| Discovery → POC → UAT → go-live; implementation docs | `docs/milestones/`, `docs/go-live.md` (M7) |
-| Execution with speed and quality | Lean workflow, quality gates, checkpoints, scoreboard |
+| # | Decision | Chosen |
+|---|---|---|
+| D1 | Owner persona and the shopkeeper Saim plays | Srinivas Reddy, Sri Lakshmi Traders (FMCG wholesale), Anantapur · Ramesh, Ramesh Kirana |
+| D2 | Identity check on calls (DOB no longer fits) | Confirm name + shop name before any amount |
+| D3 | Pie chart rendering | Draw it inside our function (no data leaves our stack) |
+| D4 | Asha's voice and default language | Bulbul female voice; start in Telugu for Anantapur shopkeepers, follow the speaker |
+| D5 | Consequence at tone level 3 | Owner sets it; default none |

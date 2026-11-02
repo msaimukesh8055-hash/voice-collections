@@ -4,7 +4,9 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import { App } from './App.tsx';
 import { loadAppConfig } from './config.ts';
-import { createVapiClient } from './lib/vapiClient.ts';
+import { createAppApi } from './lib/appApi.ts';
+import { createBrowserAgent } from './lib/sarvamBrowser.ts';
+import { createSarvamClient } from './lib/sarvamClient.ts';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,10 +14,15 @@ if (!rootElement) {
 }
 
 const config = loadAppConfig();
-const client = createVapiClient(config.vapiPublicKey, config.assistantId);
+const api = createAppApi({
+  baseUrl: config.appApiUrl,
+  anonKey: config.anonKey,
+  region: config.region,
+});
+const voice = createSarvamClient(createBrowserAgent);
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App client={client} />
+    <App api={api} voice={voice} path={window.location.pathname} />
   </StrictMode>,
 );
