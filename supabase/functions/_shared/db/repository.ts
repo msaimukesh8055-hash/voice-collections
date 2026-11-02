@@ -80,7 +80,11 @@ export interface Repository {
   getCallSession(callId: string): Promise<CallSession | null>;
   /** Binds the token to a Vapi call; false if another Vapi call already holds it. */
   claimCall(callId: string, vapiCallId: string): Promise<boolean>;
-  recordVerification(callId: string, verification: Verification): Promise<void>;
+  /** Saves an attempt only if the stored count is still `verifyAttempts - 1`, so two parallel
+   * requests cannot both spend the same attempt; false if another request got there first. */
+  recordVerification(callId: string, verification: Verification): Promise<boolean>;
+  /** Failed DOB attempts on the customer's unverified calls since `since`, across all calls. */
+  countFailedVerifyAttemptsSince(customerId: string, since: Date): Promise<number>;
   /** The customer's most overdue loan. */
   getLoanForCustomer(customerId: string): Promise<Loan | null>;
   insertPromise(promise: NewPromise): Promise<void>;

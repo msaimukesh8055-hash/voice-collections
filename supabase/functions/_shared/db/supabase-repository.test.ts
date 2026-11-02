@@ -153,9 +153,33 @@ Deno.test('postgrest › demo settings default to off when the row is missing', 
   assertEquals((await repo.getDemoSettings()).callingHoursEnabled, true);
 });
 
+Deno.test('postgrest › recordVerification only writes over the expected attempt count', async () => {
+  const { repo, requests } = setup({ body: [{ id: CALL_ID }] }, { body: [] });
+  assertEquals(
+    await repo.recordVerification(CALL_ID, { verified: false, verifyAttempts: 2 }),
+    true,
+  );
+  assertEquals(
+    await repo.recordVerification(CALL_ID, { verified: true, verifyAttempts: 2 }),
+    false,
+  );
+  assertEquals(requests[0]?.method, 'PATCH');
+  assertStringIncludes(requests[0]?.url ?? '', 'verify_attempts=eq.1');
+  assertEquals(JSON.parse(requests[0]?.body ?? '{}'), { verified: false, verify_attempts: 2 });
+});
+
+Deno.test('postgrest › failed attempts are summed over unverified calls since a time', async () => {
+  const { repo, requests } = setup({ body: [{ verify_attempts: 2 }, { verify_attempts: 1 }] });
+  assertEquals(
+    await repo.countFailedVerifyAttemptsSince(CUSTOMER_ID, new Date('2026-11-01T18:30:00Z')),
+    3,
+  );
+  assertStringIncludes(requests[0]?.url ?? '', 'verified=is.false');
+  assertStringIncludes(requests[0]?.url ?? '', `customer_id=eq.${CUSTOMER_ID}`);
+});
+
 Deno.test('postgrest › writes use return=minimal and snake_case columns', async () => {
-  const { repo, requests } = setup({}, {}, {}, {}, {});
-  await repo.recordVerification(CALL_ID, { verified: true, verifyAttempts: 1 });
+  const { repo, requests } = setup({}, {}, {}, {});
   await repo.insertPromise({
     callId: CALL_ID,
     loanId: CALL_ID,
@@ -177,11 +201,10 @@ Deno.test('postgrest › writes use return=minimal and snake_case columns', asyn
   });
   assertEquals(
     requests.map((request) => request.headers['Prefer']),
-    Array(4).fill('return=minimal'),
+    Array(3).fill('return=minimal'),
   );
-  assertEquals(JSON.parse(requests[0]?.body ?? '{}'), { verified: true, verify_attempts: 1 });
-  assertEquals(JSON.parse(requests[1]?.body ?? '{}').promise_date, '2026-11-05');
-  assertStringIncludes(requests[2]?.url ?? '', '/rest/v1/tool_events');
+  assertEquals(JSON.parse(requests[0]?.body ?? '{}').promise_date, '2026-11-05');
+  assertStringIncludes(requests[1]?.url ?? '', '/rest/v1/tool_events');
 });
 
 Deno.test('postgrest › getLoanForCustomer asks for the most overdue loan', async () => {

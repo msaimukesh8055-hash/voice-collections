@@ -7,6 +7,9 @@ export interface ToolContext {
   readonly session: CallSession;
   /** Demo-aware "now" (demo clock when set). */
   readonly now: Date;
+  /** Real time, for limits that must hold whatever the demo clock says (database timestamps
+   * are real time too). */
+  readonly realNow: Date;
 }
 
 export const TOOL_ERRORS = {
@@ -21,6 +24,8 @@ export const TOOL_ERRORS = {
   UNKNOWN_TOOL: 'This tool does not exist.',
   CALL_NOT_AUTHORISED:
     'This call is not authorised. Do not share any details; end the call politely.',
+  TEMPORARY_ERROR: 'Something went wrong on our side. Share no loan figures; apologise and say ' +
+    'a colleague will call them back.',
 } as const satisfies Record<string, string>;
 
 export type ToolErrorCode = keyof typeof TOOL_ERRORS;

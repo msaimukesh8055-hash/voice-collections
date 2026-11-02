@@ -49,6 +49,8 @@ const SettingsRow = z.object({
 
 const IdRow = z.object({ id: z.uuid() });
 
+const AttemptsRow = z.object({ verify_attempts: z.number().int().min(0) });
+
 const id = encodeURIComponent;
 
 /** First row of a list response, or null. */
@@ -143,7 +145,14 @@ function settingsAndCounts(
 
 function callQueries(
   query: PostgrestClient,
-): Pick<Repository, 'getCallSession' | 'claimCall' | 'recordVerification' | 'getLoanForCustomer'> {
+): Pick<
+  Repository,
+  | 'getCallSession'
+  | 'claimCall'
+  | 'recordVerification'
+  | 'countFailedVerifyAttemptsSince'
+  | 'getLoanForCustomer'
+> {
   return {
     async getCallSession(callId): Promise<CallSession | null> {
       const path = `calls?select=${SESSION_COLUMNS}&id=eq.${id(callId)}`;
@@ -157,10 +166,19 @@ function callQueries(
       const request = { method: 'PATCH', body, prefer: 'return=representation' } as const;
       return z.array(IdRow).parse((await query('claimCall', path, request)).rows).length === 1;
     },
-    async recordVerification(callId, { verified, verifyAttempts }): Promise<void> {
+    async recordVerification(callId, { verified, verifyAttempts }): Promise<boolean> {
+      // Compare-and-set on the attempt count, like claimCall: parallel requests can't both win.
+      const path = `calls?id=eq.${id(callId)}&verify_attempts=eq.${verifyAttempts - 1}&select=id`;
       const body = { verified, verify_attempts: verifyAttempts };
-      const request = { method: 'PATCH', body, prefer: 'return=minimal' } as const;
-      await query('recordVerification', `calls?id=eq.${id(callId)}`, request);
+      const request = { method: 'PATCH', body, prefer: 'return=representation' } as const;
+      const { rows } = await query('recordVerification', path, request);
+      return z.array(IdRow).parse(rows).length === 1;
+    },
+    async countFailedVerifyAttemptsSince(customerId, since): Promise<number> {
+      const path = `calls?select=verify_attempts&customer_id=eq.${id(customerId)}` +
+        `&verified=is.false&started_at=gte.${id(since.toISOString())}`;
+      const { rows } = await query('countFailedVerifyAttemptsSince', path);
+      return z.array(AttemptsRow).parse(rows).reduce((sum, row) => sum + row.verify_attempts, 0);
     },
     async getLoanForCustomer(customerId): Promise<Loan | null> {
       const path = `loans?select=${LOAN_COLUMNS}&customer_id=eq.${id(customerId)}` +

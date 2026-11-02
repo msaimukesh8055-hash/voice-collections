@@ -126,6 +126,34 @@ Deno.test('calls-api › attempt limits apply only when switched on', async () =
   assertEquals(await errorCodeOf(response), 'ATTEMPT_LIMIT_REACHED');
 });
 
+Deno.test('calls-api › a 4th authorise for one customer within a minute → 429, no call row (CP1 M2)', async () => {
+  const justNow = [10, 20, 30].map((secondsAgo) =>
+    fakeCall({
+      id: crypto.randomUUID(),
+      startedAt: new Date(NOON_IST.getTime() - secondsAgo * 1000).toISOString(),
+    })
+  );
+  const { deps, state } = setup({ calls: justNow });
+  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
+  assertEquals(response.status, 429);
+  assertEquals(await errorCodeOf(response), 'RATE_LIMITED');
+  assertEquals(state.calls.length, 3);
+});
+
+Deno.test('calls-api › the rate limit is per customer and forgets calls older than a minute', async () => {
+  const minuteAgo = new Date(NOON_IST.getTime() - 61_000).toISOString();
+  const anita = [1, 2, 3].map(() => fakeCall({ id: crypto.randomUUID(), startedAt: minuteAgo }));
+  const ravi = [1, 2, 3].map(() =>
+    fakeCall({
+      id: crypto.randomUUID(),
+      customerId: FAKE_RAVI.id,
+      startedAt: NOON_IST.toISOString(),
+    })
+  );
+  const { deps } = setup({ calls: [...anita, ...ravi] });
+  assertEquals((await handleCallsApi(authorize(FAKE_ANITA.id), deps)).status, 201);
+});
+
 Deno.test('calls-api › weekly limit counts calls from the last 7 India days', async () => {
   const week = [
     '2026-10-26',

@@ -18,7 +18,7 @@ async function contextFor(
 ): Promise<{ ctx: ToolContext; state: ReturnType<typeof createFakeRepository>['state'] }> {
   const { repo, state } = createFakeRepository({ calls: [call] });
   const session = (await repo.getCallSession(call.id)) as CallSession;
-  return { ctx: { repo, session, now: NOON_IST }, state };
+  return { ctx: { repo, session, now: NOON_IST, realNow: NOON_IST }, state };
 }
 
 function verifiedAnita(): FakeCall {
@@ -96,6 +96,81 @@ Deno.test('verify_customer › 3rd try is refused even with the correct DOB', as
   assertEquals(state.calls[0]?.verified, false);
 });
 
+Deno.test('verify_customer › 6 failed attempts today across calls lock even a fresh call (CP1 M1)', async () => {
+  const morning = '2026-11-01T09:00:00+05:30';
+  const earlier = [1, 2, 3].map((n) =>
+    fakeCall({
+      id: `ca000000-0000-4000-8000-00000000000${n}`,
+      verifyAttempts: 2,
+      startedAt: morning,
+    })
+  );
+  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
+  const { repo, state } = createFakeRepository({ calls: [...earlier, fresh] });
+  const session = (await repo.getCallSession(fresh.id)) as CallSession;
+  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
+    repo,
+    session,
+    now: NOON_IST,
+    realNow: NOON_IST,
+  });
+  assertEquals(errorCode(outcome.result), 'VERIFY_LOCKED');
+  assertStringIncludes(JSON.stringify(outcome.result), 'Too many failed identity checks today');
+  assertEquals(state.calls.at(-1)?.verified, false);
+});
+
+Deno.test('verify_customer › failed attempts from yesterday or on verified calls do not count', async () => {
+  const yesterday = '2026-10-31T18:00:00+05:30';
+  const old = [1, 2, 3].map((n) =>
+    fakeCall({
+      id: `ca000000-0000-4000-8000-00000000000${n}`,
+      verifyAttempts: 2,
+      startedAt: yesterday,
+    })
+  );
+  const verifiedToday = fakeCall({
+    id: 'ca000000-0000-4000-8000-000000000004',
+    verified: true,
+    verifyAttempts: 2,
+  });
+  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
+  const { repo } = createFakeRepository({ calls: [...old, verifiedToday, fresh] });
+  const session = (await repo.getCallSession(fresh.id)) as CallSession;
+  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
+    repo,
+    session,
+    now: NOON_IST,
+    realNow: NOON_IST,
+  });
+  assertEquals(outcome.result, { ok: true, data: { verified: true } });
+});
+
+Deno.test('verify_customer › a parallel request that spent the attempt first → TEMPORARY_ERROR', async () => {
+  const { ctx } = await contextFor(fakeCall());
+  const racing: Repository = { ...ctx.repo, recordVerification: () => Promise.resolve(false) };
+  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
+    ...ctx,
+    repo: racing,
+  });
+  assertEquals(errorCode(outcome.result), 'TEMPORARY_ERROR');
+  assertEquals(outcome.session, undefined);
+});
+
+Deno.test('runTool › audit args: schema-checked only, DOB always redacted, markers otherwise', async () => {
+  const { ctx } = await contextFor(fakeCall());
+  assertEquals((await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx)).auditArgs, {
+    dob: '[redacted]',
+  });
+  assertEquals(
+    (await runTool('verify_customer', '{"dob":"1991-09-03"', ctx)).auditArgs,
+    '[invalid]',
+  );
+  assertEquals(
+    (await runTool('delete_loan', { dob: FAKE_ANITA.dob }, ctx)).auditArgs,
+    '[unknown tool]',
+  );
+});
+
 Deno.test('verify_customer › already verified stays verified without another attempt', async () => {
   const { ctx, state } = await contextFor(verifiedAnita());
   const outcome = await runTool('verify_customer', { dob: '1990-01-01' }, ctx);
@@ -155,7 +230,7 @@ Deno.test('lookup_loan › returns the seeded figures and only the last 4 loan d
 Deno.test('loan tools › NOT_FOUND when the customer has no loan', async () => {
   const { repo } = createFakeRepository({ calls: [verifiedAnita()], loans: [] });
   const session = (await repo.getCallSession(verifiedAnita().id)) as CallSession;
-  const ctx = { repo, session, now: NOON_IST };
+  const ctx = { repo, session, now: NOON_IST, realNow: NOON_IST };
   for (const [tool, args] of GUARDED_CALLS) {
     const { result } = await runTool(tool, args, ctx);
     assertEquals(errorCode(result), 'NOT_FOUND', tool);
@@ -229,3 +304,21 @@ Deno.test('transfer_to_human › tells Asha to keep listening, not to hang up', 
 
 // Type-only check: the fake satisfies the real contract.
 const _contract: Repository = createFakeRepository().repo;
+
+Deno.test('verify_customer › the daily cap uses the real clock, so a demo clock set ahead cannot skip it', async () => {
+  const morning = '2026-11-01T09:00:00+05:30';
+  const earlier = [1, 2, 3].map((n) =>
+    fakeCall({
+      id: `ca000000-0000-4000-8000-00000000000${n}`,
+      verifyAttempts: 2,
+      startedAt: morning,
+    })
+  );
+  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
+  const { repo } = createFakeRepository({ calls: [...earlier, fresh] });
+  const session = (await repo.getCallSession(fresh.id)) as CallSession;
+  const demoTomorrow = new Date('2026-11-02T12:00:00+05:30');
+  const ctx = { repo, session, now: demoTomorrow, realNow: NOON_IST };
+  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx);
+  assertEquals(errorCode(outcome.result), 'VERIFY_LOCKED');
+});

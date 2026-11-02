@@ -122,7 +122,8 @@ describe('createVapiClient', () => {
     latestSdk().emit('error', { internal: 'stack and tokens' });
     latestSdk().emit('error', new Error('Meeting ended'));
     expect(handlers.log[0]).toMatch(/^error:The call could not continue/);
-    expect(handlers.log[1]).toBe('error:Meeting ended');
+    expect(handlers.log[1]).toMatch(/^error:The call could not continue/);
+    expect(handlers.log.join()).not.toMatch(/stack and tokens|Meeting ended/);
   });
 
   it('ignores non-transcript messages and removes listeners on unsubscribe', () => {

@@ -44,11 +44,10 @@ function isNormalHangup(error: unknown): boolean {
   return /meeting has ended|"ejected"/i.test(JSON.stringify(error) ?? '');
 }
 
-/** Never surface raw SDK error objects (may contain internals) — map to a short message. */
-function describeError(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return 'The call could not continue. Check the microphone permission and try again.';
-}
+/** The only error text the call page shows: SDK error text can carry provider internals, so it
+ * never reaches the screen (CP1 L3). */
+const CALL_ERROR_MESSAGE =
+  'The call could not continue. Check the microphone permission and try again.';
 
 /**
  * The SDK ships CommonJS (`exports.default = Vapi`). Depending on the bundler, the default
@@ -79,7 +78,7 @@ function listen(vapi: Vapi, handlers: VoiceEventHandlers): () => void {
       handlers.onTranscript({ role: message.role, text: message.transcript });
   }
   function handleError(error: unknown): void {
-    if (!isNormalHangup(error)) handlers.onError(describeError(error));
+    if (!isNormalHangup(error)) handlers.onError(CALL_ERROR_MESSAGE);
   }
   vapi.on('call-start', handleCallStart);
   vapi.on('call-end', handleCallEnd);

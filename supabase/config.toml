@@ -415,7 +415,7 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-# Edge Functions share one import map (zod, supabase-js, std). JWT: the webhook is called by Vapi
+# Edge Functions share one import map (zod, std; no supabase-js, see ADR-0010). JWT: the webhook is called by Vapi
 # (shared-secret header instead); calls-api is called by the dashboard with the anon key.
 [functions.vapi-webhook]
 verify_jwt = false

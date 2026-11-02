@@ -8,6 +8,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 Plan + report merged into one file per milestone; `delivery/` removed; build log cut to 3 lines per entry; SPEC updated (M7 go-live pack → one file, voice stack per ADR-0007).
 18 → 14 doc files (≈20 expected at go-live instead of ≈35); `agent/` renamed `voice-agents/` · commits `f78b78f`, `be0a3e0`
 
+**2026-11-02 · CP1 — Review + score (M0–M2) · ✅ 8.6/10 (was 7.4)**
+First score 7.4 (2 High: DOB could reach the audit log; a DB error in a tool failed the whole call); all 9 review issues plus 4 re-score findings fixed, 3 new ADRs.
+Details → [`reviews/CP1.md`](reviews/CP1.md), [`reviews/scoreboard.md`](reviews/scoreboard.md) · reviewed `05b27d4` + fixes
+
 **2026-11-02 · M2 — Platform core + tools + compliance · ✅ Done**
 Webhook + 5 tools with verify-before-disclose in code, calling rules (switchable), call authorisation, customer picker; voice test found 8 issues (silent replies, hang-up mid-handover, slow tools…), all fixed; tools ~0.5 s.
 108 + 55 + 31 tests, gate passed, smoke 12/12, 6 voice calls · Details → [`milestones/M2.md`](milestones/M2.md) · next: commit, CP1

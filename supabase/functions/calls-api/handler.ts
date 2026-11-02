@@ -12,6 +12,12 @@ import { REGION_HEADER } from '../_shared/region.ts';
 
 const FUNCTION_PREFIX = '/calls-api';
 const ATTEMPT_WINDOW_DAYS = 7;
+/**
+ * Rate limit (CP1 M2): the anon key is public, so a script could mint call tokens in a loop and
+ * use up a borrower's daily attempts before the real call. Counted on real time, not the demo
+ * clock, and per customer: generous for a person clicking, useless for a loop.
+ */
+const RATE_LIMIT = { maxCalls: 3, windowMs: 60_000 } as const;
 
 export interface CallsApiDeps {
   readonly repo: Repository;
@@ -64,12 +70,18 @@ async function authorizeCall(
   const now = resolveNow(settings.demoClock, deps.clock());
   const todayStart = istMidnight(now);
   const weekStart = istMidnight(new Date(now.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
-  const [customer, callsToday, callsThisWeek] = await Promise.all([
+  const rateWindowStart = new Date(deps.clock().getTime() - RATE_LIMIT.windowMs);
+  const [customer, callsToday, callsThisWeek, recentCalls] = await Promise.all([
     deps.repo.getCustomerForCall(customerId),
     deps.repo.countCallsSince(customerId, todayStart),
     deps.repo.countCallsSince(customerId, weekStart),
+    deps.repo.countCallsSince(customerId, rateWindowStart),
   ]);
   if (!customer) return errorResponse('NOT_FOUND', cors);
+  if (recentCalls >= RATE_LIMIT.maxCalls) {
+    deps.log('warn', 'call_rate_limited', { customerId });
+    return errorResponse('RATE_LIMITED', cors);
+  }
 
   const decision = checkPrecall({
     now,

@@ -169,9 +169,21 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
       return Promise.resolve(true);
     },
     recordVerification: (callId, verification) => {
+      if (findCall(callId)?.verifyAttempts !== verification.verifyAttempts - 1) {
+        return Promise.resolve(false);
+      }
       updateCall(callId, verification);
-      return Promise.resolve();
+      return Promise.resolve(true);
     },
+    countFailedVerifyAttemptsSince: (customerId, since) =>
+      Promise.resolve(
+        state.calls
+          .filter((call) =>
+            call.customerId === customerId && !call.verified &&
+            Date.parse(call.startedAt) >= since.getTime()
+          )
+          .reduce((total, call) => total + call.verifyAttempts, 0),
+      ),
     getLoanForCustomer: (customerId) =>
       Promise.resolve(state.loans.find((loan) => loan.customer_id === customerId) ?? null),
     insertPromise: (promise) => {

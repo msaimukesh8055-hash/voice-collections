@@ -7,14 +7,13 @@ import { resolveNow } from '../_shared/clock.ts';
 import type { CallSession, Repository } from '../_shared/db/repository.ts';
 import { errorResponse, jsonResponse, readJson, withErrorBoundary } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
-import { runTool } from '../_shared/tools/registry.ts';
+import { describeFailure, runTool, type ToolRun } from '../_shared/tools/registry.ts';
 import { fail, type ToolResult } from '../_shared/tools/types.ts';
 import { VAPI_SECRET_HEADER } from '../_shared/vapi.ts';
 
-/** A token must be used within this window after authorisation (calls are capped at 2 minutes). */
+/** A token must be used within this window after authorisation (calls are capped at 4 minutes). */
 export const CALL_TOKEN_TTL_MS = 10 * 60 * 1000;
 const MAX_TOOL_CALLS_PER_REQUEST = 10;
-const SENSITIVE_ARG_KEYS: readonly string[] = ['dob'];
 
 export interface WebhookDeps {
   readonly repo: Repository;
@@ -116,13 +115,20 @@ function parseArguments(raw: unknown): unknown {
   }
 }
 
-function redact(args: unknown): unknown {
-  if (typeof args !== 'object' || args === null || Array.isArray(args)) return args;
-  return Object.fromEntries(
-    Object.entries(args).map((
-      [key, value],
-    ) => [key, SENSITIVE_ARG_KEYS.includes(key) ? '[redacted]' : value]),
-  );
+/** A failed audit write is logged but never changes what the customer is told: the tool already
+ * ran (e.g. a promise was saved), so failing the request now would invite a duplicate (CP1 H2). */
+async function audit(
+  callId: string,
+  toolCall: ToolCall,
+  run: ToolRun,
+  deps: WebhookDeps,
+): Promise<void> {
+  const tool = toolCall.function.name;
+  try {
+    await deps.repo.insertToolEvent({ callId, tool, args: run.auditArgs, result: run.result });
+  } catch (error) {
+    deps.log('error', 'audit_write_failed', { callId, tool, error: describeFailure(error) });
+  }
 }
 
 function toVapiResult(toolCall: ToolCall, result: ToolResult): VapiToolResult {
@@ -140,26 +146,19 @@ async function runToolCalls(
   for (const toolCall of message.toolCallList) {
     const started = Date.now();
     const args = parseArguments(toolCall.function.arguments);
-    const outcome = await runTool(toolCall.function.name, args, {
-      repo: deps.repo,
-      session,
-      now: auth.now,
-    });
-    session = outcome.session ?? session;
-    await deps.repo.insertToolEvent({
+    const ctx = { repo: deps.repo, session, now: auth.now, realNow: deps.clock() };
+    const run = await runTool(toolCall.function.name, args, ctx);
+    session = run.session ?? session;
+    await audit(session.callId, toolCall, run, deps);
+    deps.log(run.failure ? 'error' : 'info', 'tool_call', {
       callId: session.callId,
       tool: toolCall.function.name,
-      args: redact(args),
-      result: outcome.result,
-    });
-    deps.log('info', 'tool_call', {
-      callId: session.callId,
-      tool: toolCall.function.name,
-      ok: outcome.result.ok,
-      code: outcome.result.ok ? null : outcome.result.code,
+      ok: run.result.ok,
+      code: run.result.ok ? null : run.result.code,
+      error: run.failure ?? null,
       ms: Date.now() - started,
     });
-    results.push(toVapiResult(toolCall, outcome.result));
+    results.push(toVapiResult(toolCall, run.result));
   }
   return results;
 }

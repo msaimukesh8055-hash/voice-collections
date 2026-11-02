@@ -105,6 +105,48 @@ const serviceHeaders = {
   'Content-Type': 'application/json',
 };
 
+/** Tables holding rows that point at a call; emptied before the call row itself. */
+const CALL_CHILD_TABLES = [
+  'tool_events',
+  'promises',
+  'handoffs',
+  'customer_notes',
+  'call_results',
+  'followup_runs',
+] as const;
+
+/** Token of this run's call, so it is cleaned up even if no Vapi call ever claimed it. */
+let smokeCallToken: string | null = null;
+
+async function restDelete(table: string, filter: string): Promise<void> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/${table}?${filter}`, {
+    method: 'DELETE',
+    headers: serviceHeaders,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`Cleanup failed for ${table} (${response.status})`);
+}
+
+/**
+ * The smoke test shares the only database with the demo, so it removes every row it made: this
+ * run's call and any left by earlier runs (their Vapi call ids start with "smoke-"). Otherwise
+ * the seed check fails and Asha would quote a smoke-test promise as Ravi's last one (CP1 M3).
+ */
+async function deleteSmokeRows(): Promise<number> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/calls?vapi_call_id=like.smoke-*&select=id`, {
+    headers: serviceHeaders,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`Cleanup lookup failed (${response.status})`);
+  const claimed = ((await response.json()) as { id: string }[]).map((row) => row.id);
+  const ids = [...new Set([...claimed, ...(smokeCallToken ? [smokeCallToken] : [])])];
+  if (ids.length === 0) return 0;
+  const inList = `(${ids.join(',')})`;
+  for (const table of CALL_CHILD_TABLES) await restDelete(table, `call_id=in.${inList}`);
+  await restDelete('calls', `id=in.${inList}`);
+  return ids.length;
+}
+
 interface DemoSettingsRow {
   readonly demo_clock: string | null;
   readonly calling_hours_enabled: boolean;
@@ -173,6 +215,7 @@ async function checkToolFlow(call: SimulatedCall): Promise<void> {
 async function checkCallFlow(): Promise<void> {
   await setDemoSettings({ demo_clock: istTimeToday('12:00'), calling_hours_enabled: true });
   const token = await authoriseRavi();
+  smokeCallToken = token;
   await checkToolFlow({ vapiCallId: `smoke-${randomUUID()}`, token });
   const replay = await callTool({ vapiCallId: `smoke-${randomUUID()}`, token }, 'lookup_loan', {});
   check(
@@ -189,7 +232,13 @@ try {
   await checkBlockedAtNight();
   await checkCallFlow();
 } finally {
-  await setDemoSettings(originalSettings);
+  // Cleanup runs even if restoring the settings fails; both failures still fail the run.
+  try {
+    await setDemoSettings(originalSettings);
+  } finally {
+    const removed = await deleteSmokeRows();
+    process.stdout.write(`Cleaned up ${removed} smoke-test call(s) and their rows\n`);
+  }
 }
 
 check(
