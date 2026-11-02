@@ -1,214 +1,202 @@
 // supabase/functions/_shared/db/supabase-repository.ts
 // Repository backed by Supabase Postgres through its HTTP API (service role; RLS blocks the
-// browser). Every row read is parsed with Zod, so a schema drift fails loudly here instead of
-// deep inside a tool. Ids reaching query strings are UUIDs validated upstream, and still encoded.
+// browser). Ids reaching query strings are UUIDs validated upstream, and still encoded.
+// Compare-and-set updates filter on the expected state, so a lost race updates no row.
 import { z } from 'zod';
-import { LanguageSchema } from '../schemas/customer.ts';
-import { type Loan, LoanSchema } from '../schemas/loan.ts';
-import { type PostgrestClient, RepositoryError } from './postgrest.ts';
+import { type PostgrestClient, RepositoryError, UNIQUE_VIOLATION } from './postgrest.ts';
+import type { LedgerEntry } from '../schemas/ledger.ts';
 import type {
   CallSession,
-  CustomerForCall,
-  CustomerSummary,
   DemoSettings,
   Repository,
+  SavedClaim,
+  SavedPromise,
+  Shopkeeper,
 } from './repository.ts';
+import {
+  CLAIM_ROW,
+  firstRow,
+  IdRow,
+  LEDGER_COLUMNS,
+  LEDGER_ROW,
+  PROMISE_ROW,
+  SESSION_COLUMNS,
+  SESSION_ROW,
+  SETTINGS_COLUMNS,
+  SETTINGS_ROW,
+  SHOPKEEPER_COLUMNS,
+  SHOPKEEPER_ROW,
+  toCallColumns,
+} from './supabase-rows.ts';
 
-const CUSTOMER_LIST_LIMIT = 50;
-const CUSTOMER_COLUMNS = 'id,full_name,preferred_language,city,do_not_call';
-const SESSION_COLUMNS = 'id,customer_id,language,vapi_call_id,verified,verify_attempts,' +
-  'started_at,customers(dob,phone_masked)';
-const LOAN_COLUMNS = 'id,customer_id,loan_number,product,emi_amount,due_date,overdue_amount,' +
-  'days_past_due,late_fee';
-const SETTINGS_COLUMNS = 'demo_clock,calling_hours_enabled,call_limits_enabled';
-
-const CustomerRow = z.object({
-  id: z.uuid(),
-  full_name: z.string(),
-  preferred_language: LanguageSchema,
-  city: z.string(),
-  do_not_call: z.boolean(),
-});
-
-const SessionRow = z.object({
-  id: z.uuid(),
-  customer_id: z.uuid(),
-  language: LanguageSchema,
-  vapi_call_id: z.string().nullable(),
-  verified: z.boolean(),
-  verify_attempts: z.number().int(),
-  started_at: z.string(),
-  customers: z.object({ dob: z.iso.date(), phone_masked: z.string() }),
-});
-
-const SettingsRow = z.object({
-  demo_clock: z.string().nullable(),
-  calling_hours_enabled: z.boolean(),
-  call_limits_enabled: z.boolean(),
-});
-
-const IdRow = z.object({ id: z.uuid() });
-
-const AttemptsRow = z.object({ verify_attempts: z.number().int().min(0) });
+/** A shopkeeper's book holds ~30 entries for 6 months; this is a safety cap, not a page. */
+const LEDGER_LIMIT = 2000;
+const DEFAULT_SETTINGS = {
+  demoClock: null,
+  callingHoursEnabled: false,
+  callLimitsEnabled: false,
+  liveShopkeeperId: null,
+} as const;
 
 const id = encodeURIComponent;
-
-/** First row of a list response, or null. */
-function firstRow<T>(schema: z.ZodType<T>, rows: unknown): T | null {
-  return z.array(schema).parse(rows)[0] ?? null;
-}
 
 /** Total from a Content-Range header such as "0-2/3" or "*\/3". */
 function totalFrom(contentRange: string | null): number {
   const total = Number(contentRange?.split('/')[1]);
-  if (!Number.isInteger(total)) throw new RepositoryError('countCallsSince failed (no count)');
+  if (!Number.isInteger(total)) throw new RepositoryError('countCallsSince', 'no count');
   return total;
 }
 
-function toCustomer(row: z.infer<typeof CustomerRow>): CustomerForCall {
-  return {
-    id: row.id,
-    fullName: row.full_name,
-    language: row.preferred_language,
-    city: row.city,
-    doNotCall: row.do_not_call,
-  };
-}
-
-function toSession(row: z.infer<typeof SessionRow>): CallSession {
-  return {
-    callId: row.id,
-    customerId: row.customer_id,
-    customerDob: row.customers.dob,
-    phoneMasked: row.customers.phone_masked,
-    language: row.language,
-    vapiCallId: row.vapi_call_id,
-    verified: row.verified,
-    verifyAttempts: row.verify_attempts,
-    authorizedAt: row.started_at,
-  };
-}
-
-function customerQueries(
-  query: PostgrestClient,
-): Pick<Repository, 'listCustomers' | 'getCustomerForCall'> {
-  return {
-    async listCustomers(): Promise<readonly CustomerSummary[]> {
-      const path =
-        `customers?select=${CUSTOMER_COLUMNS}&order=full_name&limit=${CUSTOMER_LIST_LIMIT}`;
-      const { rows } = await query('listCustomers', path);
-      return z.array(CustomerRow).parse(rows).map((row) => {
-        const { doNotCall: _hidden, ...summary } = toCustomer(row);
-        return summary;
-      });
-    },
-    async getCustomerForCall(customerId): Promise<CustomerForCall | null> {
-      const path = `customers?select=${CUSTOMER_COLUMNS}&id=eq.${id(customerId)}`;
-      const row = firstRow(CustomerRow, (await query('getCustomerForCall', path)).rows);
-      return row && toCustomer(row);
-    },
-  };
-}
-
-function settingsAndCounts(
-  query: PostgrestClient,
-): Pick<Repository, 'getDemoSettings' | 'countCallsSince' | 'createCall'> {
-  return {
-    async getDemoSettings(): Promise<DemoSettings> {
-      const path = `demo_settings?select=${SETTINGS_COLUMNS}&id=eq.1`;
-      const row = firstRow(SettingsRow, (await query('getDemoSettings', path)).rows);
-      return {
-        demoClock: row?.demo_clock ?? null,
-        callingHoursEnabled: row?.calling_hours_enabled ?? false,
-        callLimitsEnabled: row?.call_limits_enabled ?? false,
-      };
-    },
-    async countCallsSince(customerId, since): Promise<number> {
-      const path = `calls?select=id&customer_id=eq.${id(customerId)}` +
-        `&started_at=gte.${id(since.toISOString())}`;
-      const request = { method: 'HEAD', prefer: 'count=exact' } as const;
-      return totalFrom((await query('countCallsSince', path, request)).contentRange);
-    },
-    async createCall(call): Promise<string> {
-      const body = {
-        customer_id: call.customerId,
-        language: call.language,
-        attempt_no: call.attemptNo,
-      };
-      const request = { method: 'POST', body, prefer: 'return=representation' } as const;
-      const row = firstRow(IdRow, (await query('createCall', 'calls?select=id', request)).rows);
-      if (!row) throw new RepositoryError('createCall failed (no row)');
-      return row.id;
-    },
-  };
+function updatedOne(rows: unknown): boolean {
+  return z.array(IdRow).parse(rows).length === 1;
 }
 
 function callQueries(
   query: PostgrestClient,
 ): Pick<
   Repository,
+  | 'getDemoSettings'
+  | 'getShopkeeper'
+  | 'countCallsSince'
+  | 'createCall'
   | 'getCallSession'
-  | 'claimCall'
-  | 'recordVerification'
-  | 'countFailedVerifyAttemptsSince'
-  | 'getLoanForCustomer'
+  | 'findRingingCall'
 > {
   return {
+    async getDemoSettings(): Promise<DemoSettings> {
+      const path = `demo_settings?select=${SETTINGS_COLUMNS}&id=eq.1`;
+      return firstRow(SETTINGS_ROW, (await query('getDemoSettings', path)).rows) ??
+        DEFAULT_SETTINGS;
+    },
+    async getShopkeeper(shopkeeperId): Promise<Shopkeeper | null> {
+      const path = `shopkeepers?select=${SHOPKEEPER_COLUMNS}&id=eq.${id(shopkeeperId)}`;
+      return firstRow(SHOPKEEPER_ROW, (await query('getShopkeeper', path)).rows);
+    },
+    async countCallsSince(shopkeeperId, since): Promise<number> {
+      const path = `calls?select=id&shopkeeper_id=eq.${id(shopkeeperId)}` +
+        `&queued_at=gte.${id(since.toISOString())}`;
+      const request = { method: 'HEAD', prefer: 'count=exact' } as const;
+      return totalFrom((await query('countCallsSince', path, request)).contentRange);
+    },
+    async createCall(call): Promise<string> {
+      const body = { shopkeeper_id: call.shopkeeperId, language: call.language, mode: call.mode };
+      const request = { method: 'POST', body, prefer: 'return=representation' } as const;
+      const row = firstRow(IdRow, (await query('createCall', 'calls?select=id', request)).rows);
+      if (!row) throw new RepositoryError('createCall', 'no row');
+      return row.id;
+    },
     async getCallSession(callId): Promise<CallSession | null> {
       const path = `calls?select=${SESSION_COLUMNS}&id=eq.${id(callId)}`;
-      const row = firstRow(SessionRow, (await query('getCallSession', path)).rows);
-      return row && toSession(row);
+      return firstRow(SESSION_ROW, (await query('getCallSession', path)).rows);
     },
-    async claimCall(callId, vapiCallId): Promise<boolean> {
-      // Conditional update: only succeeds while no Vapi call holds the token (no race window).
-      const path = `calls?id=eq.${id(callId)}&vapi_call_id=is.null&select=id`;
-      const body = { vapi_call_id: vapiCallId };
+    async findRingingCall(shopkeeperId): Promise<CallSession | null> {
+      const path = `calls?select=${SESSION_COLUMNS}&shopkeeper_id=eq.${id(shopkeeperId)}` +
+        '&status=in.(queued,ringing)&order=queued_at.desc&limit=1';
+      return firstRow(SESSION_ROW, (await query('findRingingCall', path)).rows);
+    },
+  };
+}
+
+function callUpdates(
+  query: PostgrestClient,
+): Pick<Repository, 'transitionCall' | 'recordIdentity'> {
+  return {
+    async transitionCall(callId, from, patch): Promise<boolean> {
+      const path = `calls?id=eq.${id(callId)}&status=in.(${from.join(',')})&select=id`;
+      const request = {
+        method: 'PATCH',
+        body: toCallColumns(patch),
+        prefer: 'return=representation',
+      } as const;
+      return updatedOne((await query('transitionCall', path, request)).rows);
+    },
+    async recordIdentity(callId, expected, next): Promise<boolean> {
+      const path = `calls?id=eq.${id(callId)}&identity_status=eq.${expected.status}` +
+        `&identity_unsure_count=eq.${expected.unsureCount}&select=id`;
+      const body = { identity_status: next.status, identity_unsure_count: next.unsureCount };
       const request = { method: 'PATCH', body, prefer: 'return=representation' } as const;
-      return z.array(IdRow).parse((await query('claimCall', path, request)).rows).length === 1;
+      return updatedOne((await query('recordIdentity', path, request)).rows);
     },
-    async recordVerification(callId, { verified, verifyAttempts }): Promise<boolean> {
-      // Compare-and-set on the attempt count, like claimCall: parallel requests can't both win.
-      const path = `calls?id=eq.${id(callId)}&verify_attempts=eq.${verifyAttempts - 1}&select=id`;
-      const body = { verified, verify_attempts: verifyAttempts };
+  };
+}
+
+function promiseUpdates(query: PostgrestClient): Pick<Repository, 'updatePromiseForCall'> {
+  return {
+    async updatePromiseForCall(callId, promise): Promise<boolean> {
+      const path = `promises?call_id=eq.${id(callId)}&select=id`;
+      const body = { amount: promise.amount, promise_date: promise.promiseDate };
       const request = { method: 'PATCH', body, prefer: 'return=representation' } as const;
-      const { rows } = await query('recordVerification', path, request);
-      return z.array(IdRow).parse(rows).length === 1;
+      return updatedOne((await query('updatePromiseForCall', path, request)).rows);
     },
-    async countFailedVerifyAttemptsSince(customerId, since): Promise<number> {
-      const path = `calls?select=verify_attempts&customer_id=eq.${id(customerId)}` +
-        `&verified=is.false&started_at=gte.${id(since.toISOString())}`;
-      const { rows } = await query('countFailedVerifyAttemptsSince', path);
-      return z.array(AttemptsRow).parse(rows).reduce((sum, row) => sum + row.verify_attempts, 0);
+  };
+}
+
+function ledgerQueries(
+  query: PostgrestClient,
+): Pick<Repository, 'getLedger' | 'getPromiseForCall' | 'getClaimForCall'> {
+  return {
+    async getLedger(shopkeeperId): Promise<readonly LedgerEntry[]> {
+      const path = `ledger_entries?select=${LEDGER_COLUMNS}&shopkeeper_id=eq.${id(shopkeeperId)}` +
+        `&order=entry_date&limit=${LEDGER_LIMIT}`;
+      return z.array(LEDGER_ROW).parse((await query('getLedger', path)).rows);
     },
-    async getLoanForCustomer(customerId): Promise<Loan | null> {
-      const path = `loans?select=${LOAN_COLUMNS}&customer_id=eq.${id(customerId)}` +
-        '&order=days_past_due.desc&limit=1';
-      return firstRow(LoanSchema, (await query('getLoanForCustomer', path)).rows);
+    async getPromiseForCall(callId): Promise<SavedPromise | null> {
+      const path = `promises?select=amount,promise_date&call_id=eq.${id(callId)}&limit=1`;
+      return firstRow(PROMISE_ROW, (await query('getPromiseForCall', path)).rows);
+    },
+    async getClaimForCall(callId): Promise<SavedClaim | null> {
+      const path = `ledger_entries?select=amount,entry_date,payment_mode&call_id=eq.${id(callId)}` +
+        '&limit=1';
+      return firstRow(CLAIM_ROW, (await query('getClaimForCall', path)).rows);
     },
   };
 }
 
 function inserts(
   query: PostgrestClient,
-): Pick<Repository, 'insertPromise' | 'insertHandoff' | 'insertToolEvent'> {
+): Pick<
+  Repository,
+  'insertPromise' | 'insertPaymentClaim' | 'insertOwnerCallback' | 'insertToolEvent'
+> {
   async function insert(operation: string, table: string, body: object): Promise<void> {
     await query(operation, table, { method: 'POST', body, prefer: 'return=minimal' });
   }
+  /** False when a database "one per call" rule rejected the row. */
+  async function insertOnce(operation: string, table: string, body: object): Promise<boolean> {
+    try {
+      await insert(operation, table, body);
+      return true;
+    } catch (error) {
+      if (error instanceof RepositoryError && error.code === UNIQUE_VIOLATION) return false;
+      throw error;
+    }
+  }
   return {
     insertPromise: (promise) =>
-      insert('insertPromise', 'promises', {
+      insertOnce('insertPromise', 'promises', {
+        shopkeeper_id: promise.shopkeeperId,
         call_id: promise.callId,
-        loan_id: promise.loanId,
         amount: promise.amount,
         promise_date: promise.promiseDate,
-        payment_mode: promise.paymentMode,
       }),
-    insertHandoff: (handoff) =>
-      insert('insertHandoff', 'handoffs', {
-        call_id: handoff.callId,
-        customer_id: handoff.customerId,
-        reason: handoff.reason,
-        summary: handoff.summary,
+    insertPaymentClaim: (claim) =>
+      insertOnce('insertPaymentClaim', 'ledger_entries', {
+        shopkeeper_id: claim.shopkeeperId,
+        call_id: claim.callId,
+        kind: 'payment',
+        amount: claim.amount,
+        entry_date: claim.paidDate,
+        status: 'claimed',
+        source: 'call',
+        payment_mode: claim.mode,
+      }),
+    insertOwnerCallback: (callback) =>
+      insert('insertOwnerCallback', 'followups', {
+        shopkeeper_id: callback.shopkeeperId,
+        call_id: callback.callId,
+        kind: 'owner_callback',
+        reason: callback.reason,
+        summary: callback.summary,
       }),
     insertToolEvent: (event) =>
       insert('insertToolEvent', 'tool_events', {
@@ -216,15 +204,17 @@ function inserts(
         tool: event.tool,
         args: event.args,
         result: event.result,
+        duration_ms: event.durationMs,
       }),
   };
 }
 
 export function createSupabaseRepository(query: PostgrestClient): Repository {
   return {
-    ...customerQueries(query),
-    ...settingsAndCounts(query),
     ...callQueries(query),
+    ...callUpdates(query),
+    ...ledgerQueries(query),
+    ...promiseUpdates(query),
     ...inserts(query),
   };
 }

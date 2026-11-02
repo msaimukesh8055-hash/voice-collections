@@ -1,34 +1,39 @@
 // supabase/functions/calls-api/handler.ts
-// Dashboard API. POST /v1/calls/authorize is the only way to get a call token: the pre-call
-// compliance check runs here, so a blocked call never reaches Vapi with working tools.
-// No login in the prototype (M2 Decision 5): it exposes names/language/city only, all fake.
-import { z } from 'zod';
-import { DAY_MS, istDayLabel, istMidnight, resolveNow } from '../_shared/clock.ts';
-import { checkPrecall } from '../_shared/compliance/precall.ts';
-import type { Repository } from '../_shared/db/repository.ts';
-import { errorResponse, jsonResponse, readJson, withErrorBoundary } from '../_shared/http.ts';
-import type { Logger } from '../_shared/log.ts';
+// App API for the dashboard and the borrower phone page (SPEC §16: calls-api → app API).
+// No login in the prototype (fake data; known gap): the anon key gets the request past Supabase,
+// and every call action is bound to a one-time call token and its status.
+import { errorResponse, withErrorBoundary } from '../_shared/http.ts';
 import { REGION_HEADER } from '../_shared/region.ts';
+import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
+import { getDemo, ringLiveShopkeeper } from './demo-routes.ts';
+import { acceptCall, declineCall, endCall, getIncomingCall } from './phone-routes.ts';
+import { proxyCallUrl } from './sarvam-proxy.ts';
+import type { CallsApiDeps, RouteContext, RouteHandler } from './types.ts';
 
 const FUNCTION_PREFIX = '/calls-api';
-const ATTEMPT_WINDOW_DAYS = 7;
-/**
- * Rate limit (CP1 M2): the anon key is public, so a script could mint call tokens in a loop and
- * use up a borrower's daily attempts before the real call. Counted on real time, not the demo
- * clock, and per customer: generous for a person clicking, useless for a loop.
- */
-const RATE_LIMIT = { maxCalls: 3, windowMs: 60_000 } as const;
 
-export interface CallsApiDeps {
-  readonly repo: Repository;
-  readonly clock: () => Date;
-  readonly log: Logger;
-  readonly allowedOrigins: readonly string[];
+interface Route {
+  readonly pattern: RegExp;
+  readonly methods: Readonly<Partial<Record<string, RouteHandler>>>;
 }
 
-type RouteHandler = (req: Request, deps: CallsApiDeps, cors: HeadersInit) => Promise<Response>;
+function proxyRoute(req: Request, ctx: RouteContext): Promise<Response> {
+  return proxyCallUrl(req, ctx.params, ctx.deps, ctx.cors);
+}
 
-const AuthorizeBodySchema = z.object({ customerId: z.uuid() });
+/** Typed lookup table (no switch ladder). Capture groups become `params`. */
+const ROUTES: readonly Route[] = [
+  { pattern: /^\/v1\/demo$/, methods: { GET: getDemo } },
+  { pattern: /^\/v1\/demo\/ring$/, methods: { POST: ringLiveShopkeeper } },
+  { pattern: /^\/v1\/phone\/incoming$/, methods: { GET: getIncomingCall } },
+  { pattern: /^\/v1\/calls\/([^/]+)\/accept$/, methods: { POST: acceptCall } },
+  { pattern: /^\/v1\/calls\/([^/]+)\/decline$/, methods: { POST: declineCall } },
+  { pattern: /^\/v1\/calls\/([^/]+)\/ended$/, methods: { POST: endCall } },
+  {
+    pattern: /^\/v1\/sarvam\/orgs\/([^/]+)\/workspaces\/([^/]+)\/apps\/([^/]+)\/url$/,
+    methods: { GET: proxyRoute },
+  },
+];
 
 function corsHeaders(req: Request, allowedOrigins: readonly string[]): HeadersInit {
   const origin = req.headers.get('origin');
@@ -36,8 +41,9 @@ function corsHeaders(req: Request, allowedOrigins: readonly string[]): HeadersIn
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers':
-      `authorization, apikey, content-type, x-client-info, ${REGION_HEADER}`,
+    // x-api-key: the Sarvam SDK always sends it (empty); the real key is added server-side.
+    'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info, ' +
+      `${REGION_HEADER}, ${CALL_TOKEN_HEADER}, x-api-key`,
     vary: 'Origin',
   };
 }
@@ -49,80 +55,29 @@ function routePath(req: Request): string {
   return start === -1 ? pathname : pathname.slice(start + FUNCTION_PREFIX.length);
 }
 
-async function listCustomers(
-  _req: Request,
-  deps: CallsApiDeps,
-  cors: HeadersInit,
-): Promise<Response> {
-  return jsonResponse({ customers: await deps.repo.listCustomers() }, 200, cors);
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment; // Malformed escapes stay as they are; validation downstream rejects them.
+  }
 }
 
-async function authorizeCall(
-  req: Request,
-  deps: CallsApiDeps,
-  cors: HeadersInit,
-): Promise<Response> {
-  const body = AuthorizeBodySchema.safeParse(await readJson(req));
-  if (!body.success) return errorResponse('BAD_REQUEST', cors);
-  const { customerId } = body.data;
-
-  const settings = await deps.repo.getDemoSettings();
-  const now = resolveNow(settings.demoClock, deps.clock());
-  const todayStart = istMidnight(now);
-  const weekStart = istMidnight(new Date(now.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
-  const rateWindowStart = new Date(deps.clock().getTime() - RATE_LIMIT.windowMs);
-  const [customer, callsToday, callsThisWeek, recentCalls] = await Promise.all([
-    deps.repo.getCustomerForCall(customerId),
-    deps.repo.countCallsSince(customerId, todayStart),
-    deps.repo.countCallsSince(customerId, weekStart),
-    deps.repo.countCallsSince(customerId, rateWindowStart),
-  ]);
-  if (!customer) return errorResponse('NOT_FOUND', cors);
-  if (recentCalls >= RATE_LIMIT.maxCalls) {
-    deps.log('warn', 'call_rate_limited', { customerId });
-    return errorResponse('RATE_LIMITED', cors);
+function matchRoute(path: string): { route: Route; params: readonly string[] } | null {
+  for (const route of ROUTES) {
+    const match = route.pattern.exec(path);
+    if (match) return { route, params: match.slice(1).map(safeDecode) };
   }
-
-  const decision = checkPrecall({
-    now,
-    doNotCall: customer.doNotCall,
-    callingHoursEnabled: settings.callingHoursEnabled,
-    callLimitsEnabled: settings.callLimitsEnabled,
-    callsToday,
-    callsThisWeek,
-  });
-  if (!decision.allowed) {
-    deps.log('info', 'call_blocked', { customerId, code: decision.code });
-    return errorResponse(decision.code, cors);
-  }
-
-  const callToken = await deps.repo.createCall({
-    customerId,
-    language: customer.language,
-    attemptNo: callsToday + 1,
-  });
-  deps.log('info', 'call_authorised', { callId: callToken });
-  const authorised = {
-    callToken,
-    customerName: customer.fullName,
-    language: customer.language,
-    today: istDayLabel(now),
-  };
-  return jsonResponse(authorised, 201, cors);
+  return null;
 }
-
-const ROUTES: Readonly<Record<string, Readonly<Record<string, RouteHandler>>>> = {
-  '/v1/customers': { GET: listCustomers },
-  '/v1/calls/authorize': { POST: authorizeCall },
-};
 
 async function route(req: Request, deps: CallsApiDeps, cors: HeadersInit): Promise<Response> {
-  const methods = ROUTES[routePath(req)];
-  if (!methods) return errorResponse('NOT_FOUND', cors);
+  const matched = matchRoute(routePath(req));
+  if (!matched) return errorResponse('NOT_FOUND', cors);
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  const handler = methods[req.method];
+  const handler = matched.route.methods[req.method];
   if (!handler) return errorResponse('METHOD_NOT_ALLOWED', cors);
-  return await handler(req, deps, cors);
+  return await handler(req, { deps, cors, params: matched.params });
 }
 
 export function handleCallsApi(req: Request, deps: CallsApiDeps): Promise<Response> {

@@ -6,8 +6,18 @@ import type { ServerEnv } from '../env.ts';
 /** Database calls run inside one region; anything slower than this is a fault, not load. */
 const DB_TIMEOUT_MS = 5_000;
 
+/** Postgres unique-violation code: a database rule (e.g. one promise per call) said no. */
+export const UNIQUE_VIOLATION = '23505';
+
 export class RepositoryError extends Error {
   override name = 'RepositoryError';
+  /** Postgres / PostgREST error code (or "HTTP <status>"); never the database message. */
+  readonly code: string;
+
+  constructor(operation: string, code: string) {
+    super(`${operation} failed (${code})`);
+    this.code = code;
+  }
 }
 
 export interface PostgrestRequest {
@@ -69,7 +79,7 @@ export function createPostgrestClient(
       signal: AbortSignal.timeout(DB_TIMEOUT_MS),
     });
     if (!response.ok) {
-      throw new RepositoryError(`${operation} failed (${await errorCodeOf(response)})`);
+      throw new RepositoryError(operation, await errorCodeOf(response));
     }
     return {
       rows: await readRows(response, method),

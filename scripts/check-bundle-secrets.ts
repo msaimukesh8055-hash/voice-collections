@@ -5,12 +5,13 @@ import { join } from 'node:path';
 
 const DIST_DIR = 'web/dist';
 const SECRET_NAMES = [
-  'VAPI_PRIVATE_KEY',
   'GEMINI_API_KEY',
+  'SARVAM_API_KEY',
+  'SARVAM_AGENTS_API_KEY',
+  'SARVAM_TOOL_SECRET',
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_DB_PASSWORD',
   'SUPABASE_ACCESS_TOKEN',
-  'VAPI_WEBHOOK_SECRET',
 ] as const;
 
 function listFiles(dir: string): string[] {

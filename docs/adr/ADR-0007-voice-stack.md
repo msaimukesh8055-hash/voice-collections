@@ -1,7 +1,7 @@
 # ADR-0007: Voice stack — Vapi-hosted GPT, Deepgram, Azure Indian voices
 
 ## Status
-Accepted (M1 voice spike, 2026-11-01; chosen by Saim on smoke-test evidence)
+Superseded by ADR-0012 (M3, 2026-11-02). Was: accepted in the M1 voice spike, 2026-11-01.
 
 ## Context
 M1 had to prove a real browser call works in English and Hindi/Hinglish, with interruptions and acceptable reply time (target: under 1.5 s from the caller stopping to the agent starting). The plan assumed the live agent's model would be Gemini on the free tier (ADR-0004), and left the Hindi speech-to-text provider to be chosen by test.

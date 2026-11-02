@@ -1,7 +1,7 @@
 # ADR-0001: Vapi browser web calls, no phone numbers
 
 ## Status
-Accepted
+Superseded by ADR-0012 (M3, 2026-11-02). Kept for history.
 
 ## Context
 The prototype needs real voice (ASR, TTS, interruptions) on an agent platform named in the JD, within a ₹0 budget and without telephony KYC.

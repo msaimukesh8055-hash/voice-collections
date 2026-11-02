@@ -3,19 +3,20 @@
 // the audit trail only ever sees arguments that passed validation, never raw LLM output (CP1 H1).
 import type { z } from 'zod';
 import { RepositoryError } from '../db/postgrest.ts';
-import { lookupLoan } from './lookup-loan.ts';
-import { logPromiseToPay } from './log-promise-to-pay.ts';
+import { confirmIdentity } from './confirm-identity.ts';
+import { getDues } from './get-dues.ts';
+import { logPromise } from './log-promise.ts';
+import { recordPaymentClaim } from './record-payment-claim.ts';
+import { requestOwnerCallback } from './request-owner-callback.ts';
 import { TOOL_SPECS, type ToolName } from './schemas.ts';
-import { sendPaymentLink } from './send-payment-link.ts';
-import { transferToHuman } from './transfer-to-human.ts';
 import { fail, type ToolContext, type ToolOutcome } from './types.ts';
-import { verifyCustomer } from './verify-customer.ts';
 
-/** Stored in tool_events in place of arguments that cannot be trusted or must not be kept. */
+/** Stored in tool_events in place of arguments that cannot be trusted. */
 export const AUDIT_MARKERS = {
   invalid: '[invalid]',
   unknownTool: '[unknown tool]',
-  redacted: '[redacted]',
+  /** A refused call's arguments are never validated, so they are not kept. */
+  notAuthorised: '[not authorised]',
 } as const;
 
 /** A tool's outcome plus what the audit row may store. `failure` is set when the tool threw
@@ -46,7 +47,6 @@ export function describeFailure(error: unknown): string {
 function defineTool<S extends z.ZodType>(
   schema: S,
   handler: (ctx: ToolContext, args: z.infer<S>) => Promise<ToolOutcome>,
-  toAuditArgs: (args: z.infer<S>) => unknown = (args) => args,
 ): RegisteredTool {
   return {
     async run(ctx, rawArgs): Promise<ToolRun> {
@@ -55,7 +55,7 @@ function defineTool<S extends z.ZodType>(
         const invalid = fail('INVALID_ARGS', describeIssues(parsed.error));
         return { ...invalid, auditArgs: AUDIT_MARKERS.invalid };
       }
-      const auditArgs = toAuditArgs(parsed.data);
+      const auditArgs = parsed.data;
       try {
         return { ...(await handler(ctx, parsed.data)), auditArgs };
       } catch (error) {
@@ -67,19 +67,14 @@ function defineTool<S extends z.ZodType>(
 }
 
 const TOOLS: Readonly<Record<ToolName, RegisteredTool>> = {
-  // The DOB is the identity secret: never kept, whatever the LLM sent.
-  verify_customer: defineTool(
-    TOOL_SPECS.verify_customer.args,
-    verifyCustomer,
-    () => ({ dob: AUDIT_MARKERS.redacted }),
-  ),
-  lookup_loan: defineTool(TOOL_SPECS.lookup_loan.args, lookupLoan),
-  log_promise_to_pay: defineTool(TOOL_SPECS.log_promise_to_pay.args, logPromiseToPay),
-  send_payment_link: defineTool(TOOL_SPECS.send_payment_link.args, sendPaymentLink),
-  transfer_to_human: defineTool(TOOL_SPECS.transfer_to_human.args, transferToHuman),
+  confirm_identity: defineTool(TOOL_SPECS.confirm_identity.args, confirmIdentity),
+  get_dues: defineTool(TOOL_SPECS.get_dues.args, getDues),
+  log_promise: defineTool(TOOL_SPECS.log_promise.args, logPromise),
+  record_payment_claim: defineTool(TOOL_SPECS.record_payment_claim.args, recordPaymentClaim),
+  request_owner_callback: defineTool(TOOL_SPECS.request_owner_callback.args, requestOwnerCallback),
 };
 
-function isToolName(name: string): name is ToolName {
+export function isToolName(name: string): name is ToolName {
   return Object.hasOwn(TOOLS, name);
 }
 

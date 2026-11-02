@@ -415,9 +415,10 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-# Edge Functions share one import map (zod, std; no supabase-js, see ADR-0010). JWT: the webhook is called by Vapi
-# (shared-secret header instead); calls-api is called by the dashboard with the anon key.
-[functions.vapi-webhook]
+# Edge Functions share one import map (zod, std; no supabase-js, see ADR-0010). JWT: sarvam-tools is called
+# by Sarvam, which cannot send a Supabase JWT (bearer tool secret checked instead, ADR-0012); calls-api
+# is called by the dashboard and phone page with the public anon key.
+[functions.sarvam-tools]
 verify_jwt = false
 import_map = "./functions/deno.json"
 

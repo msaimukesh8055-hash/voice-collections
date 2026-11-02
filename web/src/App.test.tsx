@@ -1,29 +1,17 @@
 // web/src/App.test.tsx
 import { render, screen } from '@testing-library/react';
 import { App } from './App.tsx';
-import type { CallsApi } from './lib/callsApi.ts';
-import type { VoiceClient } from './lib/vapiClient.ts';
-
-const idleClient: VoiceClient = {
-  async start() {},
-  async stop() {},
-  subscribe() {
-    return function unsubscribe() {};
-  },
-};
-
-const emptyApi: CallsApi = {
-  async listCustomers() {
-    return [];
-  },
-  async authoriseCall() {
-    return { ok: false, message: 'unused' };
-  },
-};
+import { fakeApi, fakeVoice } from './test/fakes.ts';
 
 describe('App', () => {
-  it('renders the test call page', () => {
-    render(<App client={idleClient} api={emptyApi} />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Test call');
+  it('renders the home page with the demo controls', async () => {
+    render(<App api={fakeApi().api} voice={fakeVoice().client} path="/" />);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Easy Recovery AI');
+    expect(await screen.findByRole('button', { name: 'Ring Ramesh' })).toBeInTheDocument();
+  });
+
+  it('renders the phone page on /phone', async () => {
+    render(<App api={fakeApi().api} voice={fakeVoice().client} path="/phone/" />);
+    expect(await screen.findByRole('heading', { name: 'Waiting for a call…' })).toBeInTheDocument();
   });
 });

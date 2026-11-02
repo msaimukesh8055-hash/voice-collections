@@ -1,16 +1,19 @@
 // supabase/functions/_shared/env.ts
 import { z } from 'zod';
 
-const MIN_WEBHOOK_SECRET_LENGTH = 32;
+const MIN_TOOL_SECRET_LENGTH = 32;
 
 const ServerEnvSchema = z.object({
   SUPABASE_URL: z.url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
 });
 
-const WebhookEnvSchema = ServerEnvSchema.extend({
-  VAPI_WEBHOOK_SECRET: z.string().trim().min(MIN_WEBHOOK_SECRET_LENGTH),
+const ToolsEnvSchema = ServerEnvSchema.extend({
+  /** Bearer secret Sarvam sends on every tool call (stored in Sarvam's Secrets vault). */
+  SARVAM_TOOL_SECRET: z.string().trim().min(MIN_TOOL_SECRET_LENGTH),
 });
+
+const NonEmpty = z.string().trim().min(1);
 
 const CallsApiEnvSchema = ServerEnvSchema.extend({
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
@@ -19,10 +22,20 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .trim()
     .min(1)
     .transform((value) => value.split(',').map((origin) => origin.trim())),
+  /** Voice Agents key (indus.sarvam.ai): only the call-URL proxy uses it, never the browser. */
+  SARVAM_AGENTS_API_KEY: NonEmpty,
+  SARVAM_ORG_ID: NonEmpty,
+  SARVAM_WORKSPACE_ID: NonEmpty,
+  /** Asha's Sarvam app id; blank until the agent exists, and then calls are refused. */
+  SARVAM_APP_ID: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : null)),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
-export type WebhookEnv = z.infer<typeof WebhookEnvSchema>;
+export type ToolsEnv = z.infer<typeof ToolsEnvSchema>;
 export type CallsApiEnv = z.infer<typeof CallsApiEnvSchema>;
 
 export class MissingEnvError extends Error {
@@ -44,8 +57,8 @@ export function loadServerEnv(source: Record<string, string | undefined>): Serve
   return loadEnv(ServerEnvSchema, source);
 }
 
-export function loadWebhookEnv(source: Record<string, string | undefined>): WebhookEnv {
-  return loadEnv(WebhookEnvSchema, source);
+export function loadToolsEnv(source: Record<string, string | undefined>): ToolsEnv {
+  return loadEnv(ToolsEnvSchema, source);
 }
 
 export function loadCallsApiEnv(source: Record<string, string | undefined>): CallsApiEnv {

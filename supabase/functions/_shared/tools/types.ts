@@ -1,5 +1,6 @@
 // supabase/functions/_shared/tools/types.ts
-// Tool contract. Results are written for the LLM: short, factual, with the next step when refused.
+// Tool contract. Every reply carries `say`: a short, ready-to-use line for Asha (Sarvam feeds it
+// to the LLM through the tool's response template, "{{say}}"). Refusals never contain amounts.
 import type { CallSession, Repository } from '../db/repository.ts';
 
 export interface ToolContext {
@@ -7,45 +8,50 @@ export interface ToolContext {
   readonly session: CallSession;
   /** Demo-aware "now" (demo clock when set). */
   readonly now: Date;
-  /** Real time, for limits that must hold whatever the demo clock says (database timestamps
-   * are real time too). */
-  readonly realNow: Date;
 }
 
 export const TOOL_ERRORS = {
-  NOT_VERIFIED:
-    'Customer is not verified. Ask for their date of birth and call verify_customer first. ' +
-    'Do not share any loan details.',
-  VERIFY_LOCKED:
-    'Verification attempts are used up. Share no loan details; apologise and end the call politely.',
-  POLICY_REFUSED: 'This request is outside policy.',
-  NOT_FOUND: 'No overdue loan was found for this customer. Offer a callback from a colleague.',
+  IDENTITY_NOT_CONFIRMED:
+    'Identity is not confirmed yet. Share no amounts or dates. Ask once whether you are ' +
+    'speaking with the shopkeeper of this shop, then call confirm_identity with the answer.',
+  IDENTITY_DENIED:
+    'This person is not the shopkeeper. Share nothing about dues or amounts. Apologise, say ' +
+    'you will call another time, and end the call politely.',
+  POLICY_REFUSED: 'This request is outside the rules.',
   INVALID_ARGS: 'The tool arguments were invalid.',
-  UNKNOWN_TOOL: 'This tool does not exist.',
+  UNKNOWN_TOOL: 'This tool does not exist. Carry on without it.',
   CALL_NOT_AUTHORISED:
-    'This call is not authorised. Do not share any details; end the call politely.',
-  TEMPORARY_ERROR: 'Something went wrong on our side. Share no loan figures; apologise and say ' +
-    'a colleague will call them back.',
+    'This call is not authorised. Share no details; apologise and end the call politely.',
+  TEMPORARY_ERROR:
+    'Something went wrong on our side. Share no figures; apologise and say the owner will ' +
+    'call them back.',
 } as const satisfies Record<string, string>;
 
 export type ToolErrorCode = keyof typeof TOOL_ERRORS;
 
-export type ToolResult =
-  | { readonly ok: true; readonly data: Readonly<Record<string, unknown>> }
-  | { readonly ok: false; readonly code: ToolErrorCode; readonly message: string };
+export type ToolData = Readonly<Record<string, string | number | boolean | null>>;
 
-/** A tool's result plus the updated session when the tool changed it (so later calls in the
- * same webhook request see it, e.g. verify then lookup). */
+export type ToolResult =
+  | { readonly ok: true; readonly say: string; readonly data: ToolData }
+  | { readonly ok: false; readonly code: ToolErrorCode; readonly say: string };
+
+/** A tool's result plus the updated session when the tool changed it. */
 export interface ToolOutcome {
   readonly result: ToolResult;
   readonly session?: CallSession;
 }
 
-export function ok(data: Readonly<Record<string, unknown>>): ToolOutcome {
-  return { result: { ok: true, data } };
+export function ok(say: string, data: ToolData = {}): ToolOutcome {
+  return { result: { ok: true, say, data } };
 }
 
-/** `detail` replaces the default message when the reason is specific (e.g. a policy reason). */
+/** `detail` replaces the default text when the reason is specific (e.g. a policy reason). */
 export function fail(code: ToolErrorCode, detail?: string): ToolOutcome {
-  return { result: { ok: false, code, message: detail ?? TOOL_ERRORS[code] } };
+  return { result: { ok: false, code, say: detail ?? TOOL_ERRORS[code] } };
+}
+
+/** The flat JSON body Sarvam receives: `{ ok, say, ...data }` or `{ ok: false, code, say }`. */
+export function toReplyBody(result: ToolResult): Record<string, unknown> {
+  if (!result.ok) return { ok: false, code: result.code, say: result.say };
+  return { ...result.data, ok: true, say: result.say };
 }

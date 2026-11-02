@@ -1,18 +1,25 @@
 // web/src/App.tsx
+// Tiny path switch (no router library yet, M3 plan): /phone is the shopkeeper's phone, anything
+// else is the home page.
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
-import { VoiceSpikePage } from './features/voice-spike/VoiceSpikePage.tsx';
-import type { CallsApi } from './lib/callsApi.ts';
-import type { VoiceClient } from './lib/vapiClient.ts';
+import { HomePage } from './features/demo/HomePage.tsx';
+import { PhonePage } from './features/phone/PhonePage.tsx';
+import type { AppApi } from './lib/appApi.ts';
+import type { VoiceClient } from './lib/sarvamClient.ts';
+
+export const PHONE_PATH = '/phone';
 
 interface AppProps {
-  readonly client: VoiceClient;
-  readonly api: CallsApi;
+  readonly api: AppApi;
+  readonly voice: VoiceClient;
+  readonly path: string;
 }
 
-export function App({ client, api }: AppProps): React.JSX.Element {
+export function App({ api, voice, path }: AppProps): React.JSX.Element {
+  const onPhone = path.replace(/\/+$/, '') === PHONE_PATH;
   return (
     <ErrorBoundary>
-      <VoiceSpikePage client={client} api={api} />
+      {onPhone ? <PhonePage api={api} voice={voice} /> : <HomePage api={api} />}
     </ErrorBoundary>
   );
 }

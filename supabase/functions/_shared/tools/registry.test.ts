@@ -1,324 +1,88 @@
 // supabase/functions/_shared/tools/registry.test.ts
-import { assertEquals, assertStringIncludes } from '@std/assert';
-import {
-  createFakeRepository,
-  FAKE_ANITA,
-  FAKE_RAVI,
-  type FakeCall,
-  fakeCall,
-} from '../db/fake-repository.ts';
-import type { CallSession, Repository } from '../db/repository.ts';
-import { runTool } from './registry.ts';
-import type { ToolContext, ToolResult } from './types.ts';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import { RepositoryError } from '../db/postgrest.ts';
+import { FAKE_LATHA } from '../db/fake-repository.ts';
+import { AUDIT_MARKERS, describeFailure, runTool } from './registry.ts';
+import { TOOL_NAMES } from './schemas.ts';
+import { toReplyBody } from './types.ts';
+import { confirmedSetup, toolSetup } from './__fixtures__/tool-context.ts';
 
-const NOON_IST = new Date('2026-11-01T12:00:00+05:30');
-
-async function contextFor(
-  call: FakeCall,
-): Promise<{ ctx: ToolContext; state: ReturnType<typeof createFakeRepository>['state'] }> {
-  const { repo, state } = createFakeRepository({ calls: [call] });
-  const session = (await repo.getCallSession(call.id)) as CallSession;
-  return { ctx: { repo, session, now: NOON_IST, realNow: NOON_IST }, state };
-}
-
-function verifiedAnita(): FakeCall {
-  return fakeCall({ verified: true, verifyAttempts: 1 });
-}
-
-function errorCode(result: ToolResult): string | null {
-  return result.ok ? null : result.code;
-}
-
-// --- registry -----------------------------------------------------------------------------
-
-Deno.test('runTool › unknown tool name is refused', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  const { result } = await runTool('delete_loan', {}, ctx);
-  assertEquals(errorCode(result), 'UNKNOWN_TOOL');
-});
-
-Deno.test('runTool › invalid arguments return a readable validation error, no crash', async () => {
-  const { ctx } = await contextFor(verifiedAnita());
-  const { result } = await runTool(
-    'log_promise_to_pay',
-    { amount: 'lots', paymentMode: 'cash' },
-    ctx,
-  );
-  assertEquals(errorCode(result), 'INVALID_ARGS');
-  assertStringIncludes(result.ok ? '' : result.message, 'paymentMode');
-});
-
-Deno.test('runTool › non-object arguments are refused', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  const { result } = await runTool('verify_customer', 'not-an-object', ctx);
-  assertEquals(errorCode(result), 'INVALID_ARGS');
-  assertStringIncludes(result.ok ? '' : result.message, 'arguments:');
-});
-
-// --- verify_customer -------------------------------------------------------------------------
-
-Deno.test('verify_customer › correct DOB verifies and records it', async () => {
-  const { ctx, state } = await contextFor(fakeCall());
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx);
-  assertEquals(outcome.result, { ok: true, data: { verified: true } });
-  assertEquals(outcome.session?.verified, true);
-  assertEquals(state.calls[0]?.verified, true);
-});
-
-Deno.test('verify_customer › wrong DOB says "does not match", never "could not hear"', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  const outcome = await runTool('verify_customer', { dob: '1990-01-01' }, ctx);
-  const text = JSON.stringify(outcome.result);
-  assertStringIncludes(text, 'does not match our records');
-  assertStringIncludes(text, 'Do not say you could not hear or understand');
-});
-
-Deno.test('verify_customer › wrong DOB reports attempts left and never echoes a DOB', async () => {
-  const { ctx, state } = await contextFor(fakeCall());
-  const outcome = await runTool('verify_customer', { dob: '1990-01-01' }, ctx);
-  assertEquals(outcome.result.ok && outcome.result.data['verified'], false);
-  assertEquals(outcome.result.ok && outcome.result.data['attemptsLeft'], 1);
-  assertEquals(JSON.stringify(outcome.result).includes(FAKE_ANITA.dob), false);
-  assertEquals(state.calls[0]?.verifyAttempts, 1);
-});
-
-Deno.test('verify_customer › second wrong DOB leaves no attempts and says to end the call', async () => {
-  const { ctx } = await contextFor(fakeCall({ verifyAttempts: 1 }));
-  const outcome = await runTool('verify_customer', { dob: '1990-01-01' }, ctx);
-  assertEquals(outcome.result.ok && outcome.result.data['attemptsLeft'], 0);
-  assertStringIncludes(JSON.stringify(outcome.result), 'end the call');
-});
-
-Deno.test('verify_customer › 3rd try is refused even with the correct DOB', async () => {
-  const { ctx, state } = await contextFor(fakeCall({ verifyAttempts: 2 }));
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx);
-  assertEquals(errorCode(outcome.result), 'VERIFY_LOCKED');
-  assertEquals(state.calls[0]?.verified, false);
-});
-
-Deno.test('verify_customer › 6 failed attempts today across calls lock even a fresh call (CP1 M1)', async () => {
-  const morning = '2026-11-01T09:00:00+05:30';
-  const earlier = [1, 2, 3].map((n) =>
-    fakeCall({
-      id: `ca000000-0000-4000-8000-00000000000${n}`,
-      verifyAttempts: 2,
-      startedAt: morning,
-    })
-  );
-  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
-  const { repo, state } = createFakeRepository({ calls: [...earlier, fresh] });
-  const session = (await repo.getCallSession(fresh.id)) as CallSession;
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
-    repo,
-    session,
-    now: NOON_IST,
-    realNow: NOON_IST,
-  });
-  assertEquals(errorCode(outcome.result), 'VERIFY_LOCKED');
-  assertStringIncludes(JSON.stringify(outcome.result), 'Too many failed identity checks today');
-  assertEquals(state.calls.at(-1)?.verified, false);
-});
-
-Deno.test('verify_customer › failed attempts from yesterday or on verified calls do not count', async () => {
-  const yesterday = '2026-10-31T18:00:00+05:30';
-  const old = [1, 2, 3].map((n) =>
-    fakeCall({
-      id: `ca000000-0000-4000-8000-00000000000${n}`,
-      verifyAttempts: 2,
-      startedAt: yesterday,
-    })
-  );
-  const verifiedToday = fakeCall({
-    id: 'ca000000-0000-4000-8000-000000000004',
-    verified: true,
-    verifyAttempts: 2,
-  });
-  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
-  const { repo } = createFakeRepository({ calls: [...old, verifiedToday, fresh] });
-  const session = (await repo.getCallSession(fresh.id)) as CallSession;
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
-    repo,
-    session,
-    now: NOON_IST,
-    realNow: NOON_IST,
-  });
-  assertEquals(outcome.result, { ok: true, data: { verified: true } });
-});
-
-Deno.test('verify_customer › a parallel request that spent the attempt first → TEMPORARY_ERROR', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  const racing: Repository = { ...ctx.repo, recordVerification: () => Promise.resolve(false) };
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, {
-    ...ctx,
-    repo: racing,
-  });
-  assertEquals(errorCode(outcome.result), 'TEMPORARY_ERROR');
-  assertEquals(outcome.session, undefined);
-});
-
-Deno.test('runTool › audit args: schema-checked only, DOB always redacted, markers otherwise', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  assertEquals((await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx)).auditArgs, {
-    dob: '[redacted]',
-  });
-  assertEquals(
-    (await runTool('verify_customer', '{"dob":"1991-09-03"', ctx)).auditArgs,
-    '[invalid]',
-  );
-  assertEquals(
-    (await runTool('delete_loan', { dob: FAKE_ANITA.dob }, ctx)).auditArgs,
-    '[unknown tool]',
-  );
-});
-
-Deno.test('verify_customer › already verified stays verified without another attempt', async () => {
-  const { ctx, state } = await contextFor(verifiedAnita());
-  const outcome = await runTool('verify_customer', { dob: '1990-01-01' }, ctx);
-  assertEquals(outcome.result, { ok: true, data: { verified: true } });
-  assertEquals(state.calls[0]?.verifyAttempts, 1);
-});
-
-Deno.test('verify_customer › identity comes from the call token, never from arguments', async () => {
-  // Anita's call; the LLM tries to pass Ravi's id and DOB.
-  const { ctx } = await contextFor(fakeCall());
-  const outcome = await runTool(
-    'verify_customer',
-    { dob: FAKE_RAVI.dob, customerId: FAKE_RAVI.id },
-    ctx,
-  );
-  assertEquals(outcome.result.ok && outcome.result.data['verified'], false);
-});
-
-// --- verify-before-disclose guard ------------------------------------------------------------
-
-const GUARDED_CALLS: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
-  ['lookup_loan', {}],
-  ['log_promise_to_pay', { amount: 6500, promiseDate: '2026-11-05', paymentMode: 'upi' }],
-  ['send_payment_link', { amount: 6500 }],
-];
-
-for (const [tool, args] of GUARDED_CALLS) {
-  Deno.test(`${tool} › refused with NOT_VERIFIED before verification, nothing written`, async () => {
-    const { ctx, state } = await contextFor(fakeCall());
-    const { result } = await runTool(tool, args, ctx);
-    assertEquals(errorCode(result), 'NOT_VERIFIED');
-    assertEquals(JSON.stringify(result).includes('6500'), false);
-    assertEquals(state.promises.length, 0);
-  });
-}
-
-// --- lookup_loan -----------------------------------------------------------------------------
-
-Deno.test('lookup_loan › returns the seeded figures and only the last 4 loan digits', async () => {
-  const { ctx } = await contextFor(verifiedAnita());
-  const { result } = await runTool('lookup_loan', {}, ctx);
-  assertEquals(result, {
-    ok: true,
-    data: {
-      loanNumberLast4: '0871',
-      product: 'personal_loan',
-      overdueAmount: 6500,
-      emiAmount: 6500,
-      dueDate: '2026-10-10',
-      daysPastDue: 21,
-      lateFee: 500,
-    },
-  });
-  assertEquals(JSON.stringify(result).includes('SF-PL-100871'), false);
-});
-
-Deno.test('loan tools › NOT_FOUND when the customer has no loan', async () => {
-  const { repo } = createFakeRepository({ calls: [verifiedAnita()], loans: [] });
-  const session = (await repo.getCallSession(verifiedAnita().id)) as CallSession;
-  const ctx = { repo, session, now: NOON_IST, realNow: NOON_IST };
-  for (const [tool, args] of GUARDED_CALLS) {
-    const { result } = await runTool(tool, args, ctx);
-    assertEquals(errorCode(result), 'NOT_FOUND', tool);
-  }
-});
-
-// --- log_promise_to_pay ----------------------------------------------------------------------
-
-Deno.test('log_promise_to_pay › writes a promise for the token customer loan', async () => {
-  const { ctx, state } = await contextFor(verifiedAnita());
-  const args = { amount: 6500, promiseDate: '2026-11-05', paymentMode: 'upi' } as const;
-  const { result } = await runTool('log_promise_to_pay', args, ctx);
-  assertEquals(result, { ok: true, data: { logged: true, ...args } });
-  assertEquals(state.promises, [
-    { callId: verifiedAnita().id, loanId: '10000000-0000-4000-8000-000000000002', ...args },
+Deno.test('registry › all five tools are registered', () => {
+  assertEquals([...TOOL_NAMES].sort(), [
+    'confirm_identity',
+    'get_dues',
+    'log_promise',
+    'record_payment_claim',
+    'request_owner_callback',
   ]);
 });
 
-Deno.test('log_promise_to_pay › outside policy is refused with a reason Asha can say', async () => {
-  const { ctx, state } = await contextFor(verifiedAnita());
-  const args = { amount: 6500, promiseDate: '2026-11-30', paymentMode: 'upi' };
-  const { result } = await runTool('log_promise_to_pay', args, ctx);
-  assertEquals(errorCode(result), 'POLICY_REFUSED');
-  assertStringIncludes(result.ok ? '' : result.message, '2026-11-11');
+Deno.test('registry › an unknown tool is refused and audited with a marker only', async () => {
+  const { ctx } = toolSetup();
+  const run = await runTool('delete_ledger', { anything: 1 }, ctx);
+  assertEquals(run.result.ok ? null : run.result.code, 'UNKNOWN_TOOL');
+  assertEquals(run.auditArgs, AUDIT_MARKERS.unknownTool);
+});
+
+Deno.test('registry › bad arguments → INVALID_ARGS naming the field; nothing runs or is kept', async () => {
+  const { ctx, state } = confirmedSetup();
+  const run = await runTool('log_promise', { amount: 'lots', promise_date: 'Friday' }, ctx);
+  assert(!run.result.ok);
+  assertEquals(run.result.code, 'INVALID_ARGS');
+  assertStringIncludes(run.result.say, 'promise_date');
+  assertEquals(run.auditArgs, AUDIT_MARKERS.invalid);
   assertEquals(state.promises.length, 0);
 });
 
-Deno.test('log_promise_to_pay › uses the demo-aware date as "today"', async () => {
-  const { ctx } = await contextFor(verifiedAnita());
-  const args = { amount: 6500, promiseDate: '2026-11-05', paymentMode: 'upi' };
-  const later = { ...ctx, now: new Date('2026-11-20T12:00:00+05:30') };
-  const { result } = await runTool('log_promise_to_pay', args, later);
-  assertEquals(errorCode(result), 'POLICY_REFUSED');
+Deno.test('registry › a non-object body is invalid, not a crash', async () => {
+  const { ctx } = toolSetup();
+  const run = await runTool('request_owner_callback', 'call me', ctx);
+  assertEquals(run.result.ok ? null : run.result.code, 'INVALID_ARGS');
 });
 
-// --- send_payment_link -----------------------------------------------------------------------
-
-Deno.test('send_payment_link › confirms the masked number and amount', async () => {
-  const { ctx } = await contextFor(verifiedAnita());
-  const { result } = await runTool('send_payment_link', { amount: 6500 }, ctx);
-  assertEquals(result, {
-    ok: true,
-    data: { sent: true, channel: 'sms', sentTo: FAKE_ANITA.phoneMasked, amount: 6500 },
-  });
+Deno.test('registry › an unknown callback reason is invalid', async () => {
+  const { ctx, state } = toolSetup();
+  const run = await runTool('request_owner_callback', { reason: 'angry', summary: 'x' }, ctx);
+  assertEquals(run.result.ok ? null : run.result.code, 'INVALID_ARGS');
+  assertEquals(state.callbacks.length, 0);
 });
 
-Deno.test('send_payment_link › refuses more than the overdue amount', async () => {
-  const { ctx } = await contextFor(verifiedAnita());
-  const { result } = await runTool('send_payment_link', { amount: 9000 }, ctx);
-  assertEquals(errorCode(result), 'POLICY_REFUSED');
+Deno.test('registry › an amount sent as text is accepted as a number', async () => {
+  const { ctx, state } = confirmedSetup();
+  const run = await runTool('log_promise', { amount: '3000', promise_date: '2026-11-09' }, ctx);
+  assert(run.result.ok);
+  assertEquals(state.promises[0]?.amount, 3000);
+  assertEquals(run.auditArgs, { amount: 3000, promise_date: '2026-11-09' });
 });
 
-// --- transfer_to_human -----------------------------------------------------------------------
-
-Deno.test('transfer_to_human › allowed before verification and creates a handoff', async () => {
-  const call = fakeCall({ customerId: FAKE_RAVI.id, language: 'hi' });
-  const { ctx, state } = await contextFor(call);
-  const args = { reason: 'customer_request', summary: 'Wants to speak to a person.' };
-  const { result } = await runTool('transfer_to_human', args, ctx);
-  assertEquals(result.ok, true);
-  assertEquals(state.handoffs, [{ callId: call.id, customerId: FAKE_RAVI.id, ...args }]);
+Deno.test('registry › a shopkeeper id in the arguments is ignored: the token decides', async () => {
+  const { ctx } = confirmedSetup();
+  const run = await runTool('get_dues', { shopkeeper_id: FAKE_LATHA.id }, ctx);
+  assert(run.result.ok);
+  assertEquals(run.result.data['outstanding'], 8500);
+  assertEquals(run.auditArgs, {});
 });
 
-Deno.test('transfer_to_human › tells Asha to keep listening, not to hang up', async () => {
-  const { ctx } = await contextFor(fakeCall());
-  const args = { reason: 'dispute', summary: 'Thinks the amount is wrong.' };
-  const nextStep = JSON.stringify((await runTool('transfer_to_human', args, ctx)).result);
-  assertStringIncludes(nextStep, 'Do not end the call yet');
-  assertStringIncludes(nextStep, 'If they now want to pay, continue as normal');
+Deno.test('registry › a database failure becomes a safe reply plus a loggable reason', async () => {
+  const getLedger = (): Promise<never> =>
+    Promise.reject(new RepositoryError('getLedger', 'HTTP 503'));
+  const { ctx } = confirmedSetup({ repo: { getLedger } });
+  const run = await runTool('get_dues', {}, ctx);
+  assertEquals(run.result.ok ? null : run.result.code, 'TEMPORARY_ERROR');
+  assertEquals(run.failure, 'getLedger failed (HTTP 503)');
 });
 
-// Type-only check: the fake satisfies the real contract.
-const _contract: Repository = createFakeRepository().repo;
+Deno.test('registry › failures that are not ours are described by name only', () => {
+  assertEquals(describeFailure(new TypeError('row value 8500')), 'TypeError');
+  assertEquals(describeFailure('boom'), 'unknown error');
+});
 
-Deno.test('verify_customer › the daily cap uses the real clock, so a demo clock set ahead cannot skip it', async () => {
-  const morning = '2026-11-01T09:00:00+05:30';
-  const earlier = [1, 2, 3].map((n) =>
-    fakeCall({
-      id: `ca000000-0000-4000-8000-00000000000${n}`,
-      verifyAttempts: 2,
-      startedAt: morning,
-    })
-  );
-  const fresh = fakeCall({ startedAt: NOON_IST.toISOString() });
-  const { repo } = createFakeRepository({ calls: [...earlier, fresh] });
-  const session = (await repo.getCallSession(fresh.id)) as CallSession;
-  const demoTomorrow = new Date('2026-11-02T12:00:00+05:30');
-  const ctx = { repo, session, now: demoTomorrow, realNow: NOON_IST };
-  const outcome = await runTool('verify_customer', { dob: FAKE_ANITA.dob }, ctx);
-  assertEquals(errorCode(outcome.result), 'VERIFY_LOCKED');
+Deno.test('reply body › success is flat with ok and say; refusals carry the code', async () => {
+  const { ctx } = toolSetup();
+  const refused = await runTool('get_dues', {}, ctx);
+  assertEquals(Object.keys(toReplyBody(refused.result)).sort(), ['code', 'ok', 'say']);
+  const { ctx: confirmed } = confirmedSetup();
+  const body = toReplyBody((await runTool('get_dues', {}, confirmed)).result);
+  assertEquals([body['ok'], body['outstanding']], [true, 8500]);
+  assertEquals(typeof body['say'], 'string');
 });

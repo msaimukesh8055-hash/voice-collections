@@ -8,8 +8,8 @@ export default defineConfig({
     include: ['voice-agents/**/*.test.ts', 'scripts/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['voice-agents/**/*.ts', 'scripts/lib/**/*.ts'],
-      exclude: ['**/*.test.ts'],
+      include: ['voice-agents/**/*.ts', 'scripts/lib/**/*.ts', 'scripts/seed/**/*.ts'],
+      exclude: ['**/*.test.ts', 'scripts/seed/write-seed.ts'],
       reportsDirectory: 'coverage/root',
     },
   },

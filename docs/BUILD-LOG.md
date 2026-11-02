@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-02 · M3 — Sarvam switch + ledger · ✅ Done**
+Asha now runs on Sarvam with 5 real tools against a new 100-shopkeeper ledger in a Mumbai database; ringing phone page; 4 voice calls passed (no amounts before identity, one promise per call, claims never touch the balance).
+Fix after testing: a changed promise in the same call now updates it (Asha v2, not voice-tested). Spike passed, moved Oregon → Mumbai, gate green, ₹28 of free Sarvam credit used · Details → [`milestones/M3.md`](milestones/M3.md)
+
 **2026-11-02 · Pivot to Easy Recovery AI · ✅ SPEC v2.0 approved**
 Vapi → Sarvam Voice Agents (better voice and Hindi in testing); product becomes a WhatsApp-first credit-recovery assistant for a small trader, built to pitch to Sarvam.
 Adds voice notes both ways, per-person reminders, Asha's memory and tone ladder, reliability score, own evals, feedback doc, unit economics · D1–D5 approved as suggested; CP2 → after M5 · Details → [`SPEC.md`](SPEC.md)

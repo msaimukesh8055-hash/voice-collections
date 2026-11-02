@@ -20,3 +20,9 @@ During a call, every tool call goes Vapi → our webhook → database → back t
 - Tool calls stay inside one cloud region (~20–60 ms network expected; measured in the M2 voice test).
 - **Data residency trade-off (interview point):** a real Indian NBFC must keep borrower data in India (RBI data localisation, DPDP Act). Low latency *and* residency then needs a voice platform that also runs in India: either Vapi's enterprise data-residency option or an India-hosted voice stack. For this prototype, all data is fake, so Oregon is acceptable.
 - Anyone running the repo needs an Oregon project to reproduce the latency numbers; any region works functionally.
+
+## Amendment (M3, 2026-11-02): Mumbai, next to Sarvam
+Same principle, new neighbour. Sarvam's servers run in Azure India, and the spike measured India → Oregon at ~0.55 s per warm round trip.
+- New project `voice-collections-in` in **ap-south-1 (Mumbai)**: database and both functions. Old migrations replayed, then the M3 migrations replace the schema; seed check passed.
+- The Oregon project is paused, not deleted (Saim's call). The browser pins `x-region` to `VITE_SUPABASE_REGION` (`ap-south-1`).
+- Tool calls stay in India, and so does the (fake) data, which also answers the data-residency point above.

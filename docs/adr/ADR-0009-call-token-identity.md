@@ -21,3 +21,10 @@ Tools such as `lookup_loan` must act for exactly one borrower. The LLM must neve
 - Identity never comes from model output, and a token can't be replayed on a second call.
 - The token is only as protected as `calls-api`: it needs just the public anon key (prototype, M2 Decision 5). A per-customer rate limit and a daily cap on failed DOB attempts limit abuse (CP1 M1, M2). Real phone lines would add caller-ID matching and staff login.
 - Every call costs one database row, even if never used. Old unclaimed tokens simply expire.
+
+## Amendment (M3, 2026-11-02): lock by call state, not by interaction id
+Sarvam sends no interaction id to tools (spike check 2), so the first-tool-call lock can't work. The token is now created by `queueCall()` (demo Ring, later WhatsApp Remind) and locked by the call's state:
+- The phone page must **accept** a `ringing` call (compare-and-set) before anything else.
+- The Sarvam proxy issues **one call URL per token**, only within 2 minutes of accept (→ `in_progress`). One token can start at most one Sarvam session.
+- Tools work only while the call is `accepted`/`in_progress` and within **10 minutes** of accept. After `…/ended` (→ `completed`), `declined` or `missed`, tools refuse.
+- The token reaches tools as the `call_token` agent variable (not sent to the LLM, never spoken). The interaction id is stored from the browser at hang-up (never overwriting one already stored) and from the Analytics API in M5.

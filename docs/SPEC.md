@@ -249,14 +249,14 @@ A `balances` view gives each shopkeeper's outstanding amount. RLS on every table
 
 | Part | Choice | Cost for the prototype |
 |---|---|---|
-| Reminder calls | Sarvam Voice Agents, browser web calls | ₹3.50/min + GST, each call rounded up to a minute → ~30 min testing + demo ≈ **₹125** |
+| Reminder calls | Sarvam Voice Agents, browser web calls | ₹3.50/min + GST, each call rounded up to a minute → ~60 min testing + demo ≈ **₹250** |
 | WhatsApp brain, follow-up, simulated calls | Sarvam LLM `sarvam-105b` (₹15 / ₹60 per 1M tokens in/out) | ≈ **₹40** |
 | Voice notes | Sarvam Saaras (speech-to-text), Bulbul (text-to-speech) | ≈ **₹20** |
 | Eval judge, fallback | Google Gemini free tier | ₹0 |
 | WhatsApp | Meta Cloud API test number | ₹0 (replies inside 24 h are free; unverified for templates) |
-| Backend + database | Supabase Edge Functions + Postgres (Oregon) | ₹0 |
+| Backend + database | Supabase Edge Functions + Postgres (Mumbai, ap-south-1) | ₹0 |
 | Web | Vite + React + TypeScript + Tailwind on Vercel | ₹0 |
-| **Total** | | **≈ ₹200**, cap ₹1,000 |
+| **Total** | | **≈ ₹310**, cap ₹1,000 |
 
 Exact Saaras/Bulbul prices are confirmed in M6 before heavy use.
 
@@ -266,7 +266,7 @@ Exact Saaras/Bulbul prices are confirmed in M6 before heavy use.
 - No threats or shaming at any tone level; checked by evals.
 - Keys only in `.env` / function secrets: Sarvam key, Meta access token, App Secret, verify token, Gemini key. The browser never holds the Sarvam key; a Supabase function hands the SDK a signed call URL.
 - Fake data only. The only real data is Saim's WhatsApp number, kept in `.env`, never in the seed or git.
-- India data note (for the pitch): production would keep data in India; the prototype runs in Oregon.
+- India data note (for the pitch): data stays in India — database and functions run in Mumbai (ap-south-1), next to Sarvam.
 
 ## 16. What carries over from M0–M2
 
@@ -306,7 +306,7 @@ Checkpoints: **CP2 after M5** (the full loop works), **CP3 before go-live** (wit
 | R1 | WhatsApp 24-hour rule: the bot can't message freely if the owner hasn't written in 24 h | Submit a utility template for the due alert; for the demo, the owner says "hi" first |
 | R2 | Test number reaches only 5 registered numbers | Only the owner gets WhatsApp; shopkeepers only get browser calls |
 | R3 | Mic works only in real Chrome, not the in-app browser | All voice tests in Saim's Chrome |
-| R4 | Oregon latency for Sarvam tool calls (Sarvam likely in India) | Measure in the M3 spike; tools must answer in < 1 s; move region if not |
+| R4 | Tool-call latency between Sarvam and our server | Resolved in M3: moved to Mumbai next to Sarvam; Asha replies in ~1 s |
 | R5 | No public Sarvam config API | Push via MCP; keep `voice-agents/asha/` as the source of truth; record the version in `publishes` |
 | R6 | No bring-your-own model on Sarvam voice agents | Prompt and tools carry the quality; evals catch regressions |
 | R7 | Sarvam MCP needs re-login every 24 h | Saim re-authorises when prompted |

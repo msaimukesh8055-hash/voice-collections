@@ -1,52 +1,71 @@
 // supabase/functions/_shared/tools/schemas.ts
 // Single source of truth for Asha's tools: name, description (what the LLM reads) and argument
-// schema. The webhook validates with these; voice-agents/ turns them into Vapi tool definitions.
-// No customer identifiers here on purpose: the customer always comes from the call token.
+// schema. sarvam-tools validates with these; voice-agents/asha turns them into Sarvam tool
+// definitions, so what the LLM is told and what the server accepts cannot drift apart.
+// No shopkeeper identifiers here on purpose: the shopkeeper always comes from the call token.
 import { z } from 'zod';
-import { PAYMENT_MODES } from '../compliance/promise-policy.ts';
+import { PAYMENT_MODES } from '../schemas/ledger.ts';
 
-export const HANDOFF_REASONS = ['customer_request', 'dispute', 'hardship', 'cannot_help'] as const;
+export const IDENTITY_ANSWERS = ['confirmed', 'denied', 'unsure'] as const;
+export const CALLBACK_REASONS = ['dispute', 'hardship', 'wants_owner', 'other'] as const;
+const MAX_SUMMARY_LENGTH = 300;
 
 const IsoDate = z.iso.date();
+/** The LLM may send a number as text ("3000"); anything that is not a positive number fails. */
+const Rupees = z.coerce.number().positive();
 
 export const TOOL_SPECS = {
-  verify_customer: {
+  confirm_identity: {
     description:
-      "Verify the caller's identity with their date of birth. Call this before sharing any loan " +
-      'detail. Returns whether they are verified and how many attempts are left.',
+      'Record the answer to "Am I speaking with <shopkeeper> of <shop>?". Call it once, as soon ' +
+      'as they answer, before sharing anything about dues. Never ask again once confirmed.',
     args: z.object({
-      dob: IsoDate.describe('Date of birth the caller said, as YYYY-MM-DD'),
+      answer: z
+        .enum(IDENTITY_ANSWERS)
+        .describe(
+          'confirmed = they said yes, it is them; denied = someone else (e.g. son, worker); ' +
+            'unsure = unclear answer',
+        ),
     }),
   },
-  lookup_loan: {
+  get_dues: {
     description:
-      "Get the verified customer's overdue loan: overdue amount, EMI, due date, days past due, " +
-      'late fee and the last 4 digits of the loan number. Only works after verification.',
+      'Get what the shopkeeper owes: total outstanding, overdue amount, oldest due date, days ' +
+      'overdue and the next amount due. Only works after confirm_identity. Say the figures once.',
     args: z.object({}),
   },
-  log_promise_to_pay: {
+  log_promise: {
     description:
-      'Record a promise to pay once the customer has agreed an amount, date and payment mode. ' +
-      'If it is refused, tell the customer the reason and agree new terms.',
+      'Save the promise once the shopkeeper agrees an amount and a date to pay. Part payments ' +
+      'are fine. If they change the amount or date, call it again: it updates the promise ' +
+      'for this call.',
     args: z.object({
-      amount: z.number().positive().describe('Amount in rupees'),
-      promiseDate: IsoDate.describe('Date the customer will pay, as YYYY-MM-DD'),
-      paymentMode: z.enum(PAYMENT_MODES).describe('How the customer will pay'),
+      amount: Rupees.describe('Promised amount in rupees, e.g. 3000'),
+      promise_date: IsoDate.describe('Date they will pay, as YYYY-MM-DD'),
     }),
   },
-  send_payment_link: {
-    description: "Send a payment link by SMS to the customer's registered mobile number.",
+  record_payment_claim: {
+    description:
+      'Record that the shopkeeper says they already paid, for the owner to confirm. It does ' +
+      'not change the balance. Ask amount, date and mode first. Once per call.',
     args: z.object({
-      amount: z.number().positive().describe('Amount in rupees, at most the overdue amount'),
+      amount: Rupees.describe('Amount they say they paid, in rupees'),
+      paid_date: IsoDate.describe('Date they say they paid, as YYYY-MM-DD'),
+      mode: z.enum(PAYMENT_MODES).describe('How they paid: cash, upi, bank_transfer or cheque'),
     }),
   },
-  transfer_to_human: {
+  request_owner_callback: {
     description:
-      'Hand the customer to a human colleague who will call back: when they ask for a person, ' +
-      'dispute the dues, mention hardship, or you cannot help. Works before verification.',
+      'Ask the owner to call the shopkeeper back: when they dispute the amount, mention ' +
+      'hardship, or want to talk to the owner. Works before identity is confirmed.',
     args: z.object({
-      reason: z.enum(HANDOFF_REASONS),
-      summary: z.string().trim().min(1).max(500).describe('One or two sentences for the colleague'),
+      reason: z.enum(CALLBACK_REASONS).describe('dispute, hardship, wants_owner or other'),
+      summary: z
+        .string()
+        .trim()
+        .min(1)
+        .max(MAX_SUMMARY_LENGTH)
+        .describe('One sentence for the owner, in English'),
     }),
   },
 } as const;

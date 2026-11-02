@@ -1,55 +1,67 @@
 // supabase/functions/_shared/compliance/promise-policy.test.ts
-import { assertEquals, assertStringIncludes } from '@std/assert';
-import { checkPaymentLinkAmount, checkPromise, type PromiseInput } from './promise-policy.ts';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import {
+  checkPaymentClaim,
+  checkPromise,
+  CLAIM_WINDOW_DAYS,
+  MIN_PROMISE_AMOUNT,
+  PROMISE_WINDOW_DAYS,
+} from './promise-policy.ts';
 
-const VALID: PromiseInput = {
-  amount: 6500,
-  promiseDate: '2026-11-05',
-  overdueAmount: 6500,
-  today: '2026-11-01',
-};
+const TODAY = '2026-11-02';
+const promise = { amount: 3000, promiseDate: '2026-11-09', outstanding: 8500, today: TODAY };
+const claim = { amount: 2000, paidDate: '2026-11-01', outstanding: 8500, today: TODAY };
 
-function reasonOf(result: ReturnType<typeof checkPromise>): string {
-  return result.ok ? '' : result.reason;
+function reasonOf(result: { ok: boolean; reason?: string }): string {
+  assert(!result.ok);
+  return result.reason ?? '';
 }
 
-Deno.test('checkPromise › accepts the full overdue within the window', () => {
-  assertEquals(checkPromise(VALID), { ok: true });
+Deno.test('promise policy › a part payment within two weeks is accepted', () => {
+  assertEquals(checkPromise(promise), { ok: true });
 });
 
-Deno.test('checkPromise › date window edges: today and today+10 allowed', () => {
-  assertEquals(checkPromise({ ...VALID, promiseDate: '2026-11-01' }), { ok: true });
-  assertEquals(checkPromise({ ...VALID, promiseDate: '2026-11-11' }), { ok: true });
+Deno.test('promise policy › the full outstanding, today or on the last day, is accepted', () => {
+  assertEquals(checkPromise({ ...promise, amount: 8500, promiseDate: TODAY }), { ok: true });
+  assertEquals(checkPromise({ ...promise, promiseDate: '2026-11-16' }), { ok: true });
+  assertEquals(PROMISE_WINDOW_DAYS, 14);
 });
 
-Deno.test('checkPromise › refuses a past date or one beyond 10 days, naming the window', () => {
-  assertStringIncludes(
-    reasonOf(checkPromise({ ...VALID, promiseDate: '2026-10-31' })),
-    '2026-11-11',
-  );
-  assertStringIncludes(
-    reasonOf(checkPromise({ ...VALID, promiseDate: '2026-11-12' })),
-    '2026-11-01',
-  );
+Deno.test('promise policy › less than ₹100 is refused with the range Asha can offer', () => {
+  const reason = reasonOf(checkPromise({ ...promise, amount: MIN_PROMISE_AMOUNT - 1 }));
+  assertStringIncludes(reason, '100 rupees and 8,500 rupees');
 });
 
-Deno.test('checkPromise › amount edges: 50% allowed, just below refused, above overdue refused', () => {
-  assertEquals(checkPromise({ ...VALID, amount: 3250 }), { ok: true });
-  assertStringIncludes(reasonOf(checkPromise({ ...VALID, amount: 3249 })), '₹3,250');
-  assertStringIncludes(reasonOf(checkPromise({ ...VALID, amount: 6501 })), '₹6,500');
+Deno.test('promise policy › more than the outstanding is refused', () => {
+  assertStringIncludes(reasonOf(checkPromise({ ...promise, amount: 8501 })), '8,500 rupees');
 });
 
-Deno.test('checkPromise › refuses when nothing is overdue', () => {
-  assertStringIncludes(reasonOf(checkPromise({ ...VALID, overdueAmount: 0 })), 'no overdue');
+Deno.test('promise policy › a date in the past or beyond 14 days is refused with spoken dates', () => {
+  const past = reasonOf(checkPromise({ ...promise, promiseDate: '2026-11-01' }));
+  assertStringIncludes(past, 'Monday, 2 November 2026 and Monday, 16 November 2026');
+  assert(!checkPromise({ ...promise, promiseDate: '2026-11-17' }).ok);
 });
 
-Deno.test('checkPaymentLinkAmount › allows up to the overdue amount', () => {
-  assertEquals(checkPaymentLinkAmount(6500, 6500), { ok: true });
-  assertEquals(checkPaymentLinkAmount(100, 6500), { ok: true });
+Deno.test('promise policy › nothing outstanding means nothing to promise', () => {
+  assertStringIncludes(reasonOf(checkPromise({ ...promise, outstanding: 0 })), 'Nothing');
 });
 
-Deno.test('checkPaymentLinkAmount › refuses more than the overdue amount', () => {
-  const result = checkPaymentLinkAmount(6501, 6500);
-  assertEquals(result.ok, false);
-  assertStringIncludes(result.ok ? '' : result.reason, '₹6,500');
+Deno.test('claim policy › a payment yesterday, up to the outstanding, is accepted', () => {
+  assertEquals(checkPaymentClaim(claim), { ok: true });
+  assertEquals(checkPaymentClaim({ ...claim, amount: 8500, paidDate: TODAY }), { ok: true });
+});
+
+Deno.test('claim policy › more than the outstanding is refused', () => {
+  assertStringIncludes(reasonOf(checkPaymentClaim({ ...claim, amount: 9000 })), '8,500 rupees');
+});
+
+Deno.test('claim policy › a future date or one older than 30 days is refused', () => {
+  assertStringIncludes(reasonOf(checkPaymentClaim({ ...claim, paidDate: '2026-11-03' })), 'future');
+  assertEquals(checkPaymentClaim({ ...claim, paidDate: '2026-10-03' }), { ok: true });
+  const old = reasonOf(checkPaymentClaim({ ...claim, paidDate: '2026-10-02' }));
+  assertStringIncludes(old, `${CLAIM_WINDOW_DAYS} days`);
+});
+
+Deno.test('claim policy › nothing outstanding: the claim is not recorded', () => {
+  assertStringIncludes(reasonOf(checkPaymentClaim({ ...claim, outstanding: 0 })), 'Nothing');
 });

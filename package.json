@@ -11,7 +11,6 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w web",
     "test": "vitest run --coverage && npm run test -w web",
-    "agent:push": "node --env-file=.env scripts/agent-push.ts",
     "check:secrets": "node --env-file-if-exists=.env scripts/check-bundle-secrets.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,7 +23,10 @@
     "db:push": "node --env-file=.env scripts/db-push.ts",
     "db:check-seed": "node --env-file=.env scripts/check-seed.ts",
     "functions:deploy": "node --env-file=.env scripts/functions-deploy.ts",
-    "smoke:webhook": "node --env-file=.env scripts/smoke-webhook.ts"
+    "agent:build": "node --env-file=.env scripts/agent-build.ts",
+    "agent:record": "node --env-file=.env scripts/agent-record.ts",
+    "seed:generate": "node scripts/seed/write-seed.ts",
+    "smoke:tools": "node --env-file=.env scripts/smoke-tools.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

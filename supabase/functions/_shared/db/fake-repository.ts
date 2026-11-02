@@ -1,126 +1,152 @@
 // supabase/functions/_shared/db/fake-repository.ts
-// In-memory Repository for tests. FAKE DATA ONLY (mirrors two seeded borrowers).
-import type { Loan } from '../schemas/loan.ts';
+// In-memory Repository for tests. FAKE DATA ONLY. Ramesh's book mirrors his seeded story
+// (₹8,500 outstanding: ₹5,000 overdue 12 days + ₹3,500 due in 3 days) on FAKE_TODAY.
+import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
+import type { CallStatus } from '../schemas/shopkeeper.ts';
 import type {
+  CallPatch,
   CallSession,
-  CustomerForCall,
   DemoSettings,
-  NewCall,
-  NewHandoff,
+  NewOwnerCallback,
   NewPromise,
   NewToolEvent,
   Repository,
+  Shopkeeper,
 } from './repository.ts';
 
-export interface FakeCustomer extends CustomerForCall {
-  readonly dob: string;
-  readonly phoneMasked: string;
+/** India date the fake ledger is written against (a Monday). */
+export const FAKE_TODAY = '2026-11-02';
+/** Noon IST on FAKE_TODAY. */
+export const FAKE_NOW = new Date('2026-11-02T12:00:00+05:30');
+
+export const FAKE_RAMESH: Shopkeeper = {
+  id: '5e000000-0000-4000-8000-000000000001',
+  name: 'Ramesh',
+  shopName: 'Ramesh Kirana',
+  language: 'te',
+  doNotCall: false,
+  ownerName: 'Srinivas Reddy',
+  businessName: 'Sri Lakshmi Traders',
+};
+
+export const FAKE_LATHA: Shopkeeper = {
+  id: '5e000000-0000-4000-8000-000000000002',
+  name: 'Latha',
+  shopName: 'Latha General Stores',
+  language: 'hi',
+  doNotCall: false,
+  ownerName: 'Srinivas Reddy',
+  businessName: 'Sri Lakshmi Traders',
+};
+
+export interface FakeLedgerEntry extends LedgerEntry {
+  readonly shopkeeperId: string;
+  readonly callId: string | null;
+  readonly paymentMode: PaymentMode | null;
 }
 
-export interface FakeCall extends NewCall {
-  readonly id: string;
-  readonly vapiCallId: string | null;
-  readonly verified: boolean;
-  readonly verifyAttempts: number;
-  readonly startedAt: string;
+function entry(
+  shopkeeperId: string,
+  fields: Omit<FakeLedgerEntry, 'shopkeeperId' | 'callId' | 'status' | 'paymentMode'>,
+): FakeLedgerEntry {
+  return { shopkeeperId, callId: null, status: 'confirmed', paymentMode: null, ...fields };
+}
+
+export const FAKE_LEDGER: readonly FakeLedgerEntry[] = [
+  entry(FAKE_RAMESH.id, {
+    kind: 'credit',
+    amount: 4000,
+    entryDate: '2026-09-05',
+    dueDate: '2026-09-20',
+  }),
+  entry(FAKE_RAMESH.id, { kind: 'payment', amount: 4000, entryDate: '2026-09-24', dueDate: null }),
+  entry(FAKE_RAMESH.id, {
+    kind: 'credit',
+    amount: 5000,
+    entryDate: '2026-10-06',
+    dueDate: '2026-10-21',
+  }),
+  entry(FAKE_RAMESH.id, {
+    kind: 'credit',
+    amount: 3500,
+    entryDate: '2026-10-21',
+    dueDate: '2026-11-05',
+  }),
+  entry(FAKE_LATHA.id, {
+    kind: 'credit',
+    amount: 2000,
+    entryDate: '2026-10-10',
+    dueDate: '2026-10-25',
+  }),
+];
+
+export interface FakeCall extends CallSession {
+  readonly endedAt: string | null;
+  readonly durationSeconds: number | null;
 }
 
 export interface FakeState {
-  customers: readonly FakeCustomer[];
-  loans: readonly Loan[];
+  shopkeepers: readonly Shopkeeper[];
+  ledger: readonly FakeLedgerEntry[];
   calls: readonly FakeCall[];
   promises: readonly NewPromise[];
-  handoffs: readonly NewHandoff[];
+  callbacks: readonly NewOwnerCallback[];
   toolEvents: readonly NewToolEvent[];
   settings: DemoSettings;
+  /** Stands in for the database's now() when a call row is created. */
+  clock: () => Date;
 }
 
-export const FAKE_RAVI: FakeCustomer = {
-  id: 'c0000000-0000-4000-8000-000000000001',
-  fullName: 'Ravi Sharma',
-  dob: '1988-04-12',
-  phoneMasked: '+91 98XXXXXX21',
-  language: 'hi',
-  city: 'Pune',
-  doNotCall: false,
-};
-
-export const FAKE_ANITA: FakeCustomer = {
-  id: 'c0000000-0000-4000-8000-000000000002',
-  fullName: 'Anita Desai',
-  dob: '1991-09-03',
-  phoneMasked: '+91 97XXXXXX45',
-  language: 'en',
-  city: 'Mumbai',
-  doNotCall: false,
-};
-
-export const FAKE_LOANS: readonly Loan[] = [
-  {
-    id: '10000000-0000-4000-8000-000000000001',
-    customer_id: FAKE_RAVI.id,
-    loan_number: 'SF-PL-100234',
-    product: 'personal_loan',
-    emi_amount: 4200,
-    due_date: '2026-10-05',
-    overdue_amount: 4200,
-    days_past_due: 26,
-    late_fee: 500,
-  },
-  {
-    id: '10000000-0000-4000-8000-000000000002',
-    customer_id: FAKE_ANITA.id,
-    loan_number: 'SF-PL-100871',
-    product: 'personal_loan',
-    emi_amount: 6500,
-    due_date: '2026-10-10',
-    overdue_amount: 6500,
-    days_past_due: 21,
-    late_fee: 500,
-  },
-];
-
-/** A call row for tests; defaults to a fresh, unclaimed, unverified call for Anita. */
+/** A call row for tests; defaults to Ramesh's live call, accepted a minute before FAKE_NOW. */
 export function fakeCall(overrides: Partial<FakeCall> = {}): FakeCall {
   return {
-    id: 'ca000000-0000-4000-8000-0000000000aa',
-    customerId: FAKE_ANITA.id,
-    language: 'en',
-    attemptNo: 1,
-    vapiCallId: null,
-    verified: false,
-    verifyAttempts: 0,
-    startedAt: new Date().toISOString(),
+    callId: 'ca000000-0000-4000-8000-0000000000aa',
+    shopkeeperId: FAKE_RAMESH.id,
+    mode: 'live',
+    status: 'accepted',
+    language: 'te',
+    identityStatus: 'unknown',
+    identityUnsureCount: 0,
+    interactionId: null,
+    queuedAt: '2026-11-02T06:28:00.000Z',
+    ringingAt: '2026-11-02T06:28:30.000Z',
+    acceptedAt: '2026-11-02T06:29:00.000Z',
+    urlIssuedAt: null,
+    endedAt: null,
+    durationSeconds: null,
     ...overrides,
   };
 }
 
 function initialState(overrides: Partial<FakeState>): FakeState {
   return {
-    customers: [FAKE_RAVI, FAKE_ANITA],
-    loans: FAKE_LOANS,
+    shopkeepers: [FAKE_RAMESH, FAKE_LATHA],
+    ledger: FAKE_LEDGER,
     calls: [],
     promises: [],
-    handoffs: [],
+    callbacks: [],
     toolEvents: [],
-    settings: { demoClock: null, callingHoursEnabled: false, callLimitsEnabled: false },
+    settings: {
+      demoClock: null,
+      callingHoursEnabled: false,
+      callLimitsEnabled: false,
+      liveShopkeeperId: FAKE_RAMESH.id,
+    },
+    clock: () => FAKE_NOW,
     ...overrides,
   };
 }
 
-function toSession(call: FakeCall, customer: FakeCustomer): CallSession {
-  return {
-    callId: call.id,
-    customerId: call.customerId,
-    customerDob: customer.dob,
-    phoneMasked: customer.phoneMasked,
-    language: call.language,
-    vapiCallId: call.vapiCallId,
-    verified: call.verified,
-    verifyAttempts: call.verifyAttempts,
-    authorizedAt: call.startedAt,
-  };
+function toSession(call: FakeCall): CallSession {
+  const { endedAt: _endedAt, durationSeconds: _duration, ...session } = call;
+  return session;
 }
+
+function applyPatch(call: FakeCall, patch: CallPatch): FakeCall {
+  return { ...call, ...patch };
+}
+
+const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
 
 /** Returns the fake plus its live state, so tests can assert on what was written. */
 export function createFakeRepository(overrides: Partial<FakeState> = {}): {
@@ -128,70 +154,111 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
   readonly state: FakeState;
 } {
   const state = initialState(overrides);
-  const findCustomer = (id: string): FakeCustomer | undefined =>
-    state.customers.find((customer) => customer.id === id);
-  const findCall = (id: string): FakeCall | undefined => state.calls.find((call) => call.id === id);
-  const updateCall = (id: string, patch: Partial<FakeCall>): void => {
-    state.calls = state.calls.map((call) => (call.id === id ? { ...call, ...patch } : call));
+  const findCall = (id: string): FakeCall | undefined =>
+    state.calls.find((call) => call.callId === id);
+  const updateCall = (id: string, update: (call: FakeCall) => FakeCall): void => {
+    state.calls = state.calls.map((call) => (call.callId === id ? update(call) : call));
   };
+  const claimsFor = (callId: string): readonly FakeLedgerEntry[] =>
+    state.ledger.filter((row) => row.callId === callId);
 
   const repo: Repository = {
-    listCustomers: () =>
-      Promise.resolve(
-        state.customers.map(({ id, fullName, language, city }) => ({
-          id,
-          fullName,
-          language,
-          city,
-        })),
-      ),
-    getCustomerForCall: (id) => Promise.resolve(findCustomer(id) ?? null),
     getDemoSettings: () => Promise.resolve(state.settings),
-    countCallsSince: (customerId, since) =>
+    getShopkeeper: (id) =>
+      Promise.resolve(state.shopkeepers.find((shopkeeper) => shopkeeper.id === id) ?? null),
+    countCallsSince: (shopkeeperId, since) =>
       Promise.resolve(
-        state.calls.filter(
-          (call) => call.customerId === customerId && Date.parse(call.startedAt) >= since.getTime(),
+        state.calls.filter((call) =>
+          call.shopkeeperId === shopkeeperId && Date.parse(call.queuedAt) >= since.getTime()
         ).length,
       ),
     createCall: (call) => {
-      const created = fakeCall({ ...call, id: crypto.randomUUID() });
+      const created = fakeCall({
+        ...call,
+        callId: crypto.randomUUID(),
+        status: 'queued',
+        queuedAt: state.clock().toISOString(),
+        ringingAt: null,
+        acceptedAt: null,
+      });
       state.calls = [...state.calls, created];
-      return Promise.resolve(created.id);
+      return Promise.resolve(created.callId);
     },
     getCallSession: (callId) => {
       const call = findCall(callId);
-      const customer = call && findCustomer(call.customerId);
-      return Promise.resolve(call && customer ? toSession(call, customer) : null);
+      return Promise.resolve(call ? toSession(call) : null);
     },
-    claimCall: (callId, vapiCallId) => {
-      if (findCall(callId)?.vapiCallId !== null) return Promise.resolve(false);
-      updateCall(callId, { vapiCallId });
+    findRingingCall: (shopkeeperId) => {
+      const ringable = state.calls
+        .filter((call) => call.shopkeeperId === shopkeeperId && RINGABLE.includes(call.status))
+        .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt));
+      return Promise.resolve(ringable[0] ? toSession(ringable[0]) : null);
+    },
+    transitionCall: (callId, from, patch) => {
+      const call = findCall(callId);
+      if (!call || !from.includes(call.status)) return Promise.resolve(false);
+      updateCall(callId, (current) => applyPatch(current, patch));
       return Promise.resolve(true);
     },
-    recordVerification: (callId, verification) => {
-      if (findCall(callId)?.verifyAttempts !== verification.verifyAttempts - 1) {
+    recordIdentity: (callId, expected, next) => {
+      const call = findCall(callId);
+      const matches = call?.identityStatus === expected.status &&
+        call.identityUnsureCount === expected.unsureCount;
+      if (!matches) return Promise.resolve(false);
+      updateCall(callId, (current) => ({
+        ...current,
+        identityStatus: next.status,
+        identityUnsureCount: next.unsureCount,
+      }));
+      return Promise.resolve(true);
+    },
+    getLedger: (shopkeeperId) =>
+      Promise.resolve(state.ledger.filter((row) => row.shopkeeperId === shopkeeperId)),
+    getPromiseForCall: (callId) => {
+      const saved = state.promises.find((promise) => promise.callId === callId);
+      return Promise.resolve(
+        saved ? { amount: saved.amount, promiseDate: saved.promiseDate } : null,
+      );
+    },
+    insertPromise: (promise) => {
+      if (state.promises.some((saved) => saved.callId === promise.callId)) {
         return Promise.resolve(false);
       }
-      updateCall(callId, verification);
+      state.promises = [...state.promises, promise];
       return Promise.resolve(true);
     },
-    countFailedVerifyAttemptsSince: (customerId, since) =>
-      Promise.resolve(
-        state.calls
-          .filter((call) =>
-            call.customerId === customerId && !call.verified &&
-            Date.parse(call.startedAt) >= since.getTime()
-          )
-          .reduce((total, call) => total + call.verifyAttempts, 0),
-      ),
-    getLoanForCustomer: (customerId) =>
-      Promise.resolve(state.loans.find((loan) => loan.customer_id === customerId) ?? null),
-    insertPromise: (promise) => {
-      state.promises = [...state.promises, promise];
-      return Promise.resolve();
+    updatePromiseForCall: (callId, latest) => {
+      if (!state.promises.some((saved) => saved.callId === callId)) return Promise.resolve(false);
+      state.promises = state.promises.map((saved) =>
+        saved.callId === callId ? { ...saved, ...latest } : saved
+      );
+      return Promise.resolve(true);
     },
-    insertHandoff: (handoff) => {
-      state.handoffs = [...state.handoffs, handoff];
+    getClaimForCall: (callId) => {
+      const saved = claimsFor(callId)[0];
+      return Promise.resolve(
+        saved
+          ? { amount: saved.amount, paidDate: saved.entryDate, mode: saved.paymentMode ?? 'cash' }
+          : null,
+      );
+    },
+    insertPaymentClaim: (claim) => {
+      if (claimsFor(claim.callId).length > 0) return Promise.resolve(false);
+      const row: FakeLedgerEntry = {
+        shopkeeperId: claim.shopkeeperId,
+        callId: claim.callId,
+        kind: 'payment',
+        amount: claim.amount,
+        entryDate: claim.paidDate,
+        dueDate: null,
+        status: 'claimed',
+        paymentMode: claim.mode,
+      };
+      state.ledger = [...state.ledger, row];
+      return Promise.resolve(true);
+    },
+    insertOwnerCallback: (callback) => {
+      state.callbacks = [...state.callbacks, callback];
       return Promise.resolve();
     },
     insertToolEvent: (event) => {

@@ -1,194 +1,327 @@
 // supabase/functions/calls-api/handler.test.ts
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import {
   createFakeRepository,
-  FAKE_ANITA,
-  FAKE_RAVI,
+  FAKE_NOW,
+  FAKE_RAMESH,
+  type FakeCall,
   fakeCall,
   type FakeState,
 } from '../_shared/db/fake-repository.ts';
 import type { Logger } from '../_shared/log.ts';
-import { type CallsApiDeps, handleCallsApi } from './handler.ts';
+import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
+import { handleCallsApi } from './handler.ts';
+import type { SarvamSettings } from './sarvam-proxy.ts';
+import type { CallsApiDeps } from './types.ts';
 
 const ORIGIN = 'http://localhost:5173';
-const NOON_IST = new Date('2026-11-01T12:00:00+05:30');
 const BASE = 'https://ref.supabase.co/functions/v1/calls-api';
+const SARVAM = { apiKey: 'agents-key', orgId: 'org-1', workspaceId: 'ws-1', appId: 'app-1' };
+const SECONDS_AGO = (seconds: number): string =>
+  new Date(FAKE_NOW.getTime() - seconds * 1000).toISOString();
 
-function setup(overrides: Partial<FakeState> = {}): { deps: CallsApiDeps; state: FakeState } {
+function setup(overrides: Partial<FakeState> = {}, sarvam: Partial<SarvamSettings> = {}): {
+  deps: CallsApiDeps;
+  state: FakeState;
+} {
   const { repo, state } = createFakeRepository(overrides);
   const log: Logger = () => {};
-  return { deps: { repo, clock: () => NOON_IST, log, allowedOrigins: [ORIGIN] }, state };
+  const fetchImpl: typeof fetch = () =>
+    Promise.resolve(Response.json({ url: 'wss://signed', reference_id: 'ref-1' }));
+  const deps: CallsApiDeps = {
+    repo,
+    clock: () => FAKE_NOW,
+    log,
+    allowedOrigins: [ORIGIN],
+    sarvam: { ...SARVAM, ...sarvam },
+    fetchImpl,
+  };
+  return { deps, state };
 }
 
-function authorize(customerId: unknown, origin = ORIGIN): Request {
-  return new Request(`${BASE}/v1/calls/authorize`, {
-    method: 'POST',
-    headers: { origin, 'content-type': 'application/json' },
-    body: JSON.stringify({ customerId }),
+function request(path: string, init: RequestInit = {}): Request {
+  return new Request(`${BASE}${path}`, {
+    ...init,
+    headers: { origin: ORIGIN, 'content-type': 'application/json', ...init.headers },
   });
 }
 
-async function errorCodeOf(response: Response): Promise<string> {
-  return ((await response.json()) as { error: { code: string } }).error.code;
+const post = (path: string, body: unknown = {}): Request =>
+  request(path, { method: 'POST', body: JSON.stringify(body) });
+
+async function json(response: Response): Promise<Record<string, unknown>> {
+  return (await response.json()) as Record<string, unknown>;
 }
 
-Deno.test('calls-api › GET /v1/customers lists name, language and city only', async () => {
-  const { deps } = setup();
-  const response = await handleCallsApi(
-    new Request(`${BASE}/v1/customers`, { headers: { origin: ORIGIN } }),
-    deps,
-  );
-  assertEquals(response.status, 200);
-  assertEquals(response.headers.get('access-control-allow-origin'), ORIGIN);
-  const body = (await response.json()) as { customers: Array<Record<string, unknown>> };
-  assertEquals(body.customers[0], {
-    id: FAKE_RAVI.id,
-    fullName: 'Ravi Sharma',
-    language: 'hi',
-    city: 'Pune',
-  });
-  assertEquals(JSON.stringify(body).includes(FAKE_RAVI.dob), false);
-});
+async function errorCode(response: Response): Promise<unknown> {
+  return ((await json(response))['error'] as { code: string }).code;
+}
 
-Deno.test('calls-api › CORS preflight: allowed origin echoed, unknown origin not', async () => {
+function ringingCall(overrides: Partial<FakeCall> = {}): FakeCall {
+  return fakeCall({ status: 'ringing', ringingAt: SECONDS_AGO(5), acceptedAt: null, ...overrides });
+}
+
+const TOKEN = fakeCall().callId;
+
+Deno.test('calls-api › CORS preflight: allowed origin echoed with the SDK headers', async () => {
   const { deps } = setup();
-  const preflight = (origin: string): Request =>
-    new Request(`${BASE}/v1/calls/authorize`, { method: 'OPTIONS', headers: { origin } });
-  const allowed = await handleCallsApi(preflight(ORIGIN), deps);
+  const allowed = await handleCallsApi(request('/v1/demo/ring', { method: 'OPTIONS' }), deps);
   assertEquals(allowed.status, 204);
   assertEquals(allowed.headers.get('access-control-allow-origin'), ORIGIN);
-  const denied = await handleCallsApi(preflight('https://evil.example'), deps);
+  assert(allowed.headers.get('access-control-allow-headers')?.includes(CALL_TOKEN_HEADER));
+  const denied = await handleCallsApi(
+    new Request(`${BASE}/v1/demo/ring`, {
+      method: 'OPTIONS',
+      headers: { origin: 'https://evil.example' },
+    }),
+    deps,
+  );
   assertEquals(denied.headers.get('access-control-allow-origin'), null);
 });
 
-Deno.test('calls-api › authorise allowed → 201 with token, name and language; call row created', async () => {
+Deno.test('calls-api › unknown path → 404; wrong method → 405', async () => {
+  const { deps } = setup();
+  assertEquals((await handleCallsApi(request('/v1/customers'), deps)).status, 404);
+  assertEquals((await handleCallsApi(request('/v1/demo/ring'), deps)).status, 405);
+});
+
+Deno.test('calls-api › GET /v1/demo names the live shopkeeper', async () => {
+  const { deps } = setup();
+  const body = await json(await handleCallsApi(request('/v1/demo'), deps));
+  assertEquals(body, { liveShopkeeper: { name: 'Ramesh', shopName: 'Ramesh Kirana' } });
+});
+
+Deno.test('calls-api › GET /v1/demo with no live shopkeeper → null', async () => {
+  const settings = {
+    demoClock: null,
+    callingHoursEnabled: false,
+    callLimitsEnabled: false,
+    liveShopkeeperId: null,
+  };
+  const { deps } = setup({ settings });
+  assertEquals(await json(await handleCallsApi(request('/v1/demo'), deps)), {
+    liveShopkeeper: null,
+  });
+});
+
+Deno.test('calls-api › ring → a queued call for the live shopkeeper', async () => {
   const { deps, state } = setup();
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
+  const response = await handleCallsApi(post('/v1/demo/ring'), deps);
   assertEquals(response.status, 201);
-  const body = (await response.json()) as Record<string, unknown>;
-  assertEquals(body['customerName'], 'Anita Desai');
-  assertEquals(body['language'], 'en');
-  assertEquals(body['today'], 'Sunday, 2026-11-01');
-  assertEquals(state.calls.length, 1);
-  assertEquals(body['callToken'], state.calls[0]?.id);
-  assertEquals(state.calls[0]?.attemptNo, 1);
+  assertEquals(await json(response), { status: 'queued', alreadyQueued: false });
+  assertEquals([state.calls[0]?.status, state.calls[0]?.shopkeeperId], ['queued', FAKE_RAMESH.id]);
 });
 
-Deno.test("calls-api › attempt number counts today's earlier calls", async () => {
-  const earlier = fakeCall({ id: crypto.randomUUID(), startedAt: '2026-11-01T09:00:00+05:30' });
-  const { deps, state } = setup({ calls: [earlier] });
-  await handleCallsApi(authorize(FAKE_ANITA.id), deps);
-  assertEquals(state.calls[1]?.attemptNo, 2);
-});
-
-Deno.test('calls-api › with the calling-hours switch off, a 21:00 call is allowed', async () => {
-  const { deps } = setup({
-    settings: {
-      demoClock: '2026-11-01T21:00:00+05:30',
-      callingHoursEnabled: false,
-      callLimitsEnabled: false,
-    },
-  });
-  assertEquals((await handleCallsApi(authorize(FAKE_ANITA.id), deps)).status, 201);
-});
-
-Deno.test('calls-api › demo clock at 21:00 IST blocks the call when the switch is on, no call row', async () => {
-  const { deps, state } = setup({
-    settings: {
-      demoClock: '2026-11-01T21:00:00+05:30',
-      callingHoursEnabled: true,
-      callLimitsEnabled: false,
-    },
-  });
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
-  assertEquals(response.status, 409);
-  assertEquals(await errorCodeOf(response), 'OUTSIDE_CALLING_HOURS');
+Deno.test('calls-api › ring a do-not-call shopkeeper → reason, no call row', async () => {
+  const { deps, state } = setup({ shopkeepers: [{ ...FAKE_RAMESH, doNotCall: true }] });
+  const response = await handleCallsApi(post('/v1/demo/ring'), deps);
+  assertEquals(await errorCode(response), 'DO_NOT_CALL');
   assertEquals(state.calls.length, 0);
 });
 
-Deno.test('calls-api › do-not-call customer is blocked', async () => {
-  const { deps } = setup({ customers: [{ ...FAKE_ANITA, doNotCall: true }] });
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
-  assertEquals(await errorCodeOf(response), 'DO_NOT_CALL');
+Deno.test('calls-api › ring with no live shopkeeper set → refused', async () => {
+  const settings = {
+    demoClock: null,
+    callingHoursEnabled: false,
+    callLimitsEnabled: false,
+    liveShopkeeperId: null,
+  };
+  const { deps } = setup({ settings });
+  assertEquals(
+    await errorCode(await handleCallsApi(post('/v1/demo/ring'), deps)),
+    'NO_LIVE_SHOPKEEPER',
+  );
 });
 
-Deno.test('calls-api › attempt limits apply only when switched on', async () => {
-  const today = [1, 2, 3].map(() =>
-    fakeCall({ id: crypto.randomUUID(), startedAt: '2026-11-01T09:00:00+05:30' })
-  );
-  const off = setup({ calls: today });
-  assertEquals((await handleCallsApi(authorize(FAKE_ANITA.id), off.deps)).status, 201);
-  const on = setup({
-    calls: today,
-    settings: { demoClock: null, callingHoursEnabled: false, callLimitsEnabled: true },
+Deno.test('calls-api › incoming: nothing queued → no call', async () => {
+  const { deps } = setup();
+  assertEquals(await json(await handleCallsApi(request('/v1/phone/incoming'), deps)), {
+    call: null,
   });
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), on.deps);
-  assertEquals(await errorCodeOf(response), 'ATTEMPT_LIMIT_REACHED');
 });
 
-Deno.test('calls-api › a 4th authorise for one customer within a minute → 429, no call row (CP1 M2)', async () => {
-  const justNow = [10, 20, 30].map((secondsAgo) =>
-    fakeCall({
-      id: crypto.randomUUID(),
-      startedAt: new Date(NOON_IST.getTime() - secondsAgo * 1000).toISOString(),
-    })
-  );
-  const { deps, state } = setup({ calls: justNow });
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
-  assertEquals(response.status, 429);
-  assertEquals(await errorCodeOf(response), 'RATE_LIMITED');
-  assertEquals(state.calls.length, 3);
-});
-
-Deno.test('calls-api › the rate limit is per customer and forgets calls older than a minute', async () => {
-  const minuteAgo = new Date(NOON_IST.getTime() - 61_000).toISOString();
-  const anita = [1, 2, 3].map(() => fakeCall({ id: crypto.randomUUID(), startedAt: minuteAgo }));
-  const ravi = [1, 2, 3].map(() =>
-    fakeCall({
-      id: crypto.randomUUID(),
-      customerId: FAKE_RAVI.id,
-      startedAt: NOON_IST.toISOString(),
-    })
-  );
-  const { deps } = setup({ calls: [...anita, ...ravi] });
-  assertEquals((await handleCallsApi(authorize(FAKE_ANITA.id), deps)).status, 201);
-});
-
-Deno.test('calls-api › weekly limit counts calls from the last 7 India days', async () => {
-  const week = [
-    '2026-10-26',
-    '2026-10-27',
-    '2026-10-28',
-    '2026-10-29',
-    '2026-10-30',
-    '2026-10-31',
-    '2026-10-31',
-  ]
-    .map((day) => fakeCall({ id: crypto.randomUUID(), startedAt: `${day}T10:00:00+05:30` }));
-  const tooOld = fakeCall({ id: crypto.randomUUID(), startedAt: '2026-10-25T23:00:00+05:30' });
-  const { deps } = setup({
-    calls: [tooOld, ...week],
-    settings: { demoClock: null, callingHoursEnabled: false, callLimitsEnabled: true },
+Deno.test('calls-api › incoming: a queued call starts ringing, shown as the business', async () => {
+  const queued = fakeCall({
+    status: 'queued',
+    queuedAt: SECONDS_AGO(3),
+    ringingAt: null,
+    acceptedAt: null,
   });
-  const response = await handleCallsApi(authorize(FAKE_ANITA.id), deps);
-  assertEquals(await errorCodeOf(response), 'ATTEMPT_LIMIT_REACHED');
+  const { deps, state } = setup({ calls: [queued] });
+  const body = await json(await handleCallsApi(request('/v1/phone/incoming'), deps));
+  assertEquals(body, { call: { callToken: queued.callId, callerName: 'Sri Lakshmi Traders' } });
+  assertEquals([state.calls[0]?.status, state.calls[0]?.ringingAt], [
+    'ringing',
+    FAKE_NOW.toISOString(),
+  ]);
 });
 
-Deno.test('calls-api › unknown customer → 404; bad body → 400', async () => {
-  const { deps } = setup();
-  assertEquals((await handleCallsApi(authorize(crypto.randomUUID()), deps)).status, 404);
-  assertEquals((await handleCallsApi(authorize('not-a-uuid'), deps)).status, 400);
+Deno.test('calls-api › incoming: a call ringing over 30 s is marked missed', async () => {
+  const { deps, state } = setup({ calls: [ringingCall({ ringingAt: SECONDS_AGO(31) })] });
+  assertEquals(await json(await handleCallsApi(request('/v1/phone/incoming'), deps)), {
+    call: null,
+  });
+  assertEquals(state.calls[0]?.status, 'missed');
 });
 
-Deno.test('calls-api › unknown route → 404; wrong method → 405', async () => {
-  const { deps } = setup();
-  assertEquals((await handleCallsApi(new Request(`${BASE}/v1/loans`), deps)).status, 404);
-  const wrongMethod = new Request(`${BASE}/v1/customers`, { method: 'DELETE' });
-  assertEquals((await handleCallsApi(wrongMethod, deps)).status, 405);
+Deno.test('calls-api › incoming: with no live shopkeeper there is never a call', async () => {
+  const settings = {
+    demoClock: null,
+    callingHoursEnabled: false,
+    callLimitsEnabled: false,
+    liveShopkeeperId: null,
+  };
+  const { deps } = setup({ settings, calls: [ringingCall()] });
+  assertEquals(await json(await handleCallsApi(request('/v1/phone/incoming'), deps)), {
+    call: null,
+  });
 });
 
-Deno.test('calls-api › routes also match without the function prefix (local serve)', async () => {
-  const { deps } = setup();
-  const response = await handleCallsApi(new Request('http://localhost:8000/v1/customers'), deps);
+Deno.test('calls-api › accept: only from ringing; returns names, language and Sarvam ids', async () => {
+  const { deps, state } = setup({ calls: [ringingCall()] });
+  const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), deps);
   assertEquals(response.status, 200);
+  assertEquals(await json(response), {
+    callToken: TOKEN,
+    language: 'te',
+    shopkeeperName: 'Ramesh',
+    shopName: 'Ramesh Kirana',
+    ownerName: 'Srinivas Reddy',
+    businessName: 'Sri Lakshmi Traders',
+    today: 'Monday, 2026-11-02',
+    sarvam: { orgId: 'org-1', workspaceId: 'ws-1', appId: 'app-1' },
+  });
+  assertEquals([state.calls[0]?.status, state.calls[0]?.acceptedAt], [
+    'accepted',
+    FAKE_NOW.toISOString(),
+  ]);
+});
+
+Deno.test('calls-api › accept twice → the second is refused', async () => {
+  const { deps } = setup({ calls: [ringingCall()] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), deps);
+  const second = await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), deps);
+  assertEquals(await errorCode(second), 'CALL_STATE_CONFLICT');
+});
+
+Deno.test('calls-api › accept after the 30 s ring → refused', async () => {
+  const { deps } = setup({ calls: [ringingCall({ ringingAt: SECONDS_AGO(40) })] });
+  assertEquals(
+    await errorCode(await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), deps)),
+    'CALL_STATE_CONFLICT',
+  );
+});
+
+Deno.test('calls-api › accept loses a race with decline → refused', async () => {
+  const { deps } = setup({ calls: [ringingCall()] });
+  const raced = { ...deps, repo: { ...deps.repo, transitionCall: () => Promise.resolve(false) } };
+  assertEquals(
+    await errorCode(await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), raced)),
+    'CALL_STATE_CONFLICT',
+  );
+});
+
+Deno.test('calls-api › accept with no Sarvam app set up → refused before anything changes', async () => {
+  const { deps, state } = setup({ calls: [ringingCall()] }, { appId: null });
+  const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/accept`), deps);
+  assertEquals(await errorCode(response), 'VOICE_NOT_CONFIGURED');
+  assertEquals(state.calls[0]?.status, 'ringing');
+});
+
+Deno.test('calls-api › unknown or malformed token → 404', async () => {
+  const { deps } = setup();
+  assertEquals(
+    (await handleCallsApi(post(`/v1/calls/${crypto.randomUUID()}/accept`), deps)).status,
+    404,
+  );
+  assertEquals((await handleCallsApi(post('/v1/calls/not-a-token/decline'), deps)).status, 404);
+});
+
+Deno.test('calls-api › decline → declined; declining an accepted call is refused', async () => {
+  const { deps, state } = setup({ calls: [ringingCall()] });
+  const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/decline`), deps);
+  assertEquals(await json(response), { status: 'declined' });
+  assertEquals(state.calls[0]?.status, 'declined');
+  const accepted = setup({ calls: [fakeCall()] });
+  const refused = await handleCallsApi(post(`/v1/calls/${TOKEN}/decline`), accepted.deps);
+  assertEquals(await errorCode(refused), 'CALL_STATE_CONFLICT');
+});
+
+Deno.test('calls-api › ended → completed with duration and interaction id', async () => {
+  const { deps, state } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  const body = { interactionId: '20261102/abc-123', seconds: 95 };
+  const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, body), deps);
+  assertEquals(await json(response), { status: 'completed' });
+  const call = state.calls[0];
+  assertEquals([call?.status, call?.durationSeconds, call?.interactionId], [
+    'completed',
+    95,
+    '20261102/abc-123',
+  ]);
+  assertEquals(call?.endedAt, FAKE_NOW.toISOString());
+});
+
+Deno.test('calls-api › ended never overwrites an interaction id already stored', async () => {
+  const { deps, state } = setup({
+    calls: [fakeCall({ status: 'in_progress', interactionId: '20261102/first' })],
+  });
+  await handleCallsApi(
+    post(`/v1/calls/${TOKEN}/ended`, { interactionId: '20261102/other', seconds: 10 }),
+    deps,
+  );
+  assertEquals(state.calls[0]?.interactionId, '20261102/first');
+});
+
+Deno.test('calls-api › ended without an interaction id (call never connected) still completes', async () => {
+  const { deps, state } = setup({ calls: [fakeCall()] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 0 }), deps);
+  assertEquals([state.calls[0]?.status, state.calls[0]?.interactionId], ['completed', null]);
+});
+
+Deno.test('calls-api › ended: bad body → 400; an already-ended call → conflict', async () => {
+  const { deps } = setup({ calls: [fakeCall({ status: 'completed' })] });
+  const bad = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: -1 }), deps);
+  assertEquals(bad.status, 400);
+  const late = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 3 }), deps);
+  assertEquals(await errorCode(late), 'CALL_STATE_CONFLICT');
+});
+
+Deno.test('calls-api › the Sarvam URL route is the guarded proxy', async () => {
+  const { deps, state } = setup({ calls: [fakeCall()] });
+  const path = '/v1/sarvam/orgs/org-1/workspaces/ws-1/apps/app-1/url?interaction_type=call';
+  const response = await handleCallsApi(
+    request(path, { headers: { [CALL_TOKEN_HEADER]: TOKEN } }),
+    deps,
+  );
+  assertEquals(await json(response), { url: 'wss://signed', reference_id: 'ref-1' });
+  assertEquals(response.headers.get('access-control-allow-origin'), ORIGIN);
+  assertEquals(state.calls[0]?.status, 'in_progress');
+});
+
+Deno.test('calls-api › a database failure → generic 500 with CORS headers', async () => {
+  const { deps } = setup();
+  const broken = {
+    ...deps,
+    repo: { ...deps.repo, getDemoSettings: () => Promise.reject(new Error('db')) },
+  };
+  const response = await handleCallsApi(request('/v1/demo'), broken);
+  assertEquals(response.status, 500);
+  assertEquals(response.headers.get('access-control-allow-origin'), ORIGIN);
+});
+
+Deno.test('calls-api › routes also match without the function prefix; bad escapes → 404', async () => {
+  const { deps } = setup();
+  const bare = await handleCallsApi(new Request('https://local.test/v1/demo'), deps);
+  assertEquals(bare.status, 200);
+  const malformed = await handleCallsApi(post('/v1/calls/%E0%A4%A/accept'), deps);
+  assertEquals(malformed.status, 404);
+});
+
+Deno.test('calls-api › ended for an unknown token → 404', async () => {
+  const { deps } = setup();
+  const response = await handleCallsApi(
+    post(`/v1/calls/${crypto.randomUUID()}/ended`, { seconds: 1 }),
+    deps,
+  );
+  assertEquals(response.status, 404);
 });
