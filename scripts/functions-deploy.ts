@@ -1,5 +1,5 @@
 // scripts/functions-deploy.ts
-// Uploads function secrets and deploys both Edge Functions to the project in .env (Mumbai).
+// Uploads function secrets and deploys the three Edge Functions to the project in .env (Mumbai).
 // Secrets go through a temporary env file (never the command line, never printed), which is
 // deleted straight after. --yes: Saim approved hosted deploys for M3.
 import { execSync } from 'node:child_process';
@@ -14,6 +14,15 @@ const REQUIRED_SECRETS = [
   'SARVAM_ORG_ID',
   'SARVAM_WORKSPACE_ID',
   'CORS_ALLOWED_ORIGINS',
+  // M4 WhatsApp bot (whatsapp-webhook).
+  'META_ACCESS_TOKEN',
+  'META_PHONE_NUMBER_ID',
+  'META_WABA_ID',
+  'META_APP_SECRET',
+  'WHATSAPP_VERIFY_TOKEN',
+  'OWNER_WHATSAPP_NUMBER',
+  'SARVAM_API_KEY',
+  'GEMINI_API_KEY',
 ] as const;
 /** Blank until Asha exists in Sarvam; calls-api refuses calls (503) until it is set. */
 const OPTIONAL_SECRETS = ['SARVAM_APP_ID'] as const;
@@ -63,4 +72,8 @@ runSupabase(
   `functions deploy sarvam-tools --no-verify-jwt --use-api --project-ref ${projectRef} --yes`,
 );
 runSupabase(`functions deploy calls-api --use-api --project-ref ${projectRef} --yes`);
-process.stdout.write('Functions deployed: sarvam-tools, calls-api\n');
+// Meta cannot send a Supabase JWT; whatsapp-webhook checks Meta's signature instead (ADR-0015).
+runSupabase(
+  `functions deploy whatsapp-webhook --no-verify-jwt --use-api --project-ref ${projectRef} --yes`,
+);
+process.stdout.write('Functions deployed: sarvam-tools, calls-api, whatsapp-webhook\n');

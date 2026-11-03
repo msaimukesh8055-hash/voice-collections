@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-03 · M4 — WhatsApp core · ✅ Done (awaiting commit)**
+Owner bot live on the Meta test number: ledger views, add credit / mark paid with Save cards, claims confirm, Sarvam LLM brain with Gemini fallback; unpublished app gets real messages once the WhatsApp account is linked to the app.
+449 tests + gate green, phone smoke 6/8 passed (Telugu AI path still to try), never-expiring token · Details → [`milestones/M4.md`](milestones/M4.md)
+
 **2026-11-02 · M3 — Sarvam switch + ledger · ✅ Done**
 Asha now runs on Sarvam with 5 real tools against a new 100-shopkeeper ledger in a Mumbai database; ringing phone page; 4 voice calls passed (no amounts before identity, one promise per call, claims never touch the balance).
 Fix after testing: a changed promise in the same call now updates it (Asha v2, not voice-tested). Spike passed, moved Oregon → Mumbai, gate green, ₹28 of free Sarvam credit used · Details → [`milestones/M3.md`](milestones/M3.md)

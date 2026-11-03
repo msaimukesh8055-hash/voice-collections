@@ -34,11 +34,11 @@ interface OpenCredit {
   readonly paise: number;
 }
 
-function toPaise(rupees: number): number {
+export function toPaise(rupees: number): number {
   return Math.round(rupees * PAISE_PER_RUPEE);
 }
 
-function toRupees(paise: number): number {
+export function toRupees(paise: number): number {
   return paise / PAISE_PER_RUPEE;
 }
 
@@ -51,7 +51,7 @@ function dueDateOf(entry: LedgerEntry): string {
   return entry.dueDate ?? entry.entryDate;
 }
 
-function byOldestFirst(a: LedgerEntry, b: LedgerEntry): number {
+export function byOldestFirst(a: LedgerEntry, b: LedgerEntry): number {
   const byDue = dueDateOf(a).localeCompare(dueDateOf(b));
   return byDue !== 0 ? byDue : a.entryDate.localeCompare(b.entryDate);
 }

@@ -417,11 +417,16 @@ enabled = true
 
 # Edge Functions share one import map (zod, std; no supabase-js, see ADR-0010). JWT: sarvam-tools is called
 # by Sarvam, which cannot send a Supabase JWT (bearer tool secret checked instead, ADR-0012); calls-api
-# is called by the dashboard and phone page with the public anon key.
+# is called by the dashboard and phone page with the public anon key. whatsapp-webhook is called by Meta,
+# which cannot send a Supabase JWT (X-Hub-Signature-256 checked instead, ADR-0015).
 [functions.sarvam-tools]
 verify_jwt = false
 import_map = "./functions/deno.json"
 
 [functions.calls-api]
 verify_jwt = true
+import_map = "./functions/deno.json"
+
+[functions.whatsapp-webhook]
+verify_jwt = false
 import_map = "./functions/deno.json"

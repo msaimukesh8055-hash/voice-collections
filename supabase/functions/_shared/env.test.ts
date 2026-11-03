@@ -1,6 +1,12 @@
 // supabase/functions/_shared/env.test.ts
 import { assertEquals, assertThrows } from '@std/assert';
-import { loadCallsApiEnv, loadServerEnv, loadToolsEnv, MissingEnvError } from './env.ts';
+import {
+  loadCallsApiEnv,
+  loadServerEnv,
+  loadToolsEnv,
+  loadWhatsAppEnv,
+  MissingEnvError,
+} from './env.ts';
 
 const VALID_ENV = {
   SUPABASE_URL: 'https://example.supabase.co',
@@ -71,4 +77,38 @@ Deno.test('loadCallsApiEnv › a blank or missing app id means "not set up yet" 
   const { SARVAM_APP_ID: _app, ...withoutApp } = CALLS_API_ENV;
   assertEquals(loadCallsApiEnv(withoutApp).SARVAM_APP_ID, null);
   assertEquals(loadCallsApiEnv(CALLS_API_ENV).SARVAM_APP_ID, 'app-1');
+});
+
+const WHATSAPP_ENV = {
+  ...VALID_ENV,
+  META_ACCESS_TOKEN: 'meta-token',
+  META_PHONE_NUMBER_ID: '100000000000001',
+  META_APP_SECRET: 'app-secret',
+  WHATSAPP_VERIFY_TOKEN: 'verify-token',
+  OWNER_WHATSAPP_NUMBER: '+91 00000 99999',
+  SARVAM_API_KEY: 'sarvam-key',
+  GEMINI_API_KEY: 'gemini-key',
+};
+
+Deno.test('loadWhatsAppEnv › keeps only the digits of the owner number', () => {
+  assertEquals(loadWhatsAppEnv(WHATSAPP_ENV).OWNER_WHATSAPP_NUMBER, '910000099999');
+});
+
+Deno.test('loadWhatsAppEnv › rejects a short owner number without echoing it', () => {
+  const error = assertThrows(
+    () => loadWhatsAppEnv({ ...WHATSAPP_ENV, OWNER_WHATSAPP_NUMBER: '12345' }),
+    MissingEnvError,
+    'OWNER_WHATSAPP_NUMBER',
+  );
+  assertEquals(error.message.includes('12345'), false);
+});
+
+Deno.test('loadWhatsAppEnv › requires the app secret and a numeric phone number id', () => {
+  const { META_APP_SECRET: _omitted, ...incomplete } = WHATSAPP_ENV;
+  assertThrows(() => loadWhatsAppEnv(incomplete), MissingEnvError, 'META_APP_SECRET');
+  assertThrows(
+    () => loadWhatsAppEnv({ ...WHATSAPP_ENV, META_PHONE_NUMBER_ID: 'abc' }),
+    MissingEnvError,
+    'META_PHONE_NUMBER_ID',
+  );
 });

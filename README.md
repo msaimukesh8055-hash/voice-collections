@@ -6,11 +6,15 @@ A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake
 
 1. Node 20+ (tested on 25). No global Deno or Docker needed — Deno installs as a project dependency.
 2. `npm install`
-3. Copy `.env.example` → `.env` and fill it in (never commit `.env`). Supabase project in **ap-south-1 (Mumbai)**. Sarvam needs two keys: `SARVAM_API_KEY` (speech, LLM) and `SARVAM_AGENTS_API_KEY` (Voice Agents, indus.sarvam.ai), plus org and workspace ids. `SARVAM_TOOL_SECRET` is a random 32+ character string you also store in Sarvam's Secrets vault as `easy-recovery-tool-secret`.
+3. Copy `.env.example` → `.env` and fill it in (never commit `.env`). Supabase project in **ap-south-1 (Mumbai)**. Sarvam needs two keys: `SARVAM_API_KEY` (speech, LLM) and `SARVAM_AGENTS_API_KEY` (Voice Agents, indus.sarvam.ai), plus org and workspace ids. `SARVAM_TOOL_SECRET` is a random 32+ character string you also store in Sarvam's Secrets vault as `easy-recovery-tool-secret`. The WhatsApp bot (M4) needs `META_ACCESS_TOKEN` (system-user token, never expires), `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_APP_SECRET`, a random `WHATSAPP_VERIFY_TOKEN`, the owner's number in `OWNER_WHATSAPP_NUMBER` (only number the bot answers; never stored) and `GEMINI_API_KEY` (fallback brain).
 4. `npm run db:push` — applies migrations + seed to the linked Supabase project.
 5. `npm run db:check-seed` — verifies seed counts, Ramesh's figures and that the browser key cannot read data.
-6. `npm run functions:deploy` — uploads function secrets and deploys `sarvam-tools` + `calls-api`.
+6. `npm run functions:deploy` — uploads function secrets and deploys `sarvam-tools`, `calls-api` and `whatsapp-webhook`.
 7. `npm run agent:build` — writes `voice-agents/asha/build/agent.json` to create/update Asha in Sarvam (see `voice-agents/README.md`). Put Asha's app id in `SARVAM_APP_ID`, then deploy the functions again.
+
+## Connect WhatsApp (M4)
+
+In Meta → WhatsApp → Configuration set **Callback URL** `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` and **Verify token** = `WHATSAPP_VERIFY_TOKEN`, then subscribe to `messages`. Send "hi" from the owner's phone to the test number. Commands: `pending`, `closed`, `Ramesh`, `Ramesh 5000 due 15th`, `Ramesh paid 2000`, or free text in Telugu/Hindi/English. Every change waits for a **Save** tap.
 
 ## Try a call
 
@@ -29,8 +33,9 @@ Voice minutes cost ₹3.50/min + GST: use them for manual checks and the demo on
 | `npm run db:push` | Apply migrations + seed |
 | `npm run db:check-seed` | Seed + RLS smoke test |
 | `npm run seed:generate` | Regenerate `supabase/seed.sql` from the deterministic generator |
-| `npm run functions:deploy` | Upload function secrets, deploy `sarvam-tools` + `calls-api` |
+| `npm run functions:deploy` | Upload function secrets, deploy `sarvam-tools`, `calls-api`, `whatsapp-webhook` |
 | `npm run smoke:tools` | End-to-end check on the deployed functions: ring → accept → 5 tools → ended (no voice credit) |
+| `npm run smoke:whatsapp` | Signed fake Meta messages to the deployed webhook: verify, bad signature, stranger. Add `-- --send-to-owner` for pending / lookup / card → Save / duplicate id (**sends real WhatsApp replies to the owner**); cleans up its rows |
 | `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam |
 | `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes` |
 
@@ -38,7 +43,7 @@ Voice minutes cost ₹3.50/min + GST: use them for manual checks and the demo on
 
 ```
 web/          demo controls + shopkeeper phone page (Vite + React + Tailwind, light-blue theme)
-supabase/     migrations, seed, Edge Functions (_shared core, sarvam-tools, calls-api)
+supabase/     migrations, seed, Edge Functions (_shared core, sarvam-tools, calls-api, whatsapp-webhook)
 voice-agents/ voice agents as code (prompt, greetings, voice, languages, tools) — pushed to Sarvam
 scripts/      seed generator, deploy, smoke tests, agent build/record
 evals/        simulated conversations, judge, release gate (M7)
