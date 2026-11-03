@@ -4,7 +4,7 @@
 // code, no AI: every number can be traced to the book. Promises are judged in memory first (the
 // same checker as get_dues), so the explanation matches what the next call would see.
 import type { BotContext } from '../cards/context.ts';
-import type { BookShopkeeper } from '../db/book-repository.ts';
+import type { BookEntry, BookShopkeeper } from '../db/book-repository.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { applyPromiseChanges, checkPromises } from '../ledger/promise-check.ts';
 import { computeScore, type Score } from '../ledger/score.ts';
@@ -12,14 +12,37 @@ import type { Language } from '../schemas/shopkeeper.ts';
 import { type Reply, textReply } from '../whatsapp/replies.ts';
 import { reminderPhrasesFor } from './phrases.ts';
 
-export async function scoreOf(shopkeeper: BookShopkeeper, ctx: BotContext): Promise<Score> {
-  const [entries, stored, callStatuses] = await Promise.all([
-    ctx.book.listShopkeeperEntries(shopkeeper.id),
-    ctx.reminder.repo.listPromises(shopkeeper.id),
-    ctx.reminder.listCallStatuses(shopkeeper.id),
+/** The score from a shopkeeper's entries (already read), his promises (judged in memory first)
+ * and his call results. Used by "X score", "pending" and the lookup, so all three agree. */
+export async function scoreWithEntries(
+  shopkeeperId: string,
+  entries: readonly BookEntry[],
+  ctx: BotContext,
+): Promise<Score> {
+  const [stored, callStatuses] = await Promise.all([
+    ctx.reminder.repo.listPromises(shopkeeperId),
+    ctx.reminder.listCallStatuses(shopkeeperId),
   ]);
   const promises = applyPromiseChanges(stored, checkPromises(stored, entries, ctx.today));
   return computeScore({ entries, promises, callStatuses, today: ctx.today });
+}
+
+export async function scoreOf(shopkeeper: BookShopkeeper, ctx: BotContext): Promise<Score> {
+  const entries = await ctx.book.listShopkeeperEntries(shopkeeper.id);
+  return scoreWithEntries(shopkeeper.id, entries, ctx);
+}
+
+/** Scores for a few rows at once (the 10 "pending" shows), keyed by shopkeeper id. */
+export async function scoresFor(
+  rows: ReadonlyArray<
+    { readonly shopkeeper: BookShopkeeper; readonly entries: readonly BookEntry[] }
+  >,
+  ctx: BotContext,
+): Promise<ReadonlyMap<string, Score>> {
+  const scores = await Promise.all(
+    rows.map((row) => scoreWithEntries(row.shopkeeper.id, row.entries, ctx)),
+  );
+  return new Map(rows.map((row, index) => [row.shopkeeper.id, scores[index]!]));
 }
 
 /** "(nothing to judge yet, full marks)" instead of "0 of 0". */

@@ -1,10 +1,11 @@
 // supabase/functions/_shared/followup/summary.test.ts
 // Summary (M5 test list): outcome, promise/claim, tone level, next step, "simulated" label;
-// claim buttons only when a claim exists.
+// claim buttons only when a claim exists; [Try again] only when the next step is "try again".
 import { assert, assertEquals } from '@std/assert';
 import { parseTap } from '../cards/ids.ts';
 import type { Score } from '../ledger/score.ts';
 import { SUPPORTED_LANGUAGES } from '../schemas/shopkeeper.ts';
+import { phrasesFor } from '../whatsapp/phrases.ts';
 import { replyText } from '../whatsapp/replies.ts';
 import { CLAIM, FACT_CLAIM_ID, facts, PROMISE } from './__fixtures__/facts.ts';
 import type { NextStep } from './rules.ts';
@@ -81,6 +82,33 @@ Deno.test('summary › simulated calls are labelled; a missing transcript is sai
   ]);
   assert(text.includes('🧪 Simulated call'));
   assert(text.endsWith('Transcript not available; summary from what the call recorded.'));
+});
+
+Deno.test('summary › "Didn\'t answer" carries a [Try again] button that reminds him again', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const reply = buildSummary({
+      facts: facts({ connected: false }),
+      step: { kind: 'try_again' },
+      score: null,
+      language,
+    });
+    assert(reply.kind === 'buttons', language);
+    assertEquals(reply.buttons.length, 1);
+    assertEquals(reply.buttons[0]?.title, phrasesFor(language).tryAgain);
+    assertEquals(parseTap(reply.buttons[0]?.id ?? ''), {
+      kind: 'remind',
+      shopkeeperId: facts().shopkeeperId,
+      language,
+    });
+  }
+  assert(
+    replyText([buildSummary({
+      facts: facts({ connected: false }),
+      step: { kind: 'try_again' },
+      score: null,
+      language: 'en',
+    })]).includes('Did not answer'),
+  );
 });
 
 Deno.test('summary › no tone line when nobody confirmed identity', () => {

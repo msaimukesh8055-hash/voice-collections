@@ -7,11 +7,22 @@
 // 6 messages, free inside the 24-hour window). Run it only when the owner expects them.
 // The stranger step makes the function try to reply to a FAKE number (+91 00000 00777); Meta
 // refuses it (not an allowed test recipient), which is fine. Every row the script creates is
-// removed at the end. Prints statuses only, never keys or the owner's number.
-import { createHmac } from 'node:crypto';
+// removed at the end. Prints statuses only, never keys or the owner's number. Payloads, signing
+// and polling come from scripts/lib (shared with smoke:reminders).
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { istDate } from '../supabase/functions/_shared/clock.ts';
+import {
+  digits,
+  metaPayload,
+  type MetaMessage,
+  postWebhook,
+  senderHash as keyedHash,
+  sign as signWith,
+  tapMessage as tapWithId,
+  textMessage as textWithId,
+} from './lib/meta-webhook.ts';
+import { createReporter, poll as pollFor, requireEnv, sleep } from './lib/smoke.ts';
 import { shopkeeperId } from './seed/generate-seed.ts';
 
 const RAMESH_ID = shopkeeperId(0);
@@ -31,31 +42,15 @@ interface Smoke {
   readonly startedAt: string;
 }
 
-let failures = 0;
+const { report, failures } = createReporter();
 let messageCounter = 0;
 
-function requireEnv(name: string): string {
-  const value = process.env[name]?.replace(/\r/g, '').trim();
-  if (!value) throw new Error(`Missing ${name} in .env`);
-  return value;
-}
-
-function report(passed: boolean, line: string): void {
-  if (!passed) failures += 1;
-  process.stdout.write(`${passed ? 'ok  ' : 'FAIL'} ${line}\n`);
-}
-
-function digits(value: string): string {
-  return value.replace(/\D/g, '');
-}
-
-/** Same keyed hash as _shared/whatsapp/sender.ts (HMAC-SHA256 with the App Secret). */
 function senderHash(smoke: Smoke, number: string): string {
-  return createHmac('sha256', smoke.appSecret).update(digits(number)).digest('hex');
+  return keyedHash(smoke.appSecret, number);
 }
 
 function sign(smoke: Smoke, body: string): string {
-  return `sha256=${createHmac('sha256', smoke.appSecret).update(body).digest('hex')}`;
+  return signWith(smoke.appSecret, body);
 }
 
 function nextMessageId(): string {
@@ -63,50 +58,25 @@ function nextMessageId(): string {
   return `wamid.${RUN}-${messageCounter}`;
 }
 
-function payload(smoke: Smoke, from: string, message: Record<string, unknown>): string {
-  const value = {
-    messaging_product: 'whatsapp',
-    metadata: { display_phone_number: '15550000000', phone_number_id: smoke.phoneNumberId },
-    messages: [{ from, timestamp: String(Math.floor(Date.now() / 1000)), ...message }],
-  };
-  return JSON.stringify({
-    object: 'whatsapp_business_account',
-    entry: [{ id: 'smoke', changes: [{ field: 'messages', value }] }],
-  });
+function payload(smoke: Smoke, from: string, message: MetaMessage): string {
+  return metaPayload(smoke.phoneNumberId, from, message);
 }
 
-function textMessage(text: string, id = nextMessageId()): Record<string, unknown> {
-  return { id, type: 'text', text: { body: text } };
+function textMessage(text: string, id = nextMessageId()): MetaMessage {
+  return textWithId(id, text);
 }
 
-function tapMessage(buttonId: string, id = nextMessageId()): Record<string, unknown> {
-  return {
-    id,
-    type: 'interactive',
-    interactive: { type: 'button_reply', button_reply: { id: buttonId, title: 'Save' } },
-  };
+function tapMessage(buttonId: string, id = nextMessageId()): MetaMessage {
+  return tapWithId(id, buttonId, 'Save');
 }
 
-async function post(smoke: Smoke, body: string, signature: string | null): Promise<number> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (signature !== null) headers['x-hub-signature-256'] = signature;
-  const response = await fetch(smoke.url, { method: 'POST', headers, body });
-  await response.text();
-  return response.status;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function post(smoke: Smoke, body: string, signature: string | null): Promise<number> {
+  return postWebhook(smoke.url, body, signature);
 }
 
 /** Background work finishes after the 200, so database checks wait for it. */
-async function poll<T>(read: () => Promise<T | null>): Promise<T | null> {
-  for (let attempt = 0; attempt < POLL_TRIES; attempt += 1) {
-    const value = await read();
-    if (value !== null) return value;
-    await sleep(POLL_DELAY_MS);
-  }
-  return null;
+function poll<T>(read: () => Promise<T | null>): Promise<T | null> {
+  return pollFor(read, { tries: POLL_TRIES, delayMs: POLL_DELAY_MS });
 }
 
 async function checkVerify(smoke: Smoke): Promise<void> {
@@ -315,6 +285,6 @@ try {
 }
 
 process.stdout.write(
-  failures === 0 ? '\nWhatsApp smoke passed\n' : `\nWhatsApp smoke FAILED (${failures})\n`,
+  failures() === 0 ? '\nWhatsApp smoke passed\n' : `\nWhatsApp smoke FAILED (${failures()})\n`,
 );
-process.exit(failures === 0 ? 0 : 1);
+process.exit(failures() === 0 ? 0 : 1);

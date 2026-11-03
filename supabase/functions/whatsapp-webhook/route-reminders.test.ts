@@ -1,7 +1,8 @@
 // supabase/functions/whatsapp-webhook/route-reminders.test.ts
 // The owner's reminder flow through the router (M5 test list): "who is due?" → alert with Remind
 // actions and nobody called; Remind → one call (live rings, others simulated); Remind all due →
-// count + skips → Yes queues once (double tap safe) → No queues nothing; score explain. Fakes only.
+// count + skips → Yes queues once (a second tap later, or two taps at once) → No queues nothing;
+// score explain. Fakes only.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { type BotSetup, botSetup } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { parseTap, remindAllButtonId, remindButtonId } from '../_shared/cards/ids.ts';
@@ -9,7 +10,7 @@ import { LATHA, PRAVEEN_1, RAMESH } from '../_shared/db/fake-book-repository.ts'
 import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
-import { routeMessage } from './route.ts';
+import { routeMessage, runCommand } from './route.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -150,6 +151,22 @@ Deno.test('reminders › Remind all due → count with skips → Yes queues once
   assertEquals(reminder.store.state.calls.length, 1);
 });
 
+Deno.test('reminders › two quick taps on Yes at once: one wins, the other says "Already done"', async () => {
+  const setup = botSetup();
+  const offer = await send(setup, text('remind all'));
+  const [yes] = buttonIds(offer);
+  // Both taps read the card while it is still open; only one compare-and-set can close it.
+  const [first, second] = await Promise.all([
+    send(setup, tap(yes ?? '')),
+    send(setup, tap(yes ?? '')),
+  ]);
+  const texts = [replyText(first ?? []), replyText(second ?? [])];
+  assertEquals(texts.filter((reply) => reply === 'Already done.').length, 1, texts.join(' | '));
+  assertEquals(setup.reminder.store.state.calls.length, 2);
+  assertEquals(setup.reminder.started, [1]);
+  assertEquals(setup.state.actions.map((action) => action.status), ['done']);
+});
+
 Deno.test('reminders › Remind all with simulated people starts at most 4', async () => {
   const setup = botSetup();
   const offer = await send(setup, text('remind all'));
@@ -225,4 +242,13 @@ Deno.test('reminders › score for an unknown name says not found', async () => 
     { llm: NO_LLM, demoNow: NOW },
   );
   assertEquals(result.command, 'unknown');
+});
+
+Deno.test('reminders › a remind command for a name that matches nobody calls nobody', async () => {
+  // Text never gets here (an unknown name goes to the LLM, which cannot ask for a reminder), but
+  // runCommand is the one door, so it must still refuse safely.
+  const setup = botSetup();
+  const replies = await runCommand({ kind: 'remind', name: 'Zzz' }, setup.ctx);
+  assertStringIncludes(replyText(replies), 'No shopkeeper called Zzz');
+  assertEquals(setup.reminder.store.state.calls.length, 0);
 });
