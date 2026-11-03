@@ -1,0 +1,216 @@
+// supabase/functions/_shared/brain/commands.ts
+// Fixed commands, parsed in code before any LLM (ADR-0014): help, pending, closed, a shopkeeper
+// name, "X paid N" and "X N due D", in English and in Latin-letter Hindi and Telugu. Names,
+// amounts and dates are cut out of the text itself; nothing is guessed. Anything else returns
+// null and goes to the LLM.
+import { findAmount } from './amounts.ts';
+import { findDueDate } from './dates.ts';
+import { hasIndicScript } from './language.ts';
+
+export type Command =
+  | { readonly kind: 'help' }
+  | { readonly kind: 'pending' }
+  | { readonly kind: 'closed' }
+  | { readonly kind: 'lookup'; readonly name: string }
+  | {
+    readonly kind: 'add_credit';
+    readonly name: string;
+    readonly amount: number;
+    /** null = not said; the card uses the 15-day default. */
+    readonly dueDate: string | null;
+    readonly note: string | null;
+  }
+  | { readonly kind: 'mark_paid'; readonly name: string; readonly amount: number };
+
+export type CommandKind = Command['kind'];
+
+const MAX_NAME_WORDS = 4;
+const MAX_NOTE_LENGTH = 60;
+
+const HELP = new Set([
+  'hi',
+  'hello',
+  'hey',
+  'help',
+  'menu',
+  'start',
+  'namaste',
+  'namaskar',
+  'namaskaram',
+  'help me',
+  'నమస్కారం',
+  'హలో',
+  'नमस्ते',
+  'हेलो',
+  'हेल्प',
+]);
+const PENDING = new Set([
+  'pending',
+  'dues',
+  'due list',
+  'pending list',
+  'who owes',
+  'who owes me',
+  'baki',
+  'baaki',
+  'bakaya',
+  'baaki list',
+  'udhaar list',
+  'bakilu',
+  'pending dues',
+]);
+const CLOSED = new Set(['closed', 'paid off', 'cleared', 'settled', 'closed list', 'chukta']);
+
+/** Words meaning "he paid" (English, Hindi, Telugu in Latin letters). */
+const PAID_WORDS = new Set([
+  'paid',
+  'pay',
+  'payed',
+  'payment',
+  'received',
+  'recd',
+  'got',
+  'returned',
+  'repaid',
+  'jama',
+  'chukaya',
+  'chukaye',
+  'bhare',
+  'kattadu',
+  'kattindi',
+  'kattaru',
+  'kattesadu',
+  'ichadu',
+  'icchadu',
+  'ichindi',
+  'icchindi',
+  'ichaadu',
+  'chellinchadu',
+]);
+/** Hindi "X ne N diye" = X paid N; "X ko N diye" = gave X goods on credit. */
+const HINDI_GAVE = new Set(['diye', 'diya', 'de', 'di']);
+const HINDI_PAYER_MARK = 'ne';
+/** Words that mean "credit" or join the sentence; they are not part of a name or a note. */
+const FILLER_WORDS = new Set([
+  'credit',
+  'udhaar',
+  'udhar',
+  'udaar',
+  'udhaari',
+  'appu',
+  'baaki',
+  'baki',
+  'loan',
+  'gave',
+  'given',
+  'give',
+  'icchanu',
+  'ichanu',
+  'add',
+  'new',
+  'entry',
+  'ne',
+  'ko',
+  'ki',
+  'ku',
+  'ke',
+  'ka',
+  'se',
+  'garu',
+  'gaaru',
+  'from',
+  'to',
+  'for',
+  'of',
+  'has',
+  'have',
+  'me',
+  'mein',
+  'rs',
+  'rupees',
+  'rupaye',
+  'due',
+  'by',
+  'on',
+  'and',
+  'diye',
+  'diya',
+  'de',
+  'di',
+  'is',
+  'the',
+  'a',
+  'goods',
+  'maal',
+  'saman',
+  'nundi',
+]);
+
+function normalise(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/,(?!\d)/g, ' ')
+    .replace(/[!?;:]+/g, ' ')
+    .replace(/\.(?!\d)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function words(text: string): string[] {
+  return text.split(' ').filter((word) => /^[a-z]+$/.test(word));
+}
+
+function titleCase(name: readonly string[]): string {
+  return name.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function cutOut(text: string, span: { start: number; end: number } | null): string {
+  return span ? `${text.slice(0, span.start)} ${text.slice(span.end)}` : text;
+}
+
+function isPaid(all: readonly string[]): boolean {
+  if (all.some((word) => PAID_WORDS.has(word))) return true;
+  return all.includes(HINDI_PAYER_MARK) && all.some((word) => HINDI_GAVE.has(word));
+}
+
+function isNameWord(word: string): boolean {
+  return !PAID_WORDS.has(word) && !FILLER_WORDS.has(word);
+}
+
+function lookupOf(text: string): Command | null {
+  const all = text.split(' ');
+  const nameWords = words(text);
+  if (nameWords.length !== all.length || all.length > MAX_NAME_WORDS) return null;
+  return { kind: 'lookup', name: titleCase(nameWords) };
+}
+
+function entryOf(text: string, today: string): Command | null {
+  const due = findDueDate(text, today);
+  const rest = cutOut(text, due);
+  const amount = findAmount(rest);
+  if (!amount) return null;
+  const before = words(rest.slice(0, amount.start)).filter(isNameWord);
+  const after = words(rest.slice(amount.end)).filter(isNameWord);
+  const name = before.length > 0 ? before : after;
+  if (name.length === 0 || name.length > MAX_NAME_WORDS) return null;
+  const all = words(rest);
+  if (isPaid(all)) return { kind: 'mark_paid', name: titleCase(name), amount: amount.amount };
+  const note = before.length > 0 && after.length > 0 ? after.join(' ') : null;
+  return {
+    kind: 'add_credit',
+    name: titleCase(name),
+    amount: amount.amount,
+    dueDate: due?.date ?? null,
+    note: note === null ? null : note.slice(0, MAX_NOTE_LENGTH),
+  };
+}
+
+/** A fixed command, or null when only the LLM can read the message. */
+export function parseCommand(text: string, today: string): Command | null {
+  const clean = normalise(text);
+  if (HELP.has(clean)) return { kind: 'help' };
+  if (hasIndicScript(clean)) return null;
+  if (PENDING.has(clean)) return { kind: 'pending' };
+  if (CLOSED.has(clean)) return { kind: 'closed' };
+  return entryOf(clean, today) ?? lookupOf(clean);
+}

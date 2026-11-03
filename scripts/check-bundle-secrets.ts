@@ -12,6 +12,10 @@ const SECRET_NAMES = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_DB_PASSWORD',
   'SUPABASE_ACCESS_TOKEN',
+  'META_ACCESS_TOKEN',
+  'META_APP_SECRET',
+  'WHATSAPP_VERIFY_TOKEN',
+  'OWNER_WHATSAPP_NUMBER',
 ] as const;
 
 function listFiles(dir: string): string[] {

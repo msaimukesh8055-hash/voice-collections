@@ -2,6 +2,10 @@
 import { z } from 'zod';
 
 const MIN_TOOL_SECRET_LENGTH = 32;
+/** Country code + subscriber number; anything shorter is a typo in the secret. */
+const MIN_PHONE_DIGITS = 10;
+
+const NonEmpty = z.string().trim().min(1);
 
 const ServerEnvSchema = z.object({
   SUPABASE_URL: z.url(),
@@ -12,8 +16,6 @@ const ToolsEnvSchema = ServerEnvSchema.extend({
   /** Bearer secret Sarvam sends on every tool call (stored in Sarvam's Secrets vault). */
   SARVAM_TOOL_SECRET: z.string().trim().min(MIN_TOOL_SECRET_LENGTH),
 });
-
-const NonEmpty = z.string().trim().min(1);
 
 const CallsApiEnvSchema = ServerEnvSchema.extend({
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
@@ -34,7 +36,29 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .transform((value) => (value ? value : null)),
 });
 
+/** WhatsApp Business numbers arrive from Meta as digits only, with the country code. */
+const PhoneDigits = z
+  .string()
+  .transform((value) => value.replace(/\D/g, ''))
+  .pipe(z.string().min(MIN_PHONE_DIGITS));
+
+const WhatsAppEnvSchema = ServerEnvSchema.extend({
+  /** System-user token (M4 Decision 2); sends replies through the Cloud API. */
+  META_ACCESS_TOKEN: NonEmpty,
+  META_PHONE_NUMBER_ID: z.string().trim().regex(/^\d+$/),
+  /** Checks Meta's X-Hub-Signature-256 on every webhook POST, and keys the sender hash. */
+  META_APP_SECRET: NonEmpty,
+  /** Answered to Meta's one-off GET verify check. */
+  WHATSAPP_VERIFY_TOKEN: NonEmpty,
+  /** The only number the bot answers (Decision 6). Never logged, never stored. */
+  OWNER_WHATSAPP_NUMBER: PhoneDigits,
+  /** Sarvam core API key (chat completions), not the Voice Agents key. */
+  SARVAM_API_KEY: NonEmpty,
+  GEMINI_API_KEY: NonEmpty,
+});
+
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
+export type WhatsAppEnv = z.infer<typeof WhatsAppEnvSchema>;
 export type ToolsEnv = z.infer<typeof ToolsEnvSchema>;
 export type CallsApiEnv = z.infer<typeof CallsApiEnvSchema>;
 
@@ -63,4 +87,8 @@ export function loadToolsEnv(source: Record<string, string | undefined>): ToolsE
 
 export function loadCallsApiEnv(source: Record<string, string | undefined>): CallsApiEnv {
   return loadEnv(CallsApiEnvSchema, source);
+}
+
+export function loadWhatsAppEnv(source: Record<string, string | undefined>): WhatsAppEnv {
+  return loadEnv(WhatsAppEnvSchema, source);
 }

@@ -1,0 +1,34 @@
+// supabase/functions/_shared/cards/context.ts
+// Everything one owner message needs, loaded once per message by the webhook.
+import type { BookRepository, BookShopkeeper, Owner } from '../db/book-repository.ts';
+import type { Logger } from '../log.ts';
+import type { Language } from '../schemas/shopkeeper.ts';
+
+export interface BotContext {
+  readonly book: BookRepository;
+  readonly owner: Owner;
+  readonly shopkeepers: readonly BookShopkeeper[];
+  /** India date on the demo clock: entry dates, due dates, overdue days. */
+  readonly today: string;
+  /** Real time: card expiry (30 minutes of the owner's actual time). */
+  readonly now: Date;
+  /** Reply language of the current message (taps use the language saved on the card). */
+  readonly language: Language;
+  /** A fake phone number for a shopkeeper added from WhatsApp (never-real range). */
+  readonly newPhone: () => string;
+  readonly log: Logger;
+}
+
+/** New shopkeepers get +91 00000 9xxxx: the seed uses 00001–00100, and no real phone starts
+ * with 00000, so these can never reach a real person. */
+export const NEW_PHONE_PREFIX = '+91 00000 9';
+const NEW_PHONE_DIGITS = 4;
+
+export function randomFakePhone(random: () => number = Math.random): string {
+  const digits = Math.floor(random() * 10 ** NEW_PHONE_DIGITS);
+  return `${NEW_PHONE_PREFIX}${String(digits).padStart(NEW_PHONE_DIGITS, '0')}`;
+}
+
+export function findShopkeeper(ctx: BotContext, shopkeeperId: string): BookShopkeeper | null {
+  return ctx.shopkeepers.find((shopkeeper) => shopkeeper.id === shopkeeperId) ?? null;
+}
