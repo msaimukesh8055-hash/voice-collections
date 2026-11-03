@@ -11,6 +11,7 @@ import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
 import type { Logger } from '../_shared/log.ts';
+import type { ReminderDeps } from '../_shared/reminders/deps.ts';
 import type { WhatsAppClient } from '../_shared/whatsapp/client.ts';
 import {
   extractMessages,
@@ -32,6 +33,11 @@ export interface ProcessDeps {
   readonly getDemoSettings: () => Promise<DemoSettings>;
   readonly newPhone: () => string;
   readonly log: Logger;
+  /** Due alert, reminders and simulated calls (M5 5b). */
+  readonly reminder: ReminderDeps;
+  /** Asks the worker to sweep (follow-ups, queued simulated calls): the fallback if pg_cron is
+   * not running (M5 risk table). Fire and forget. */
+  readonly wakeWorker: () => void;
 }
 
 interface Delivery {
@@ -86,6 +92,7 @@ async function loadContext(deps: ProcessDeps): Promise<{ ctx: BotContext; demoNo
     language: owner.language,
     newPhone: deps.newPhone,
     log: deps.log,
+    reminder: deps.reminder,
   };
   return { ctx, demoNow };
 }
@@ -124,6 +131,7 @@ async function handleOwner(delivery: Delivery, deps: ProcessDeps): Promise<void>
   const outcome = await answerOwner(delivery, deps);
   await sendAll(delivery, outcome.replies, deps);
   await deps.book.markInboundHandled(message.id, { path: outcome.path, command: outcome.command });
+  deps.wakeWorker();
   deps.log('info', 'whatsapp_message', {
     sender: maskedHash(senderHash),
     type: message.kind,

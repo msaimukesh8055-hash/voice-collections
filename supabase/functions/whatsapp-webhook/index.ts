@@ -9,6 +9,15 @@ import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { loadWhatsAppEnv } from '../_shared/env.ts';
 import { logToConsole } from '../_shared/log.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
+import { MAX_SIMULATED_AT_ONCE } from '../_shared/calls/queue.ts';
+import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
+import { createSupabaseReminderRepository } from '../_shared/db/supabase-reminder-repository.ts';
+import {
+  createJobKicker,
+  followupWorkerUrl,
+  SIMULATION_NEXT_PATH,
+  SWEEP_PATH,
+} from '../_shared/followup/kick.ts';
 import { handleWebhook, type WebhookDeps } from './handler.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
@@ -17,6 +26,15 @@ declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 const env = loadWhatsAppEnv(Deno.env.toObject());
 const query = createPostgrestClient(env);
+const repo = createSupabaseRepository(query);
+const defer = (task: Promise<unknown>): void => EdgeRuntime.waitUntil(task);
+const kickJob = createJobKicker({
+  workerUrl: followupWorkerUrl(env.SUPABASE_URL),
+  secret: env.WORKER_SECRET,
+  fetchImpl: fetch,
+  log: logToConsole,
+  defer,
+});
 const processDeps: ProcessDeps = {
   book: createSupabaseBookRepository(query),
   client: createWhatsAppClient({
@@ -34,15 +52,24 @@ const processDeps: ProcessDeps = {
   sender: { ownerNumber: env.OWNER_WHATSAPP_NUMBER, hashKey: env.META_APP_SECRET },
   phoneNumberId: env.META_PHONE_NUMBER_ID,
   clock: () => new Date(),
-  getDemoSettings: createSupabaseRepository(query).getDemoSettings,
+  getDemoSettings: repo.getDemoSettings,
   newPhone: () => randomFakePhone(),
   log: logToConsole,
+  reminder: {
+    repo,
+    store: createSupabaseReminderRepository(query),
+    listCallStatuses: createSupabaseFollowupRepository(query).listCallStatuses,
+    clock: () => new Date(),
+    startSimulations: (count) =>
+      kickJob(SIMULATION_NEXT_PATH, Math.min(count, MAX_SIMULATED_AT_ONCE)),
+  },
+  wakeWorker: () => kickJob(SWEEP_PATH),
 };
 
 const deps: WebhookDeps = {
   verifyToken: env.WHATSAPP_VERIFY_TOKEN,
   appSecret: env.META_APP_SECRET,
-  defer: (task) => EdgeRuntime.waitUntil(task),
+  defer,
   process: (payload) => processPayload(payload, processDeps),
   log: logToConsole,
 };

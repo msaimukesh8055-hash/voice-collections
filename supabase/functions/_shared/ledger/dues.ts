@@ -47,7 +47,7 @@ function daysBetween(from: string, to: string): number {
 }
 
 /** The database requires a due date on every credit; a missing one counts from the day given. */
-function dueDateOf(entry: LedgerEntry): string {
+export function dueDateOf(entry: LedgerEntry): string {
   return entry.dueDate ?? entry.entryDate;
 }
 

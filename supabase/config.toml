@@ -430,3 +430,9 @@ import_map = "./functions/deno.json"
 [functions.whatsapp-webhook]
 verify_jwt = false
 import_map = "./functions/deno.json"
+
+# followup-worker (M5, ADR-0016) is called by calls-api, itself and pg_cron with WORKER_SECRET as a
+# bearer token (checked in constant time), not a Supabase JWT.
+[functions.followup-worker]
+verify_jwt = false
+import_map = "./functions/deno.json"

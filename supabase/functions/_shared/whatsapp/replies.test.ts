@@ -15,3 +15,10 @@ Deno.test('replies › replyText joins texts, button titles and list rows', () =
   ]);
   assertEquals(text, 'Hello\n---\nCard\nSave\n---\nPick\nA \nB shop');
 });
+
+Deno.test('replies › replyText shows a template by its text (M5)', () => {
+  const text = replyText([
+    { kind: 'template', name: 'daily_due_alert', languageCode: 'en', bodyParams: ['3'], text: 'T' },
+  ]);
+  assertEquals(text, 'T');
+});

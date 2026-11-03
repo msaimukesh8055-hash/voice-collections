@@ -18,7 +18,7 @@ import type {
 const Rupees = z.coerce.number();
 
 export const SHOPKEEPER_COLUMNS =
-  'id,name,shop_name,language,do_not_call,owners(name,business_name)';
+  'id,name,shop_name,language,do_not_call,owners(name,business_name,consequence_text)';
 export const SESSION_COLUMNS = 'id,shopkeeper_id,mode,status,language,identity_status,' +
   'identity_unsure_count,interaction_id,queued_at,ringing_at,accepted_at,url_issued_at';
 export const SETTINGS_COLUMNS =
@@ -33,7 +33,11 @@ const ShopkeeperRow = z.object({
   shop_name: z.string(),
   language: LanguageSchema,
   do_not_call: z.boolean(),
-  owners: z.object({ name: z.string(), business_name: z.string() }),
+  owners: z.object({
+    name: z.string(),
+    business_name: z.string(),
+    consequence_text: z.string().nullable(),
+  }),
 });
 
 const SessionRow = z.object({
@@ -87,6 +91,7 @@ export const SHOPKEEPER_ROW = ShopkeeperRow.transform((row): Shopkeeper => ({
   doNotCall: row.do_not_call,
   ownerName: row.owners.name,
   businessName: row.owners.business_name,
+  consequenceText: row.owners.consequence_text,
 }));
 
 export const SESSION_ROW = SessionRow.transform((row): CallSession => ({
@@ -142,6 +147,8 @@ export function toCallColumns(patch: CallPatch): Record<string, string | number>
     ended_at: patch.endedAt,
     duration_seconds: patch.durationSeconds,
     interaction_id: patch.interactionId,
+    followup_status: patch.followupStatus,
+    followup_next_at: patch.followupNextAt,
   };
   return Object.fromEntries(
     Object.entries(columns).filter((entry): entry is [string, string | number] =>

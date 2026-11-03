@@ -22,7 +22,7 @@ Deno.test('cleared › a credit is cleared on the day of the payment that finish
     payment(2500, '2026-09-24'),
   ];
   assertEquals(clearedCredits(entries), [
-    { amount: 4000, entryDate: '2026-09-05', clearedOn: '2026-09-24' },
+    { amount: 4000, entryDate: '2026-09-05', dueDate: '2026-09-20', clearedOn: '2026-09-24' },
   ]);
 });
 

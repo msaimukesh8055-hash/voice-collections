@@ -31,7 +31,9 @@ export const TOOL_SPECS = {
   get_dues: {
     description:
       'Get what the shopkeeper owes: total outstanding, overdue amount, oldest due date, days ' +
-      'overdue and the next amount due. Only works after confirm_identity. Say the figures once.',
+      'overdue and the next amount due, plus what happened before (last promise, last call ' +
+      'note, a payment the owner did not receive) and the tone level to use. Only works after ' +
+      'confirm_identity. Say the figures once.',
     args: z.object({}),
   },
   log_promise: {

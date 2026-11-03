@@ -20,7 +20,12 @@ export type Command =
     readonly dueDate: string | null;
     readonly note: string | null;
   }
-  | { readonly kind: 'mark_paid'; readonly name: string; readonly amount: number };
+  | { readonly kind: 'mark_paid'; readonly name: string; readonly amount: number }
+  // M5 5b: the due alert, reminders and the score explained.
+  | { readonly kind: 'due_alert' }
+  | { readonly kind: 'remind'; readonly name: string }
+  | { readonly kind: 'remind_all' }
+  | { readonly kind: 'score'; readonly name: string };
 
 export type CommandKind = Command['kind'];
 
@@ -60,6 +65,39 @@ const PENDING = new Set([
   'pending dues',
 ]);
 const CLOSED = new Set(['closed', 'paid off', 'cleared', 'settled', 'closed list', 'chukta']);
+/** "who is due?" and the template's "Reply DUE" (M5 Decision 7). "dues" stays "pending". */
+const DUE_ALERT = new Set([
+  'due',
+  'due today',
+  'who is due',
+  'who is due today',
+  'whos due',
+  'due alert',
+  'aaj due',
+  'aaj ka due',
+  'aaj kiska due hai',
+  'kiska due hai',
+  'eevala due',
+  'ivala due',
+  'evaru due',
+]);
+const REMIND_ALL = new Set([
+  'remind all',
+  'remind all due',
+  'remind everyone',
+  'remind everybody',
+  'remind everyone due',
+  'sabko remind',
+  'sabko yaad dilao',
+  'andariki remind',
+]);
+const REMIND_PREFIX = /^remind ([a-z ]+)$/;
+/** "why is Ramesh 42", "why is ramesh's score 42", "Ramesh score", "score of Ramesh". */
+const SCORE_PATTERNS = [
+  /^why (?:is|does) ([a-z ]+?) (?:score |have |has |a |only |at )*\d{1,3}$/,
+  /^([a-z ]+?) score$/,
+  /^score (?:of |for )?([a-z ]+)$/,
+];
 
 /** Words meaning "he paid" (English, Hindi, Telugu in Latin letters). */
 const PAID_WORDS = new Set([
@@ -205,6 +243,31 @@ function entryOf(text: string, today: string): Command | null {
   };
 }
 
+/** A name of 1–4 Latin-letter words, title-cased; null otherwise. */
+function nameOf(text: string | undefined): string | null {
+  const all = (text ?? '').trim().split(' ');
+  const nameWords = words(all.join(' '));
+  if (nameWords.length === 0 || nameWords.length !== all.length) return null;
+  return nameWords.length > MAX_NAME_WORDS ? null : titleCase(nameWords);
+}
+
+function reminderOf(text: string): Command | null {
+  if (DUE_ALERT.has(text)) return { kind: 'due_alert' };
+  if (REMIND_ALL.has(text)) return { kind: 'remind_all' };
+  const name = nameOf(REMIND_PREFIX.exec(text)?.[1]);
+  return name ? { kind: 'remind', name } : null;
+}
+
+function scoreOf(text: string): Command | null {
+  // "Ramesh's score" → "ramesh score".
+  const plain = text.replace(/['’]s\b/g, '');
+  for (const pattern of SCORE_PATTERNS) {
+    const name = nameOf(pattern.exec(plain)?.[1]);
+    if (name) return { kind: 'score', name };
+  }
+  return null;
+}
+
 /** A fixed command, or null when only the LLM can read the message. */
 export function parseCommand(text: string, today: string): Command | null {
   const clean = normalise(text);
@@ -212,5 +275,5 @@ export function parseCommand(text: string, today: string): Command | null {
   if (hasIndicScript(clean)) return null;
   if (PENDING.has(clean)) return { kind: 'pending' };
   if (CLOSED.has(clean)) return { kind: 'closed' };
-  return entryOf(clean, today) ?? lookupOf(clean);
+  return reminderOf(clean) ?? scoreOf(clean) ?? entryOf(clean, today) ?? lookupOf(clean);
 }

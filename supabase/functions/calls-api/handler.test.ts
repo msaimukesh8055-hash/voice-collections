@@ -23,7 +23,9 @@ const SECONDS_AGO = (seconds: number): string =>
 function setup(overrides: Partial<FakeState> = {}, sarvam: Partial<SarvamSettings> = {}): {
   deps: CallsApiDeps;
   state: FakeState;
+  kicked: string[];
 } {
+  const kicked: string[] = [];
   const { repo, state } = createFakeRepository(overrides);
   const log: Logger = () => {};
   const fetchImpl: typeof fetch = () =>
@@ -35,8 +37,9 @@ function setup(overrides: Partial<FakeState> = {}, sarvam: Partial<SarvamSetting
     allowedOrigins: [ORIGIN],
     sarvam: { ...SARVAM, ...sarvam },
     fetchImpl,
+    kickFollowup: (callId) => kicked.push(callId),
   };
-  return { deps, state };
+  return { deps, state, kicked };
 }
 
 function request(path: string, init: RequestInit = {}): Request {
@@ -249,14 +252,14 @@ Deno.test('calls-api › decline → declined; declining an accepted call is ref
 
 Deno.test('calls-api › ended → completed with duration and interaction id', async () => {
   const { deps, state } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
-  const body = { interactionId: '20261102/abc-123', seconds: 95 };
+  const body = { interactionId: '20261102/182f511f-21:45:10-8bfe8bd5', seconds: 95 };
   const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, body), deps);
   assertEquals(await json(response), { status: 'completed' });
   const call = state.calls[0];
   assertEquals([call?.status, call?.durationSeconds, call?.interactionId], [
     'completed',
     95,
-    '20261102/abc-123',
+    '20261102/182f511f-21:45:10-8bfe8bd5',
   ]);
   assertEquals(call?.endedAt, FAKE_NOW.toISOString());
 });
@@ -324,4 +327,42 @@ Deno.test('calls-api › ended for an unknown token → 404', async () => {
     deps,
   );
   assertEquals(response.status, 404);
+});
+
+Deno.test('calls-api › ended: a real Sarvam id (with colons) is accepted; path tricks are not', async () => {
+  const { deps } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  const tricky = { interactionId: '20261102/../../x', seconds: 5 };
+  assertEquals((await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, tricky), deps)).status, 400);
+});
+
+Deno.test('calls-api › ended → follow-up queued and the worker woken', async () => {
+  const { deps, state, kicked } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 30 }), deps);
+  assertEquals([state.calls[0]?.followupStatus, state.calls[0]?.followupNextAt], [
+    'pending',
+    FAKE_NOW.toISOString(),
+  ]);
+  assertEquals(kicked, [TOKEN]);
+});
+
+Deno.test('calls-api › declined → follow-up queued; a refused decline wakes nothing', async () => {
+  const { deps, state, kicked } = setup({ calls: [ringingCall()] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/decline`), deps);
+  assertEquals([state.calls[0]?.followupStatus, kicked], ['pending', [TOKEN]]);
+  const accepted = setup({ calls: [fakeCall()] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/decline`), accepted.deps);
+  assertEquals(accepted.kicked, []);
+});
+
+Deno.test('calls-api › missed → follow-up queued once', async () => {
+  const { deps, state, kicked } = setup({ calls: [ringingCall({ ringingAt: SECONDS_AGO(31) })] });
+  await handleCallsApi(request('/v1/phone/incoming'), deps);
+  assertEquals([state.calls[0]?.status, state.calls[0]?.followupStatus], ['missed', 'pending']);
+  assertEquals(kicked, [TOKEN]);
+});
+
+Deno.test('calls-api › an ended call that was already completed wakes nothing', async () => {
+  const { deps, kicked } = setup({ calls: [fakeCall({ status: 'completed' })] });
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 3 }), deps);
+  assertEquals(kicked, []);
 });

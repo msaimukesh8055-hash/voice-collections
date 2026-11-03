@@ -3,7 +3,8 @@
 // browser). Ids reaching query strings are UUIDs validated upstream, and still encoded.
 // Compare-and-set updates filter on the expected state, so a lost race updates no row.
 import { z } from 'zod';
-import { type PostgrestClient, RepositoryError, UNIQUE_VIOLATION } from './postgrest.ts';
+import { createRowInserter, type PostgrestClient, RepositoryError } from './postgrest.ts';
+import { memoryQueries } from './supabase-memory.ts';
 import type { LedgerEntry } from '../schemas/ledger.ts';
 import type {
   CallSession,
@@ -158,19 +159,7 @@ function inserts(
   Repository,
   'insertPromise' | 'insertPaymentClaim' | 'insertOwnerCallback' | 'insertToolEvent'
 > {
-  async function insert(operation: string, table: string, body: object): Promise<void> {
-    await query(operation, table, { method: 'POST', body, prefer: 'return=minimal' });
-  }
-  /** False when a database "one per call" rule rejected the row. */
-  async function insertOnce(operation: string, table: string, body: object): Promise<boolean> {
-    try {
-      await insert(operation, table, body);
-      return true;
-    } catch (error) {
-      if (error instanceof RepositoryError && error.code === UNIQUE_VIOLATION) return false;
-      throw error;
-    }
-  }
+  const { insert, insertOnce } = createRowInserter(query);
   return {
     insertPromise: (promise) =>
       insertOnce('insertPromise', 'promises', {
@@ -216,5 +205,6 @@ export function createSupabaseRepository(query: PostgrestClient): Repository {
     ...ledgerQueries(query),
     ...promiseUpdates(query),
     ...inserts(query),
+    ...memoryQueries(query),
   };
 }

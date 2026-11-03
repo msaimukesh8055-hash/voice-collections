@@ -104,3 +104,40 @@ Deno.test('commands › questions and long names go to the LLM', () => {
   assertEquals(parse('one two three four five 2000'), null);
   assertEquals(parse('ramesh ok?'), { kind: 'lookup', name: 'Ramesh Ok' });
 });
+
+Deno.test('commands › due alert: "who is due?", "due", the template reply (M5)', () => {
+  for (
+    const text of ['due', 'DUE', 'who is due?', 'Who is due today?', 'aaj ka due', 'evaru due']
+  ) {
+    assertEquals(parse(text), { kind: 'due_alert' }, text);
+  }
+  assertEquals(parse('dues'), { kind: 'pending' });
+});
+
+Deno.test('commands › remind all and remind one (M5)', () => {
+  for (const text of ['remind all', 'Remind everyone!', 'remind all due', 'sabko remind']) {
+    assertEquals(parse(text), { kind: 'remind_all' }, text);
+  }
+  assertEquals(parse('remind Ramesh'), { kind: 'remind', name: 'Ramesh' });
+  assertEquals(parse('Remind ramesh kirana'), { kind: 'remind', name: 'Ramesh Kirana' });
+  assertEquals(parse('remind a b c d e'), null);
+});
+
+Deno.test('commands › score explain: "why is X N?" and "X score" (M5)', () => {
+  for (
+    const text of [
+      'why is Ramesh 42?',
+      "Why is Ramesh's score 42",
+      'why does ramesh have 42',
+      'why is ramesh only 42',
+      'Ramesh score',
+      "ramesh's score",
+      'score of Ramesh',
+      'score ramesh',
+    ]
+  ) {
+    assertEquals(parse(text), { kind: 'score', name: 'Ramesh' }, text);
+  }
+  assertEquals(parse('why is Ramesh Kirana 42'), { kind: 'score', name: 'Ramesh Kirana' });
+  assertEquals(parse('why is ramesh 4200')?.kind === 'score', false);
+});

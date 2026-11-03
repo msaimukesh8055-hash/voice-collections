@@ -3,11 +3,12 @@
 // confirmed entries only, payments clear the oldest credit first. Here payments are applied one
 // by one in date order, so a credit's "cleared on" date is the day of the payment that finished it.
 import type { LedgerEntry } from '../schemas/ledger.ts';
-import { byOldestFirst, toPaise } from './dues.ts';
+import { byOldestFirst, dueDateOf, toPaise } from './dues.ts';
 
 export interface ClearedCredit {
   readonly amount: number;
   readonly entryDate: string;
+  readonly dueDate: string;
   readonly clearedOn: string;
 }
 
@@ -31,6 +32,7 @@ function applyPayment(step: Step, payment: LedgerEntry): Step {
     cleared.push({
       amount: credit.entry.amount,
       entryDate: credit.entry.entryDate,
+      dueDate: dueDateOf(credit.entry),
       clearedOn: payment.entryDate,
     });
     return [];

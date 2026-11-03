@@ -123,3 +123,38 @@ Deno.test('client › list rows without a description, errors without codes, thr
   assertEquals(await thrown.client.send(TO, reply), null);
   assertStringIncludes(JSON.stringify(thrown.logs), 'unknown');
 });
+
+Deno.test('client › a template message carries its name, language and body values (M5)', async () => {
+  const { client, sent } = setup(() => Response.json({ messages: [{ id: 'wamid.T1' }] }));
+  const reply: Reply = {
+    kind: 'template',
+    name: 'daily_due_alert',
+    languageCode: 'en',
+    bodyParams: ['7'],
+    text: 'Good morning. 7 shopkeepers are due today. Reply DUE to see them.',
+  };
+  assertEquals(await client.send(TO, reply), 'wamid.T1');
+  assertEquals(sent[0]?.body, {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: TO,
+    type: 'template',
+    template: {
+      name: 'daily_due_alert',
+      language: { code: 'en' },
+      components: [{ type: 'body', parameters: [{ type: 'text', text: '7' }] }],
+    },
+  });
+});
+
+Deno.test('client › a template without values sends no components', () => {
+  const reply: Reply = {
+    kind: 'template',
+    name: 'hello',
+    languageCode: 'en',
+    bodyParams: [],
+    text: 'Hello',
+  };
+  const message = toMetaMessage(TO, reply) as { template: { components: unknown[] } };
+  assertEquals(message.template.components, []);
+});

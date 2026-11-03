@@ -3,6 +3,7 @@
 // ever turned into a Command: a read, or a confirmation card the owner must tap Save on. Nothing
 // here (or anywhere on the LLM path) writes to the database.
 import { z } from 'zod';
+import { extractJson } from '../llm/json-llm.ts';
 import { MAX_AMOUNT } from './amounts.ts';
 import type { Command } from './commands.ts';
 
@@ -39,15 +40,7 @@ function titleCase(name: string): string {
 
 /** Text → suggestion; tolerates code fences and stray words around the one JSON object. */
 export function parseSuggestion(content: string): Suggestion | null {
-  const start = content.indexOf('{');
-  const end = content.lastIndexOf('}');
-  if (start === -1 || end < start) return null;
-  try {
-    const parsed = SuggestionSchema.safeParse(JSON.parse(content.slice(start, end + 1)));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null; // Not JSON at all: treated like any other bad answer (fallback).
-  }
+  return extractJson(content, SuggestionSchema);
 }
 
 type Intent = Suggestion['intent'];

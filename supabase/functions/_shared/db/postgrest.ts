@@ -87,3 +87,26 @@ export function createPostgrestClient(
     };
   };
 }
+
+export interface RowInserter {
+  /** One row in, nothing back. */
+  insert(operation: string, table: string, body: object): Promise<void>;
+  /** As insert, but false when a database "one per call" rule rejected the row. */
+  insertOnce(operation: string, table: string, body: object): Promise<boolean>;
+}
+
+export function createRowInserter(query: PostgrestClient): RowInserter {
+  async function insert(operation: string, table: string, body: object): Promise<void> {
+    await query(operation, table, { method: 'POST', body, prefer: 'return=minimal' });
+  }
+  async function insertOnce(operation: string, table: string, body: object): Promise<boolean> {
+    try {
+      await insert(operation, table, body);
+      return true;
+    } catch (error) {
+      if (error instanceof RepositoryError && error.code === UNIQUE_VIOLATION) return false;
+      throw error;
+    }
+  }
+  return { insert, insertOnce };
+}

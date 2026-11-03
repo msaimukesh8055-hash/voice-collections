@@ -20,6 +20,8 @@ import {
 } from '../_shared/ledger/views.ts';
 import type { Language } from '../_shared/schemas/shopkeeper.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
+import { dueAlertCommand, offerRemindAll, remindOne } from '../_shared/reminders/remind.ts';
+import { scoreReplies } from '../_shared/reminders/score-explain.ts';
 import { phrasesFor } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, textReply } from '../_shared/whatsapp/replies.ts';
 
@@ -58,6 +60,21 @@ async function bookView(ctx: BotContext): Promise<Parameters<typeof pendingReply
   return { shopkeepers: ctx.shopkeepers, entries, today: ctx.today, language: ctx.language };
 }
 
+/** Runs `run` for the one shopkeeper the name matches; asks for the shop name when it matches
+ * several, so a reminder never goes to the wrong Praveen. */
+function withOneShopkeeper(
+  name: string,
+  ctx: BotContext,
+  run: (shopkeeper: BookShopkeeper) => Promise<readonly Reply[]>,
+): Promise<readonly Reply[]> {
+  const match = matchShopkeepers(name, ctx.shopkeepers);
+  if (match.kind === 'one') return run(match.shopkeeper);
+  const phrases = phrasesFor(ctx.language);
+  if (match.kind === 'none') return Promise.resolve([textReply(phrases.notFound(name))]);
+  const shops = match.shopkeepers.map((shopkeeper) => `• ${shopkeeper.shopName}`);
+  return Promise.resolve([textReply([phrases.pickPrompt(name), ...shops].join('\n'))]);
+}
+
 const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
   help: (_command, ctx) => Promise.resolve([textReply(phrasesFor(ctx.language).help)]),
   pending: async (_command, ctx) => [pendingReply(await bookView(ctx))],
@@ -87,6 +104,12 @@ const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
       draft: { type: 'payment', amount: command.amount, dueDate: null, note: null },
       language: ctx.language,
     }, ctx),
+  due_alert: (_command, ctx) => dueAlertCommand(ctx, ctx.language),
+  remind: (command, ctx) =>
+    withOneShopkeeper(command.name, ctx, (found) => remindOne(found.id, ctx, ctx.language)),
+  remind_all: (_command, ctx) => offerRemindAll(ctx, ctx.language),
+  score: (command, ctx) =>
+    withOneShopkeeper(command.name, ctx, (found) => scoreReplies(found, ctx, ctx.language)),
 };
 
 export function runCommand(command: Command, ctx: BotContext): Promise<readonly Reply[]> {
@@ -126,6 +149,12 @@ async function routeTap(buttonId: string, ctx: BotContext): Promise<Outcome> {
   if (!tap) return button([textReply(phrasesFor(ctx.language).expired)], 'unknown_button');
   if (tap.kind === 'claim') {
     return button(await handleClaimTap(tap, ctx), tap.confirm ? 'claim_confirm' : 'claim_reject');
+  }
+  if (tap.kind === 'remind') {
+    return button(await remindOne(tap.shopkeeperId, ctx, tap.language), 'remind');
+  }
+  if (tap.kind === 'remind_all') {
+    return button(await offerRemindAll(ctx, tap.language), 'remind_all');
   }
   if (tap.kind === 'lookup') {
     const shopkeeper = findShopkeeper(ctx, tap.shopkeeperId);

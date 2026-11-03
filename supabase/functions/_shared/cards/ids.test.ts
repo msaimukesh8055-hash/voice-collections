@@ -1,6 +1,14 @@
 // supabase/functions/_shared/cards/ids.test.ts
 import { assertEquals } from '@std/assert';
-import { cardButtonId, claimButtonId, lookupRowId, parseTap, pickRowId } from './ids.ts';
+import {
+  cardButtonId,
+  claimButtonId,
+  lookupRowId,
+  parseTap,
+  pickRowId,
+  remindAllButtonId,
+  remindButtonId,
+} from './ids.ts';
 
 const ID = 'ac000000-0000-4000-8000-000000000001';
 
@@ -21,6 +29,15 @@ Deno.test('ids › card, pick, claim and lookup ids round-trip', () => {
   });
 });
 
+Deno.test('ids › remind one and remind all round-trip (M5)', () => {
+  assertEquals(parseTap(remindButtonId(ID, 'te')), {
+    kind: 'remind',
+    shopkeeperId: ID,
+    language: 'te',
+  });
+  assertEquals(parseTap(remindAllButtonId('en')), { kind: 'remind_all', language: 'en' });
+});
+
 Deno.test('ids › ids we never sent are rejected', () => {
   for (
     const id of [
@@ -31,6 +48,10 @@ Deno.test('ids › ids we never sent are rejected', () => {
       `cl:${ID}:ok:fr`,
       `cl:${ID}:maybe:en`,
       `lk:${ID}:xx`,
+      `rm:${ID}:xx`,
+      'rm:not-a-uuid:en',
+      'ra:fr',
+      'ra:',
       `x:${ID}`,
     ]
   ) {

@@ -53,9 +53,22 @@ function rowsOf(rows: readonly ListRow[]): object[] {
   }));
 }
 
+type TemplateReply = Extract<Reply, { kind: 'template' }>;
+
+/** A template message: name, language and the body's {{1}}, {{2}}… values, in order. */
+function templateOf(reply: TemplateReply): Record<string, unknown> {
+  const parameters = reply.bodyParams.map((text) => ({ type: 'text', text }));
+  return {
+    name: reply.name,
+    language: { code: reply.languageCode },
+    components: parameters.length > 0 ? [{ type: 'body', parameters }] : [],
+  };
+}
+
 /** The Cloud API request body for one reply. */
 export function toMetaMessage(to: string, reply: Reply): Record<string, unknown> {
   const base = { messaging_product: 'whatsapp', recipient_type: 'individual', to };
+  if (reply.kind === 'template') return { ...base, type: 'template', template: templateOf(reply) };
   if (reply.kind === 'text') {
     return { ...base, type: 'text', text: { body: cut(reply.text, LIMITS.text) } };
   }

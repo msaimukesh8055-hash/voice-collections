@@ -4,11 +4,23 @@
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { loadCallsApiEnv } from '../_shared/env.ts';
+import { createFollowupKicker, followupWorkerUrl } from '../_shared/followup/kick.ts';
 import { logToConsole } from '../_shared/log.ts';
 import { handleCallsApi } from './handler.ts';
 import type { CallsApiDeps } from './types.ts';
 
+/** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+
 const env = loadCallsApiEnv(Deno.env.toObject());
+const kick = createFollowupKicker({
+  workerUrl: followupWorkerUrl(env.SUPABASE_URL),
+  secret: env.WORKER_SECRET,
+  fetchImpl: fetch,
+  log: logToConsole,
+  defer: (task: Promise<unknown>): void => EdgeRuntime.waitUntil(task),
+});
+
 const deps: CallsApiDeps = {
   repo: createSupabaseRepository(createPostgrestClient(env)),
   clock: () => new Date(),
@@ -21,6 +33,7 @@ const deps: CallsApiDeps = {
     appId: env.SARVAM_APP_ID,
   },
   fetchImpl: fetch,
+  kickFollowup: kick,
 };
 
 Deno.serve((req) => handleCallsApi(req, deps));
