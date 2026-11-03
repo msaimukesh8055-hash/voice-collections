@@ -4,7 +4,11 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
-**2026-11-03 · M4 — WhatsApp core · ✅ Done (awaiting commit)**
+**2026-11-03 · M5 — Reminder loop · ✅ Done (awaiting commit)**
+Due alert with Remind / Remind all (10 a time), simulated text calls (Asha vs a Gemini shopkeeper), Asha v3 memory + tone ladder, follow-up agent with WhatsApp summaries, promise check, reliability score, pg_cron jobs.
+634 Deno tests + gate green; smoke 6/8 (11 simulated calls all followed up); fixed a placeholder Vault secret; Meta block cleared by human verification · Details → [`milestones/M5.md`](milestones/M5.md)
+
+**2026-11-03 · M4 — WhatsApp core · ✅ Done**
 Owner bot live on the Meta test number: ledger views, add credit / mark paid with Save cards, claims confirm, Sarvam LLM brain with Gemini fallback; unpublished app gets real messages once the WhatsApp account is linked to the app.
 449 tests + gate green, phone smoke 6/8 passed (Telugu AI path still to try), never-expiring token · Details → [`milestones/M4.md`](milestones/M4.md)
 

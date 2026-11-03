@@ -25,6 +25,15 @@ export type Reply =
     readonly text: string;
     readonly buttonLabel: string;
     readonly rows: readonly ListRow[];
+  }
+  | {
+    /** An approved Meta template: the only message allowed outside WhatsApp's 24-hour window
+     * (M5 Decision 7). `text` is our copy of what the owner will read, for logs and tests. */
+    readonly kind: 'template';
+    readonly name: string;
+    readonly languageCode: string;
+    readonly bodyParams: readonly string[];
+    readonly text: string;
   };
 
 export function textReply(text: string): Reply {
@@ -34,7 +43,7 @@ export function textReply(text: string): Reply {
 /** Plain text of every reply, joined (tests and the owner-number leak check use it). */
 export function replyText(replies: readonly Reply[]): string {
   return replies.map(function textOf(reply): string {
-    if (reply.kind === 'text') return reply.text;
+    if (reply.kind === 'text' || reply.kind === 'template') return reply.text;
     const extras = reply.kind === 'buttons'
       ? reply.buttons.map((button) => button.title)
       : reply.rows.map((row) => `${row.title} ${row.description ?? ''}`);

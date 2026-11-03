@@ -22,6 +22,7 @@ import {
 import { WebhookPayloadSchema } from '../_shared/whatsapp/inbound.ts';
 import { NOT_REGISTERED } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
+import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -32,6 +33,7 @@ interface Setup {
   readonly sent: Array<{ to: string; reply: Reply }>;
   readonly logs: Array<{ event: string; fields: LogFields }>;
   readonly llmCalls: string[];
+  readonly wakes: number[];
 }
 
 function setup(
@@ -41,6 +43,7 @@ function setup(
   const sent: Array<{ to: string; reply: Reply }> = [];
   const logs: Array<{ event: string; fields: LogFields }> = [];
   const llmCalls: string[] = [];
+  const wakes: number[] = [];
   const log: Logger = (_level, event, fields = {}) => logs.push({ event, fields });
   const deps: ProcessDeps = {
     book: { ...fake.book, ...options.book },
@@ -66,8 +69,12 @@ function setup(
       }),
     newPhone: () => '+91 00000 91234',
     log,
+    reminder: reminderSetup({ now: NOW }).deps,
+    wakeWorker: () => {
+      wakes.push(1);
+    },
   };
-  return { deps, state: fake.state, sent, logs, llmCalls };
+  return { deps, state: fake.state, sent, logs, llmCalls, wakes };
 }
 
 async function receive(s: Setup, options: PayloadOptions): Promise<void> {
@@ -244,4 +251,12 @@ Deno.test('process › a non-Error failure is still logged', async () => {
     s.logs.find((log) => log.event === 'whatsapp_process_failed')?.fields['error'],
     'unknown',
   );
+});
+
+Deno.test('process › each new owner message wakes the worker once (pg_cron fallback)', async () => {
+  const s = setup();
+  await receive(s, { text: 'hi', id: 'wamid.W1' });
+  await receive(s, { text: 'hi', id: 'wamid.W1' });
+  await receive(s, { from: FAKE_STRANGER_NUMBER, text: 'hi', id: 'wamid.W2' });
+  assertEquals(s.wakes.length, 1);
 });

@@ -5,7 +5,8 @@
 import { z } from 'zod';
 import { istDayLabel, resolveNow } from '../_shared/clock.ts';
 import { isStillRinging } from '../_shared/calls/ringing.ts';
-import type { CallSession } from '../_shared/db/repository.ts';
+import type { CallPatch, CallSession } from '../_shared/db/repository.ts';
+import { isInteractionId } from '../_shared/sarvam-analytics.ts';
 import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import type { CallStatus } from '../_shared/schemas/shopkeeper.ts';
 import type { RouteContext } from './types.ts';
@@ -16,11 +17,18 @@ const LIVE: readonly CallStatus[] = ['accepted', 'in_progress'];
 
 const EndedBodySchema = z.object({
   /** Sarvam's id, e.g. "20261102/…"; absent when the call never connected. */
-  interactionId: z.string().regex(/^[\w./-]{1,160}$/).optional(),
+  // Sarvam ids contain ':' (e.g. 20261102/182f511f-21:45:10-8bfe8bd5). M3's pattern refused
+  // them, so the page's report failed and calls stayed in_progress (fixed in M5).
+  interactionId: z.string().refine(isInteractionId).optional(),
   seconds: z.number().int().min(0).max(MAX_CALL_SECONDS),
 });
 
 const NO_CALL = { call: null } as const;
+
+/** Every ended call (completed, declined, missed) gets a follow-up (M5 Decision 4). */
+function followupQueued(ctx: RouteContext): Pick<CallPatch, 'followupStatus' | 'followupNextAt'> {
+  return { followupStatus: 'pending', followupNextAt: ctx.deps.clock().toISOString() };
+}
 
 /** The call named by the path's token, or null for a malformed or unknown token. */
 async function findCall({ deps, params }: RouteContext): Promise<CallSession | null> {
@@ -29,8 +37,12 @@ async function findCall({ deps, params }: RouteContext): Promise<CallSession | n
 }
 
 async function markMissed(call: CallSession, ctx: RouteContext): Promise<Response> {
-  await ctx.deps.repo.transitionCall(call.callId, RINGABLE, { status: 'missed' });
+  const missed = await ctx.deps.repo.transitionCall(call.callId, RINGABLE, {
+    status: 'missed',
+    ...followupQueued(ctx),
+  });
   ctx.deps.log('info', 'call_missed', { callId: call.callId });
+  if (missed) ctx.deps.kickFollowup(call.callId);
   return jsonResponse(NO_CALL, 200, ctx.cors);
 }
 
@@ -93,9 +105,11 @@ export async function declineCall(_req: Request, ctx: RouteContext): Promise<Res
   if (!call) return errorResponse('NOT_FOUND', ctx.cors);
   const declined = await ctx.deps.repo.transitionCall(call.callId, RINGABLE, {
     status: 'declined',
+    ...followupQueued(ctx),
   });
   if (!declined) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
   ctx.deps.log('info', 'call_declined', { callId: call.callId });
+  ctx.deps.kickFollowup(call.callId);
   return jsonResponse({ status: 'declined' }, 200, ctx.cors);
 }
 
@@ -112,8 +126,10 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
     endedAt: ctx.deps.clock().toISOString(),
     durationSeconds: seconds,
     ...(keepsId ? {} : { interactionId }),
+    ...followupQueued(ctx),
   });
   if (!ended) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
   ctx.deps.log('info', 'call_ended', { callId: call.callId, seconds });
+  ctx.deps.kickFollowup(call.callId);
   return jsonResponse({ status: 'completed' }, 200, ctx.cors);
 }

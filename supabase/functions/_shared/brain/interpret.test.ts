@@ -54,3 +54,15 @@ Deno.test('interpret › both LLMs failing leaves no command', async () => {
     language: 'hi',
   });
 });
+
+Deno.test('interpret › remind and score need a known name, else the LLM reads it (M5)', async () => {
+  assertEquals((await interpret('remind Ramesh', deps(FAILED))).command, {
+    kind: 'remind',
+    name: 'Ramesh',
+  });
+  assertEquals((await interpret('Ramesh score', deps(FAILED))).path, 'command');
+  const calls: string[] = [];
+  const result = await interpret('remind me tomorrow', deps(FAILED, calls));
+  assertEquals([result.command, calls.length], [null, 1]);
+  assertEquals((await interpret('remind all', deps(FAILED))).command, { kind: 'remind_all' });
+});

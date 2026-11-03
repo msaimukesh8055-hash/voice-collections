@@ -6,6 +6,7 @@
 //   Cancel → open→cancelled, nothing saved
 //   Yes/No → new shopkeeper (open→done) then the Save card / open→cancelled
 //   pick   → open→done, then the Save card for the chosen shopkeeper
+//   Remind all Yes/No (M5) → open→done, then the calls are queued / open→cancelled
 // A card past its 30 minutes is marked expired and nothing is saved.
 import type { ActionKind, ActionStatus, PendingAction } from '../db/book-repository.ts';
 import { formatInr } from '../format.ts';
@@ -22,6 +23,7 @@ import {
   PickPayloadSchema,
 } from './schemas.ts';
 import { createEntryCard } from './start.ts';
+import { RemindAllPayloadSchema, startRemindAll } from '../reminders/remind.ts';
 
 type CardTap = Extract<Tap, { kind: 'card' | 'pick' }>;
 /** pickIndex: the tapped list row (-1 for buttons). */
@@ -30,13 +32,6 @@ type Step = (
   pickIndex: number,
   ctx: BotContext,
 ) => Promise<readonly Reply[]>;
-
-/** Which taps each kind of card accepts. */
-const ALLOWED: Readonly<Record<ActionKind, readonly (CardVerb | 'pick')[]>> = {
-  entry: ['save', 'edit', 'cancel'],
-  new_shopkeeper: ['yes', 'no'],
-  pick: ['pick'],
-};
 
 function languageOf(action: PendingAction, fallback: Language): Language {
   const payload = action.payload as { language?: unknown };
@@ -136,13 +131,24 @@ async function pick(
   return [await createEntryCard(chosen, payload, ctx)];
 }
 
-const STEPS: Readonly<Record<CardVerb | 'pick', Step>> = {
-  save: (action, _index, ctx) => save(action, ctx),
-  edit: (action, _index, ctx) => cancel(action, ctx, 'editHint'),
-  cancel: (action, _index, ctx) => cancel(action, ctx, 'cancelled'),
-  yes: (action, _index, ctx) => addShopkeeper(action, ctx),
-  no: (action, _index, ctx) => cancel(action, ctx, 'cancelled'),
-  pick,
+async function remindAll(action: PendingAction, ctx: BotContext): Promise<readonly Reply[]> {
+  const payload = RemindAllPayloadSchema.parse(action.payload);
+  if (!(await close(action, 'done', ctx))) return lostRace(action, ctx);
+  return startRemindAll(payload, ctx);
+}
+
+const cancelled: Step = (action, _index, ctx) => cancel(action, ctx, 'cancelled');
+
+/** Which taps each kind of card accepts, and what each does. */
+const STEPS: Readonly<Record<ActionKind, Partial<Readonly<Record<CardVerb | 'pick', Step>>>>> = {
+  entry: {
+    save: (action, _index, ctx) => save(action, ctx),
+    edit: (action, _index, ctx) => cancel(action, ctx, 'editHint'),
+    cancel: cancelled,
+  },
+  new_shopkeeper: { yes: (action, _index, ctx) => addShopkeeper(action, ctx), no: cancelled },
+  pick: { pick },
+  remind_all: { yes: (action, _index, ctx) => remindAll(action, ctx), no: cancelled },
 };
 
 export async function handleCardTap(tap: CardTap, ctx: BotContext): Promise<readonly Reply[]> {
@@ -155,6 +161,7 @@ export async function handleCardTap(tap: CardTap, ctx: BotContext): Promise<read
     return closedReply('expired', language);
   }
   const [verb, pickIndex] = tap.kind === 'pick' ? ['pick' as const, tap.index] : [tap.verb, -1];
-  if (!ALLOWED[action.kind].includes(verb)) return closedReply('expired', language);
-  return STEPS[verb](action, pickIndex, ctx);
+  const step = STEPS[action.kind][verb];
+  if (!step) return closedReply('expired', language);
+  return step(action, pickIndex, ctx);
 }

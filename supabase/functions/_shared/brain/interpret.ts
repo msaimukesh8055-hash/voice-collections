@@ -24,10 +24,17 @@ export interface InterpretDeps {
   readonly isKnownName: (name: string) => boolean;
 }
 
+/** Commands whose only content is a name: an unknown name ("remind me later") goes to the LLM. */
+const NAME_ONLY_KINDS: ReadonlySet<Command['kind']> = new Set(['lookup', 'remind', 'score']);
+
+function hasName(command: Command): command is Extract<Command, { name: string }> {
+  return NAME_ONLY_KINDS.has(command.kind);
+}
+
 export async function interpret(text: string, deps: InterpretDeps): Promise<Interpretation> {
   const language = detectLanguage(text);
   const command = parseCommand(text, deps.today);
-  const trusted = command !== null && (command.kind !== 'lookup' || deps.isKnownName(command.name));
+  const trusted = command !== null && (!hasName(command) || deps.isKnownName(command.name));
   if (trusted) return { command, path: 'command', language };
   const result = await deps.llm(text, deps.now);
   const suggested = result.suggestion ? toCommand(result.suggestion, deps.today) : null;

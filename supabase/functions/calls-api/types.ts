@@ -1,10 +1,13 @@
 // supabase/functions/calls-api/types.ts
 // Shared shapes for the app API's routes.
+import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ProxyDeps } from './sarvam-proxy.ts';
 
 export interface CallsApiDeps extends ProxyDeps {
   /** Dashboard / phone page origins allowed to call the API from a browser. */
   readonly allowedOrigins: readonly string[];
+  /** Wakes the follow-up worker for a call that just ended (M5); runs in the background. */
+  readonly kickFollowup: FollowupKicker;
 }
 
 export interface RouteContext {

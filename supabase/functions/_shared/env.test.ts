@@ -5,6 +5,7 @@ import {
   loadServerEnv,
   loadToolsEnv,
   loadWhatsAppEnv,
+  loadWorkerEnv,
   MissingEnvError,
 } from './env.ts';
 
@@ -59,6 +60,7 @@ const CALLS_API_ENV = {
   SARVAM_ORG_ID: 'org-1',
   SARVAM_WORKSPACE_ID: 'ws-1',
   SARVAM_APP_ID: 'app-1',
+  WORKER_SECRET: 'w'.repeat(32),
 };
 
 Deno.test('loadCallsApiEnv › splits allowed origins into a list', () => {
@@ -88,6 +90,7 @@ const WHATSAPP_ENV = {
   OWNER_WHATSAPP_NUMBER: '+91 00000 99999',
   SARVAM_API_KEY: 'sarvam-key',
   GEMINI_API_KEY: 'gemini-key',
+  WORKER_SECRET: 'w'.repeat(32),
 };
 
 Deno.test('loadWhatsAppEnv › keeps only the digits of the owner number', () => {
@@ -111,4 +114,42 @@ Deno.test('loadWhatsAppEnv › requires the app secret and a numeric phone numbe
     MissingEnvError,
     'META_PHONE_NUMBER_ID',
   );
+});
+
+Deno.test('loadCallsApiEnv › requires a worker secret of 32+ characters', () => {
+  const { WORKER_SECRET: _secret, ...withoutSecret } = CALLS_API_ENV;
+  assertThrows(() => loadCallsApiEnv(withoutSecret), MissingEnvError, 'WORKER_SECRET');
+  assertThrows(
+    () => loadCallsApiEnv({ ...CALLS_API_ENV, WORKER_SECRET: 'short' }),
+    MissingEnvError,
+    'WORKER_SECRET',
+  );
+});
+
+const WORKER_ENV = {
+  ...CALLS_API_ENV,
+  META_ACCESS_TOKEN: 'meta-token',
+  META_PHONE_NUMBER_ID: '123456789',
+  META_APP_SECRET: 'app-secret',
+  OWNER_WHATSAPP_NUMBER: '+91 00000 99999',
+  SARVAM_API_KEY: 'sarvam-key',
+  GEMINI_API_KEY: 'gemini-key',
+};
+
+Deno.test('loadWorkerEnv › needs the worker secret, Sarvam, Meta and LLM keys, not CORS', () => {
+  const { CORS_ALLOWED_ORIGINS: _cors, ...withoutCors } = WORKER_ENV;
+  const env = loadWorkerEnv(withoutCors);
+  assertEquals([env.OWNER_WHATSAPP_NUMBER, env.SARVAM_APP_ID], ['910000099999', 'app-1']);
+  const { GEMINI_API_KEY: _gemini, ...withoutGemini } = withoutCors;
+  assertThrows(() => loadWorkerEnv(withoutGemini), MissingEnvError, 'GEMINI_API_KEY');
+  assertThrows(
+    () => loadWorkerEnv({ ...withoutCors, META_PHONE_NUMBER_ID: 'abc' }),
+    MissingEnvError,
+    'META_PHONE_NUMBER_ID',
+  );
+});
+
+Deno.test('loadWhatsAppEnv › needs the worker secret to start simulated calls (M5 5b)', () => {
+  const { WORKER_SECRET: _secret, ...withoutSecret } = WHATSAPP_ENV;
+  assertThrows(() => loadWhatsAppEnv(withoutSecret), MissingEnvError, 'WORKER_SECRET');
 });

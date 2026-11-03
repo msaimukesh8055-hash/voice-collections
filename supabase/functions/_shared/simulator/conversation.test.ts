@@ -1,0 +1,136 @@
+// supabase/functions/_shared/simulator/conversation.test.ts
+// The simulated call's turn loop (M5 test list, fake LLMs): max 10 turns, tools in Asha's context
+// only, every end reason, tool chains capped, a tool sent with the goodbye still runs.
+import { assertEquals, assertStringIncludes } from '@std/assert';
+import type { ChatMessage } from '../llm/json-llm.ts';
+import type { ToolResult } from '../tools/types.ts';
+import { type ChatFn, converse, MAX_TOOL_STEPS, MAX_TURNS } from './conversation.ts';
+
+const GREETING = 'Namaste, am I speaking with Ramesh garu of Ramesh Kirana?';
+
+/** Answers from a script, in order; null once it runs out (a failed model). */
+function scripted(answers: readonly (string | null)[], seen: ChatMessage[][] = []): ChatFn {
+  let next = 0;
+  return (messages) => {
+    seen.push([...messages]);
+    const answer = answers[next] ?? null;
+    next += 1;
+    return Promise.resolve(answer);
+  };
+}
+
+function asha(say: string, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ say, tool: null, end_call: false, ...extra });
+}
+
+function shop(say: string, hangUp = false): string {
+  return JSON.stringify({ say, hang_up: hangUp });
+}
+
+function tools(calls: string[]): (name: string, args: unknown) => Promise<ToolResult> {
+  return (name) => {
+    calls.push(name);
+    return Promise.resolve({ ok: true, say: `${name} done`, data: { outstanding: 8500 } });
+  };
+}
+
+Deno.test('conversation › greeting first; tools stay out of the transcript; Asha ends the call', async () => {
+  const calls: string[] = [];
+  const ashaSeen: ChatMessage[][] = [];
+  const result = await converse(GREETING, {
+    asha: scripted([
+      asha('', { tool: { name: 'confirm_identity', args: { answer: 'confirmed' } } }),
+      asha('Thank you. You owe 8,500 rupees.'),
+      asha('Thank you, goodbye.', { end_call: true }),
+    ], ashaSeen),
+    shopkeeper: scripted([shop('Yes, speaking.'), shop('I will pay Monday.')]),
+    runTool: tools(calls),
+  });
+  assertEquals(result.end, 'asha_ended');
+  assertEquals(result.transcript.map((t) => t.role), [
+    'assistant',
+    'user',
+    'assistant',
+    'user',
+    'assistant',
+  ]);
+  assertEquals(result.transcript[0]?.content, GREETING);
+  assertEquals([calls, result.toolCalls], [['confirm_identity'], 1]);
+  const afterTool = ashaSeen[1] ?? [];
+  assertStringIncludes(
+    afterTool.at(-1)?.content ?? '',
+    'TOOL REPLY confirm_identity: {"outstanding":8500',
+  );
+  assertEquals(afterTool[0]?.role, 'user');
+  assertEquals(JSON.stringify(result.transcript).includes('TOOL REPLY'), false);
+});
+
+Deno.test('conversation › the shopkeeper hanging up ends the call', async () => {
+  const result = await converse(GREETING, {
+    asha: scripted([]),
+    shopkeeper: scripted([shop('Wrong number.', true)]),
+    runTool: tools([]),
+  });
+  assertEquals([result.end, result.transcript.length], ['shopkeeper_hung_up', 2]);
+});
+
+Deno.test('conversation › stops after 10 shopkeeper turns', async () => {
+  const many = Array.from({ length: 20 }, (_, n) => `line ${n}`);
+  const result = await converse(GREETING, {
+    asha: scripted(many.map((line) => asha(line))),
+    shopkeeper: scripted(many.map((line) => shop(line))),
+    runTool: tools([]),
+  });
+  assertEquals(result.end, 'max_turns');
+  assertEquals(result.transcript.filter((t) => t.role === 'user').length, MAX_TURNS);
+});
+
+Deno.test('conversation › a failed or unusable model answer ends the call', async () => {
+  const ashaFails = await converse(GREETING, {
+    asha: scripted(['not json']),
+    shopkeeper: scripted([shop('Yes.')]),
+    runTool: tools([]),
+  });
+  assertEquals(ashaFails.end, 'asha_failed');
+  const ashaSilent = await converse(GREETING, {
+    asha: scripted([null]),
+    shopkeeper: scripted([shop('Yes.')]),
+    runTool: tools([]),
+  });
+  assertEquals(ashaSilent.end, 'asha_failed');
+  const shopFails = await converse(GREETING, {
+    asha: scripted([]),
+    shopkeeper: scripted([null]),
+    runTool: tools([]),
+  });
+  assertEquals(shopFails.end, 'shopkeeper_failed');
+});
+
+Deno.test('conversation › at most 3 tools in a row; then Asha must speak', async () => {
+  const calls: string[] = [];
+  const tool = asha('', { tool: { name: 'get_dues', args: {} } });
+  const result = await converse(GREETING, {
+    asha: scripted([tool, tool, tool, tool]),
+    shopkeeper: scripted([shop('Yes.')]),
+    runTool: tools(calls),
+  });
+  assertEquals(calls.length, MAX_TOOL_STEPS);
+  assertEquals(result.end, 'asha_failed');
+});
+
+Deno.test('conversation › a tool sent with the goodbye still runs', async () => {
+  const calls: string[] = [];
+  const goodbye = asha('Srinivas garu will call you. Goodbye.', {
+    tool: {
+      name: 'request_owner_callback',
+      args: { reason: 'dispute', summary: 'Disputes amount' },
+    },
+    end_call: true,
+  });
+  const result = await converse(GREETING, {
+    asha: scripted([goodbye]),
+    shopkeeper: scripted([shop('The amount is wrong.')]),
+    runTool: tools(calls),
+  });
+  assertEquals([result.end, calls], ['asha_ended', ['request_owner_callback']]);
+});

@@ -113,7 +113,11 @@ Deno.test('postgrest › maps the shopkeeper with the owner joined in', async ()
     shop_name: 'Ramesh Kirana',
     language: 'te',
     do_not_call: false,
-    owners: { name: 'Srinivas Reddy', business_name: 'Sri Lakshmi Traders' },
+    owners: {
+      name: 'Srinivas Reddy',
+      business_name: 'Sri Lakshmi Traders',
+      consequence_text: null,
+    },
   };
   const { repo, requests } = setup({ body: [row] });
   assertEquals(await repo.getShopkeeper(SHOPKEEPER_ID), {
@@ -124,8 +128,9 @@ Deno.test('postgrest › maps the shopkeeper with the owner joined in', async ()
     doNotCall: false,
     ownerName: 'Srinivas Reddy',
     businessName: 'Sri Lakshmi Traders',
+    consequenceText: null,
   });
-  assertStringIncludes(requests[0]?.url ?? '', 'owners(name,business_name)');
+  assertStringIncludes(requests[0]?.url ?? '', 'owners(name,business_name,consequence_text)');
 });
 
 Deno.test('postgrest › counts calls with HEAD + count=exact and reads the total', async () => {

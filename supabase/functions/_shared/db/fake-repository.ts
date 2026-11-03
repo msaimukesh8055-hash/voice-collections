@@ -1,6 +1,8 @@
 // supabase/functions/_shared/db/fake-repository.ts
 // In-memory Repository for tests. FAKE DATA ONLY. Ramesh's book mirrors his seeded story
 // (₹8,500 outstanding: ₹5,000 overdue 12 days + ₹3,500 due in 3 days) on FAKE_TODAY.
+import type { ToneLevel } from '../calls/tone.ts';
+import type { PromiseRecord } from '../ledger/promise-check.ts';
 import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
 import type { CallStatus } from '../schemas/shopkeeper.ts';
 import type {
@@ -13,6 +15,7 @@ import type {
   Repository,
   Shopkeeper,
 } from './repository.ts';
+import type { MemoryMethods } from './supabase-memory.ts';
 
 /** India date the fake ledger is written against (a Monday). */
 export const FAKE_TODAY = '2026-11-02';
@@ -27,6 +30,7 @@ export const FAKE_RAMESH: Shopkeeper = {
   doNotCall: false,
   ownerName: 'Srinivas Reddy',
   businessName: 'Sri Lakshmi Traders',
+  consequenceText: null,
 };
 
 export const FAKE_LATHA: Shopkeeper = {
@@ -37,6 +41,7 @@ export const FAKE_LATHA: Shopkeeper = {
   doNotCall: false,
   ownerName: 'Srinivas Reddy',
   businessName: 'Sri Lakshmi Traders',
+  consequenceText: null,
 };
 
 export interface FakeLedgerEntry extends LedgerEntry {
@@ -80,9 +85,41 @@ export const FAKE_LEDGER: readonly FakeLedgerEntry[] = [
   }),
 ];
 
+/** Ramesh's seeded promises: ₹2,500 kept in August, ₹3,000 for Fri 30 Oct broken (SPEC §2). */
+export const FAKE_RAMESH_PROMISES: readonly FakePromiseRecord[] = [
+  {
+    id: '90000000-0000-4000-8000-000000000001',
+    shopkeeperId: FAKE_RAMESH.id,
+    amount: 2500,
+    promiseDate: '2026-08-14',
+    status: 'kept',
+    createdAt: '2026-08-06T05:00:00.000Z',
+  },
+  {
+    id: '90000000-0000-4000-8000-000000000002',
+    shopkeeperId: FAKE_RAMESH.id,
+    amount: 3000,
+    promiseDate: '2026-10-30',
+    status: 'broken',
+    createdAt: '2026-10-23T05:00:00.000Z',
+  },
+];
+
 export interface FakeCall extends CallSession {
   readonly endedAt: string | null;
   readonly durationSeconds: number | null;
+  readonly followupStatus?: 'pending';
+  readonly followupNextAt?: string;
+}
+
+export interface FakePromiseRecord extends PromiseRecord {
+  readonly shopkeeperId: string;
+}
+
+export interface FakeNote {
+  readonly shopkeeperId: string;
+  readonly note: string;
+  readonly createdAt: string;
 }
 
 export interface FakeState {
@@ -92,6 +129,10 @@ export interface FakeState {
   promises: readonly NewPromise[];
   callbacks: readonly NewOwnerCallback[];
   toolEvents: readonly NewToolEvent[];
+  /** Promise history read by memory and tone (listPromises), in any order. */
+  promiseHistory: readonly FakePromiseRecord[];
+  notes: readonly FakeNote[];
+  toneLevels: Readonly<Record<string, ToneLevel>>;
   settings: DemoSettings;
   /** Stands in for the database's now() when a call row is created. */
   clock: () => Date;
@@ -126,6 +167,9 @@ function initialState(overrides: Partial<FakeState>): FakeState {
     promises: [],
     callbacks: [],
     toolEvents: [],
+    promiseHistory: [],
+    notes: [],
+    toneLevels: {},
     settings: {
       demoClock: null,
       callingHoursEnabled: false,
@@ -138,7 +182,13 @@ function initialState(overrides: Partial<FakeState>): FakeState {
 }
 
 function toSession(call: FakeCall): CallSession {
-  const { endedAt: _endedAt, durationSeconds: _duration, ...session } = call;
+  const {
+    endedAt: _endedAt,
+    durationSeconds: _duration,
+    followupStatus: _followup,
+    followupNextAt: _next,
+    ...session
+  } = call;
   return session;
 }
 
@@ -147,6 +197,39 @@ function applyPatch(call: FakeCall, patch: CallPatch): FakeCall {
 }
 
 const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
+
+function newestFirst<T extends { readonly createdAt: string }>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Memory and tone methods (M5), kept apart so the main fake stays readable. */
+function fakeMemory(state: FakeState): MemoryMethods {
+  return {
+    listPromises: (shopkeeperId) =>
+      Promise.resolve(
+        newestFirst(
+          state.promiseHistory.filter((promise) => promise.shopkeeperId === shopkeeperId),
+        ),
+      ),
+    getLastNote: (shopkeeperId) =>
+      Promise.resolve(
+        newestFirst(state.notes.filter((note) => note.shopkeeperId === shopkeeperId))[0]?.note ??
+          null,
+      ),
+    setPromiseStatus: (promiseId, status) => {
+      const open = state.promiseHistory.some((p) => p.id === promiseId && p.status === 'open');
+      if (!open) return Promise.resolve(false);
+      state.promiseHistory = state.promiseHistory.map((
+        p,
+      ) => (p.id === promiseId ? { ...p, status } : p));
+      return Promise.resolve(true);
+    },
+    setCallToneLevel: (callId, level) => {
+      state.toneLevels = { ...state.toneLevels, [callId]: level };
+      return Promise.resolve();
+    },
+  };
+}
 
 /** Returns the fake plus its live state, so tests can assert on what was written. */
 export function createFakeRepository(overrides: Partial<FakeState> = {}): {
@@ -265,6 +348,7 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
       state.toolEvents = [...state.toolEvents, event];
       return Promise.resolve();
     },
+    ...fakeMemory(state),
   };
   return { repo, state };
 }

@@ -2,6 +2,8 @@
 // Data access contract. Tools and handlers depend on this interface, never on Supabase directly,
 // so tests run against the in-memory fake. Latency rule: a tool does at most one round of reads
 // (run in parallel) and one write.
+import type { ToneLevel } from '../calls/tone.ts';
+import type { PromiseRecord } from '../ledger/promise-check.ts';
 import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
 import type { CallStatus, IdentityStatus, Language } from '../schemas/shopkeeper.ts';
 
@@ -13,6 +15,8 @@ export interface Shopkeeper {
   readonly doNotCall: boolean;
   readonly ownerName: string;
   readonly businessName: string;
+  /** The owner's level-3 consequence (SPEC §7.4); null when he set none. */
+  readonly consequenceText: string | null;
 }
 
 export interface DemoSettings {
@@ -56,6 +60,9 @@ export interface CallPatch {
   readonly endedAt?: string;
   readonly durationSeconds?: number;
   readonly interactionId?: string;
+  /** Set when the call has ended (completed, declined, missed): the follow-up worker's queue. */
+  readonly followupStatus?: 'pending';
+  readonly followupNextAt?: string;
 }
 
 export interface Identity {
@@ -123,4 +130,13 @@ export interface Repository {
   insertPaymentClaim(claim: NewClaim): Promise<boolean>;
   insertOwnerCallback(callback: NewOwnerCallback): Promise<void>;
   insertToolEvent(event: NewToolEvent): Promise<void>;
+  // Memory and tone (M5): read in get_dues's one round of reads, written in its one round of
+  // writes.
+  /** The shopkeeper's promises, newest first. */
+  listPromises(shopkeeperId: string): Promise<readonly PromiseRecord[]>;
+  /** The newest follow-up note, or null. */
+  getLastNote(shopkeeperId: string): Promise<string | null>;
+  /** Compare-and-set from 'open', so running the promise check twice changes nothing. */
+  setPromiseStatus(promiseId: string, status: 'kept' | 'broken'): Promise<boolean>;
+  setCallToneLevel(callId: string, level: ToneLevel): Promise<void>;
 }

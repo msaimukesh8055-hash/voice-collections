@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 const MIN_TOOL_SECRET_LENGTH = 32;
+const MIN_WORKER_SECRET_LENGTH = 32;
 /** Country code + subscriber number; anything shorter is a typo in the secret. */
 const MIN_PHONE_DIGITS = 10;
 
@@ -34,6 +35,8 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .trim()
     .optional()
     .transform((value) => (value ? value : null)),
+  /** Bearer secret for followup-worker: calls-api sends it when a call ends (M5). */
+  WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
 });
 
 /** WhatsApp Business numbers arrive from Meta as digits only, with the country code. */
@@ -42,10 +45,13 @@ const PhoneDigits = z
   .transform((value) => value.replace(/\D/g, ''))
   .pipe(z.string().min(MIN_PHONE_DIGITS));
 
+/** Meta's phone number id: digits only. */
+const MetaPhoneNumberId = z.string().trim().regex(/^\d+$/);
+
 const WhatsAppEnvSchema = ServerEnvSchema.extend({
   /** System-user token (M4 Decision 2); sends replies through the Cloud API. */
   META_ACCESS_TOKEN: NonEmpty,
-  META_PHONE_NUMBER_ID: z.string().trim().regex(/^\d+$/),
+  META_PHONE_NUMBER_ID: MetaPhoneNumberId,
   /** Checks Meta's X-Hub-Signature-256 on every webhook POST, and keys the sender hash. */
   META_APP_SECRET: NonEmpty,
   /** Answered to Meta's one-off GET verify check. */
@@ -55,9 +61,23 @@ const WhatsAppEnvSchema = ServerEnvSchema.extend({
   /** Sarvam core API key (chat completions), not the Voice Agents key. */
   SARVAM_API_KEY: NonEmpty,
   GEMINI_API_KEY: NonEmpty,
+  /** Bearer secret for followup-worker: Remind starts simulated calls there (M5 5b). */
+  WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
+});
+
+/** followup-worker (M5): Sarvam transcripts + LLM, the owner's WhatsApp summary, its own secret. */
+const WorkerEnvSchema = CallsApiEnvSchema.omit({ CORS_ALLOWED_ORIGINS: true }).extend({
+  META_ACCESS_TOKEN: NonEmpty,
+  META_PHONE_NUMBER_ID: MetaPhoneNumberId,
+  /** Keys the stored hash of the owner's number (same as the webhook). */
+  META_APP_SECRET: NonEmpty,
+  OWNER_WHATSAPP_NUMBER: PhoneDigits,
+  SARVAM_API_KEY: NonEmpty,
+  GEMINI_API_KEY: NonEmpty,
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
+export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;
 export type WhatsAppEnv = z.infer<typeof WhatsAppEnvSchema>;
 export type ToolsEnv = z.infer<typeof ToolsEnvSchema>;
 export type CallsApiEnv = z.infer<typeof CallsApiEnvSchema>;
@@ -87,6 +107,10 @@ export function loadToolsEnv(source: Record<string, string | undefined>): ToolsE
 
 export function loadCallsApiEnv(source: Record<string, string | undefined>): CallsApiEnv {
   return loadEnv(CallsApiEnvSchema, source);
+}
+
+export function loadWorkerEnv(source: Record<string, string | undefined>): WorkerEnv {
+  return loadEnv(WorkerEnvSchema, source);
 }
 
 export function loadWhatsAppEnv(source: Record<string, string | undefined>): WhatsAppEnv {

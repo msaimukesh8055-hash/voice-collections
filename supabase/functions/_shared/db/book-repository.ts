@@ -2,7 +2,7 @@
 // Data access for the owner's WhatsApp bot (M4): the credit book, confirmation cards and the
 // message log. Kept apart from Repository (Asha's call tools) so each side stays small. The
 // owner's phone number never passes through here: senders are keyed hashes (Decision 6).
-import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
+import type { LedgerEntry, PaymentMode, PromiseStatus } from '../schemas/ledger.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
 export interface Owner {
@@ -28,8 +28,7 @@ export interface BookEntry extends LedgerEntry {
   readonly createdAt: string;
 }
 
-export const PROMISE_STATUSES = ['open', 'kept', 'broken', 'replaced'] as const;
-export type PromiseStatus = (typeof PROMISE_STATUSES)[number];
+export { PROMISE_STATUSES, type PromiseStatus } from '../schemas/ledger.ts';
 
 export interface LastPromise {
   readonly amount: number;
@@ -57,7 +56,8 @@ export interface NewEntry {
   readonly note: string | null;
 }
 
-export const ACTION_KINDS = ['entry', 'pick', 'new_shopkeeper'] as const;
+/** remind_all (M5): "Call 7 people?" [Yes] [No], holding who will be called. */
+export const ACTION_KINDS = ['entry', 'pick', 'new_shopkeeper', 'remind_all'] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 export const ACTION_STATUSES = ['open', 'saved', 'cancelled', 'expired', 'done'] as const;
 export type ActionStatus = (typeof ACTION_STATUSES)[number];

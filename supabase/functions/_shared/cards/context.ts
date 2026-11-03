@@ -2,6 +2,7 @@
 // Everything one owner message needs, loaded once per message by the webhook.
 import type { BookRepository, BookShopkeeper, Owner } from '../db/book-repository.ts';
 import type { Logger } from '../log.ts';
+import type { ReminderDeps } from '../reminders/deps.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
 export interface BotContext {
@@ -17,6 +18,8 @@ export interface BotContext {
   /** A fake phone number for a shopkeeper added from WhatsApp (never-real range). */
   readonly newPhone: () => string;
   readonly log: Logger;
+  /** Due alert, Remind, remind all and score explain (M5 5b). */
+  readonly reminder: ReminderDeps;
 }
 
 /** New shopkeepers get +91 00000 9xxxx: the seed uses 00001–00100, and no real phone starts
