@@ -16,12 +16,20 @@ export interface SkipCounts {
   readonly notIncluded: number;
 }
 
+/** The figures on a broke-a-promise line of the due alert, already formatted. */
+export interface BrokenPromiseLine {
+  readonly label: string;
+  readonly promised: string;
+  readonly day: string;
+  readonly owed: string;
+}
+
 export interface ReminderPhrases {
   readonly alertTitle: (day: string) => string;
   readonly sectionBroken: (count: number) => string;
   readonly sectionOverdue: (count: number) => string;
   readonly sectionDueToday: (count: number) => string;
-  readonly brokenLine: (label: string, promised: string, day: string, owed: string) => string;
+  readonly brokenLine: (line: BrokenPromiseLine) => string;
   readonly overdueLine: (label: string, amount: string, days: number) => string;
   readonly dueTodayLine: (label: string, amount: string) => string;
   readonly nobodyDue: string;
@@ -56,7 +64,7 @@ const EN: ReminderPhrases = {
   sectionBroken: (count) => `*Broke a promise* (${count})`,
   sectionOverdue: (count) => `*Overdue* (${count})`,
   sectionDueToday: (count) => `*Due today* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · promised ${promised} by ${day} · owes ${owed}`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} days overdue`,
   dueTodayLine: (label, amount) => `• ${label} · ${amount} due today`,
@@ -114,7 +122,7 @@ const HI: ReminderPhrases = {
   sectionBroken: (count) => `*वादा टूटा* (${count})`,
   sectionOverdue: (count) => `*बकाया* (${count})`,
   sectionDueToday: (count) => `*आज देय* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · ${day} तक ${promised} का वादा · कुल ${owed} बाकी`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} दिन से बकाया`,
   dueTodayLine: (label, amount) => `• ${label} · आज ${amount} देय`,
@@ -169,7 +177,7 @@ const TE: ReminderPhrases = {
   sectionBroken: (count) => `*మాట తప్పారు* (${count})`,
   sectionOverdue: (count) => `*గడువు దాటింది* (${count})`,
   sectionDueToday: (count) => `*ఈరోజు గడువు* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · ${day} లోపు ${promised} ఇస్తానన్నారు · మొత్తం ${owed} బాకీ`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} రోజులు ఆలస్యం`,
   dueTodayLine: (label, amount) => `• ${label} · ఈరోజు ${amount} గడువు`,

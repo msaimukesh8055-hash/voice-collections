@@ -51,15 +51,21 @@ function countSince(calls: readonly RecentCall[], shopkeeperId: string, since: D
 
 function blockOf(
   target: QueueTarget,
-  context: { now: Date; settings: DemoSettings; calls: readonly RecentCall[]; weekStart: Date },
+  context: {
+    now: Date;
+    todayStart: Date;
+    settings: DemoSettings;
+    calls: readonly RecentCall[];
+    weekStart: Date;
+  },
 ): PrecallBlockCode | null {
-  const { now, settings, calls, weekStart } = context;
+  const { now, todayStart, settings, calls, weekStart } = context;
   const decision = checkPrecall({
     now,
     doNotCall: target.doNotCall,
     callingHoursEnabled: settings.callingHoursEnabled,
     callLimitsEnabled: settings.callLimitsEnabled,
-    callsToday: countSince(calls, target.shopkeeperId, istMidnight(now)),
+    callsToday: countSince(calls, target.shopkeeperId, todayStart),
     callsThisWeek: countSince(calls, target.shopkeeperId, weekStart),
   });
   return decision.allowed ? null : decision.code;
@@ -70,10 +76,14 @@ export async function queueReminders(
   targets: readonly QueueTarget[],
 ): Promise<QueuedBatch> {
   const settings = await deps.repo.getDemoSettings();
-  const now = resolveNow(settings.demoClock, deps.clock());
-  const weekStart = istMidnight(new Date(now.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
+  const realNow = deps.clock();
+  // The demo clock decides calling hours only. Attempt windows use the real clock (CP2 M1),
+  // because queued_at is the database's real now().
+  const now = resolveNow(settings.demoClock, realNow);
+  const todayStart = istMidnight(realNow);
+  const weekStart = istMidnight(new Date(realNow.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
   const calls = await deps.store.listCallsSince(weekStart);
-  const context = { now, settings, calls, weekStart };
+  const context = { now, todayStart, settings, calls, weekStart };
   const checked = targets.map((target) => ({ target, code: blockOf(target, context) }));
   const allowed = checked.filter((item) => item.code === null).map((item) => item.target);
   const created = await deps.store.createCalls(allowed.map((target) => ({

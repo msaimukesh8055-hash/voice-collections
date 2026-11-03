@@ -150,6 +150,17 @@ Deno.test('postgrest › a missing count is an error', async () => {
   );
 });
 
+Deno.test('postgrest › counts issued call URLs (all shopkeepers) since a time', async () => {
+  const { repo, requests } = setup({ headers: { 'content-range': '0-19/20' } }, {});
+  const since = new Date('2026-11-01T18:30:00Z');
+  assertEquals(await repo.countCallUrlsIssuedSince(since), 20);
+  assertEquals([requests[0]?.method, requests[0]?.headers['Prefer']], ['HEAD', 'count=exact']);
+  const url = requests[0]?.url ?? '';
+  assertStringIncludes(url, 'url_issued_at=gte.2026-11-01T18%3A30%3A00.000Z');
+  assertEquals(url.includes('shopkeeper_id'), false);
+  await assertRejects(() => repo.countCallUrlsIssuedSince(since), RepositoryError, 'no count');
+});
+
 Deno.test('postgrest › createCall returns the new id; an empty reply is an error', async () => {
   const { repo, requests } = setup({ body: [{ id: CALL_ID }] }, { body: [] });
   const call = { shopkeeperId: SHOPKEEPER_ID, language: 'te', mode: 'live' } as const;

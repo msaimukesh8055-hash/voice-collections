@@ -36,22 +36,24 @@ interface CallHistory {
   readonly recentCalls: number;
 }
 
-async function loadHistory(
-  deps: QueueCallDeps,
-  shopkeeperId: string,
-  now: Date,
-): Promise<CallHistory> {
-  const weekStart = istMidnight(new Date(now.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
-  const rateWindowStart = new Date(deps.clock().getTime() - RING_RATE_LIMIT.windowMs);
+/**
+ * Attempt windows (CP2 M1) are counted on the real clock, because `calls.queued_at` is the
+ * database's real now(). The demo clock only decides calling hours; moving it must not switch the
+ * daily/weekly limits off (clock ahead) or trip them early (clock behind).
+ */
+async function loadHistory(deps: QueueCallDeps, shopkeeperId: string): Promise<CallHistory> {
+  const realNow = deps.clock();
+  const weekStart = istMidnight(new Date(realNow.getTime() - (ATTEMPT_WINDOW_DAYS - 1) * DAY_MS));
+  const rateWindowStart = new Date(realNow.getTime() - RING_RATE_LIMIT.windowMs);
   const [shopkeeper, waiting, callsToday, callsThisWeek, recentCalls] = await Promise.all([
     deps.repo.getShopkeeper(shopkeeperId),
     deps.repo.findRingingCall(shopkeeperId),
-    deps.repo.countCallsSince(shopkeeperId, istMidnight(now)),
+    deps.repo.countCallsSince(shopkeeperId, istMidnight(realNow)),
     deps.repo.countCallsSince(shopkeeperId, weekStart),
     deps.repo.countCallsSince(shopkeeperId, rateWindowStart),
   ]);
   // A stale call (nobody answered) doesn't block a new one; the phone page marks it missed.
-  const waitingCallId = waiting && isStillRinging(waiting, deps.clock()) ? waiting.callId : null;
+  const waitingCallId = waiting && isStillRinging(waiting, realNow) ? waiting.callId : null;
   return { shopkeeper, waitingCallId, callsToday, callsThisWeek, recentCalls };
 }
 
@@ -61,7 +63,7 @@ export async function queueCall(
 ): Promise<QueueCallResult> {
   const settings = await deps.repo.getDemoSettings();
   const now = resolveNow(settings.demoClock, deps.clock());
-  const history = await loadHistory(deps, input.shopkeeperId, now);
+  const history = await loadHistory(deps, input.shopkeeperId);
   const { shopkeeper } = history;
   if (!shopkeeper) return { ok: false, code: 'NOT_FOUND' };
   // A second tap while the phone is still ringing must not stack up calls.

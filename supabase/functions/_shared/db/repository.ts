@@ -110,6 +110,8 @@ export interface Repository {
   getDemoSettings(): Promise<DemoSettings>;
   getShopkeeper(shopkeeperId: string): Promise<Shopkeeper | null>;
   countCallsSince(shopkeeperId: string, since: Date): Promise<number>;
+  /** Calls (any shopkeeper) whose Sarvam call URL was issued at or after `since` (CP2 M3). */
+  countCallUrlsIssuedSince(since: Date): Promise<number>;
   createCall(call: NewCall): Promise<string>;
   getCallSession(callId: string): Promise<CallSession | null>;
   /** The shopkeeper's newest call that is still queued or ringing. */

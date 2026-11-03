@@ -9,6 +9,7 @@ import {
   type CallEvents,
   CONNECT_ERROR,
   createSarvamClient,
+  DAILY_LIMIT_ERROR,
   MIC_ERROR,
 } from './sarvamClient.ts';
 
@@ -157,5 +158,16 @@ describe('createSarvamClient', () => {
     const silent = fakeAgent({ connects: false });
     await expect(startCall(silent)).rejects.toThrow(CONNECT_ERROR);
     expect(silent.calls).toEqual(['start', 'stop']);
+  });
+
+  it('gives a "try tomorrow" message when the daily live-call cap answers 429', async () => {
+    // Same shape as the SDK's RateLimitError (name, code), without loading the SDK.
+    const limited = Object.assign(new Error('Rate limit exceeded.'), { code: 'RATE_LIMITED' });
+    limited.name = 'RateLimitError';
+    const fake = fakeAgent({ startError: limited });
+    await expect(startCall(fake)).rejects.toThrow(DAILY_LIMIT_ERROR);
+    expect(fake.calls).toEqual(['start', 'stop']);
+    const byCode = Object.assign(new Error('429'), { code: 'RATE_LIMITED' });
+    await expect(startCall(fakeAgent({ startError: byCode }))).rejects.toThrow(DAILY_LIMIT_ERROR);
   });
 });

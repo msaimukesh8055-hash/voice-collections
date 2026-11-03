@@ -1,6 +1,6 @@
 # Architecture — Easy Recovery AI
 
-Status: M5 half 5a built (2026-11-03): memory and tone in `get_dues`, promise checker, reliability score, follow-up worker with WhatsApp summaries, on top of M4 (WhatsApp owner bot) and M3 (Sarvam voice agent, credit-book schema, phone page). Updated by the `architect` agent when decisions change. Scope: `docs/SPEC.md` v2.0.
+Status: M5 built and deployed (2026-11-03), CP2 reviewed: 5a — memory and tone in `get_dues`, promise checker, reliability score, follow-up worker with WhatsApp summaries; 5b — due alert, Remind / Remind all with queue and limits, text simulated calls, pg_cron scheduler. On top of M4 (WhatsApp owner bot) and M3 (Sarvam voice agent, credit-book schema, phone page). Next: M6 (dashboard). Updated by the `architect` agent when decisions change. Scope: `docs/SPEC.md` v2.0.
 
 ## System context
 
@@ -85,7 +85,7 @@ In step 6, `get_dues` (after identity only) first runs the **promise checker** o
 
 ## Data model
 
-`supabase/migrations/20261103000001_easy_recovery_schema.sql` (SPEC §13): `owners`, `shopkeepers` (score columns empty until M5), `ledger_entries` (credit/payment; confirmed/claimed/rejected), `promises` (open/kept/broken/replaced, one per call), `calls`, `tool_events`, `shopkeeper_notes`, `followup_runs`, `followups`, `eval_runs`, `eval_results`, `publishes`, `demo_settings`, view `balances`. M4 adds `wa_messages` (message ids, direction, type, path, command, sender hash) and `pending_actions` (cards), in `20261104000001_whatsapp.sql`. M5 adds the follow-up queue on `calls` (`followup_status`, `followup_attempts`, `followup_next_at`, `followup_claimed_at`), one run and one note per call (unique indexes), and the `pause_reminders` follow-up kind, in `20261105000001_followup.sql`. Dues and days overdue are computed in code (`_shared/ledger/dues.ts`), oldest credit paid first, so the demo clock applies.
+`supabase/migrations/20261103000001_easy_recovery_schema.sql` (SPEC §13): `owners`, `shopkeepers` (score columns filled by the promise check since M5), `ledger_entries` (credit/payment; confirmed/claimed/rejected), `promises` (open/kept/broken/replaced, one per call), `calls`, `tool_events`, `shopkeeper_notes`, `followup_runs`, `followups`, `eval_runs`, `eval_results`, `publishes`, `demo_settings`, view `balances`. M4 adds `wa_messages` (message ids, direction, type, path, command, sender hash) and `pending_actions` (cards), in `20261104000001_whatsapp.sql`. M5 adds the follow-up queue on `calls` (`followup_status`, `followup_attempts`, `followup_next_at`, `followup_claimed_at`), one run and one note per call (unique indexes), and the `pause_reminders` follow-up kind, in `20261105000001_followup.sql`. M5 5b adds `owner_alerts` (one daily alert per owner per demo day), the "call these people?" card kind, the simulated-call queue index, `claim_simulated_call` and the pg_cron jobs (`call_followup_worker`), in `20261106000001_reminders.sql`. Dues and days overdue are computed in code (`_shared/ledger/dues.ts`), oldest credit paid first, so the demo clock applies.
 
 ## Security boundaries
 

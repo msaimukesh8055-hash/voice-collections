@@ -3,7 +3,14 @@
 // optional parts (skips, the live name, simulated count) appear only when they apply.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { SUPPORTED_LANGUAGES } from '../schemas/shopkeeper.ts';
-import { type RemindBlock, reminderPhrasesFor } from './phrases.ts';
+import { type BrokenPromiseLine, type RemindBlock, reminderPhrasesFor } from './phrases.ts';
+
+const BROKEN_LINE: BrokenPromiseLine = {
+  label: 'Ramesh',
+  promised: '₹3,000',
+  day: 'Fri 30 Oct',
+  owed: '₹8,500',
+};
 
 const BLOCKS: readonly RemindBlock[] = [
   'DO_NOT_CALL',
@@ -21,7 +28,7 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.sectionBroken(1),
       p.sectionOverdue(2),
       p.sectionDueToday(3),
-      p.brokenLine('Ramesh', '₹3,000', 'Fri 30 Oct', '₹8,500'),
+      p.brokenLine(BROKEN_LINE),
       p.overdueLine('Latha', '₹2,000', 8),
       p.dueTodayLine('Suresh', '₹900'),
       p.nobodyDue,
@@ -50,7 +57,7 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.newBand,
     ];
     for (const line of lines) assert(line.trim().length > 0, `${language}: empty line`);
-    assertStringIncludes(p.brokenLine('Ramesh', '₹3,000', 'Fri 30 Oct', '₹8,500'), '₹3,000');
+    assertStringIncludes(p.brokenLine(BROKEN_LINE), '₹3,000');
     assertStringIncludes(p.scoreTitle('Ramesh', 42, 'Risky'), '42/100');
   }
 });

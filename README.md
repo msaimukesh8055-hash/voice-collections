@@ -52,6 +52,7 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 |---|---|
 | `npm run dev` | Web dev server (`/` demo controls, `/phone` shopkeeper phone) |
 | `npm run check` | Full quality gate: format, lint, typecheck, tests + coverage, build, bundle secret scan, Edge Function fmt/lint/check/tests |
+| `npm run lint` | ESLint, zero warnings. Also checks the size limits (function ≤ 50 lines, ≤ 3 parameters, file ≤ 800 lines, nesting ≤ 4) on `supabase/functions`; `deno lint` covers the rest there |
 | `npm run fn:coverage` | Edge Function coverage report |
 | `npm run db:push` | Apply migrations + seed |
 | `npm run db:check-seed` | Seed + RLS smoke test |

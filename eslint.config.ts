@@ -6,25 +6,45 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
+/** Size limits from guidelines/coding-standards.md › Size limits — shared by Node and Deno code. */
+const SIZE_RULES = {
+  'max-depth': ['error', 4],
+  'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
+  'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
+  'max-params': ['error', 3],
+} as const;
+
+/** Edge Functions: `deno lint` owns style/import rules; ESLint only checks the size limits. */
+const EDGE_FUNCTION_FILES = ['supabase/functions/**/*.ts'];
+
+/** Test files and test fakes may be longer per function (describe blocks, in-memory fakes). */
+const TEST_FILES = [
+  '**/*.test.ts',
+  '**/*.test.tsx',
+  'supabase/functions/_shared/db/fake-repository.ts',
+];
+
 export default tseslint.config(
   {
-    // Edge Functions are linted by `deno lint` (different runtime and import rules).
-    ignores: ['**/dist/**', '**/coverage/**', 'supabase/**', 'node_modules/**'],
+    ignores: ['**/dist/**', '**/coverage/**', 'node_modules/**'],
   },
-  js.configs.recommended,
-  ...tseslint.configs.strict,
   {
     files: ['**/*.ts', '**/*.tsx'],
+    ignores: EDGE_FUNCTION_FILES,
+    extends: [js.configs.recommended, ...tseslint.configs.strict],
     languageOptions: { globals: { ...globals.node } },
     rules: {
+      ...SIZE_RULES,
       '@typescript-eslint/no-explicit-any': 'error',
       'no-console': 'error',
-      'max-depth': ['error', 4],
-      'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
-      'max-params': ['error', 3],
       'prefer-const': 'error',
     },
+  },
+  {
+    files: EDGE_FUNCTION_FILES,
+    languageOptions: { parser: tseslint.parser, globals: { ...globals.denoBuiltin } },
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    rules: SIZE_RULES,
   },
   {
     files: ['web/**/*.tsx', 'web/**/*.ts'],
@@ -42,8 +62,7 @@ export default tseslint.config(
     },
   },
   {
-    // Test files may be longer per function (describe blocks).
-    files: ['**/*.test.ts', '**/*.test.tsx'],
+    files: TEST_FILES,
     rules: { 'max-lines-per-function': 'off' },
   },
   prettier,
