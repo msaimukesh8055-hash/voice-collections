@@ -436,3 +436,13 @@ Re-scored on `review/CP2` at `ea2684d`, nothing uncommitted. New since the 8.4: 
 3. **Live steps still to do:** Meta approval of `daily_due_alert`; one live Telugu message; M4 Save twice; M5 steps 5 (claim card from a call) and 8 (demo clock past Monday); the native-speaker check of the HI/TE lines.
 4. **Open simulator problems** (M5.md, for M7): calls ending early when the model goes silent after a tool; figures read back before the shopkeeper says them; owner callbacks nobody asked for.
 5. **Small items:** S2, S3, S4; Plan status lines; Vapi in three guidelines; ADR-0011 real-clock rule; `smoke-tools.ts` helpers; a failed score read fails the whole lookup (all in the backlog).
+
+### S1, S2 and S4 fixed (coordinator, 2026-11-04)
+
+| Item | Fix |
+|---|---|
+| **S1** repeat rule | `simulator/conversation.ts` now remembers only Asha's **last successful** tool call, and forgets it as soon as the shopkeeper speaks. A failed reply is never reused. Three new tests, each failing on the old code first: a refused `get_dues` runs again after identity; "unsure" twice both count; promise A → B → A saves all three. |
+| **S2** dead branch | The Sarvam reply schema types `choices` as non-empty, so the unreachable `''` branch is gone; the comment says why only the first native tool call is used. `json-llm.ts` is at 100%. |
+| **S4** docs | M5.md coverage labels corrected (99.9% lines, 98.6% branches, 99.7% functions); `architecture.md` step 4 says prompt v4 + text-mode v2 with native tools; `TEXT_MODE_VERSION` is now `v2`, so simulated calls are labelled `v4+text-v2` and evals can tell them apart. |
+
+S3 stays for the M7 evals (backlog 18). Checks: format, lint, typecheck, Vitest 60 + 42, build, deno fmt/lint/check all exit 0; `deno test` 669 passed, 0 failed; `conversation.ts` and `json-llm.ts` at 100% lines, branches and functions. **Needs a redeploy** (`npm run functions:deploy` on Saim's laptop) for simulated calls to pick it up; nothing else changes live.

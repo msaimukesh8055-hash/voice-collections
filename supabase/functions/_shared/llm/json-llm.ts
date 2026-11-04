@@ -56,14 +56,14 @@ type Provider = (prompt: Prompt) => Promise<string>;
 const SarvamToolCall = z.object({
   function: z.object({ name: z.string(), arguments: z.string().nullable().catch(null) }),
 });
-const SarvamReply = z.object({
-  choices: z.array(z.object({
-    message: z.object({
-      content: z.string().nullable(),
-      tool_calls: z.array(SarvamToolCall).nullable().optional(),
-    }),
-  })).min(1),
+const SarvamChoice = z.object({
+  message: z.object({
+    content: z.string().nullable(),
+    tool_calls: z.array(SarvamToolCall).nullable().optional(),
+  }),
 });
+/** At least one choice; typed as a tuple so the first one is never undefined. */
+const SarvamReply = z.object({ choices: z.tuple([SarvamChoice]).rest(SarvamChoice) });
 const GeminiReply = z.object({
   candidates: z.array(
     z.object({ content: z.object({ parts: z.array(z.object({ text: z.string().optional() })) }) }),
@@ -159,12 +159,13 @@ function sarvamMessage(message: ChatMessage): Record<string, unknown> {
   };
 }
 
-type SarvamMessage = z.infer<typeof SarvamReply>['choices'][number]['message'];
+type SarvamMessage = z.infer<typeof SarvamChoice>['message'];
 
 /** sarvam-105b calls a declared tool natively (content null, `tool_calls` set) even when the
  * prompt asks for a JSON move; without declared tools it returned nothing at all (found by the
  * CP2 reminder smoke, 2026-11-04). A native call comes back as the same move JSON the text-mode
- * section asks for, so the simulator reads both the same way. */
+ * section asks for, so the simulator reads both the same way. A move holds one tool, so only the
+ * first native call is used; the model asks again for any other after that tool's reply. */
 function sarvamText(message: SarvamMessage): string {
   const call = message.tool_calls?.[0];
   if (!call) return message.content ?? '';
@@ -185,8 +186,7 @@ export async function askSarvamChat(config: JsonLlmConfig, request: ChatRequest)
   };
   const headers = { 'api-subscription-key': config.sarvamApiKey };
   const reply = SarvamReply.parse(await postJson(config, { url: SARVAM_CHAT_URL, headers, body }));
-  const message = reply.choices[0]?.message;
-  return message ? sarvamText(message) : '';
+  return sarvamText(reply.choices[0].message);
 }
 
 /** As askSarvamChat, on Gemini 2.5 Flash (JSON mode, thinking off). Gemini calls the model's

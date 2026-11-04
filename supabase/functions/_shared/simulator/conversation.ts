@@ -5,9 +5,12 @@
 // registry, identity guard and audit row as a live call. The call ends when Asha says goodbye,
 // the shopkeeper hangs up, 10 turns pass, or either model fails. Only spoken words go into the
 // transcript; tool replies stay in Asha's own context, exactly as on Sarvam.
-// sarvam-105b sometimes repeats a tool it already used (same name and arguments) instead of
-// speaking: a repeat is not run again (no duplicate rows); she gets the earlier reply back
-// (CP2 smoke finding, 2026-11-04).
+// sarvam-105b sometimes repeats a tool it just used (same name and arguments) instead of
+// speaking: an immediate repeat of a successful call is not run again (no duplicate rows); she
+// gets the earlier reply back (CP2 smoke finding, 2026-11-04). Only the last successful call is
+// remembered, and only until the shopkeeper speaks, because the tools change state during a call:
+// a refused get_dues must run again after identity, a second "unsure" must count, and promise
+// A → B → A must save A again (CP2 re-score S1).
 import type { ChatMessage } from '../llm/json-llm.ts';
 import type { Turn } from '../sarvam-analytics.ts';
 import { type ToolResult, toReplyBody } from '../tools/types.ts';
@@ -46,8 +49,9 @@ interface State {
   readonly transcript: Turn[];
   readonly ashaContext: ChatMessage[];
   readonly shopkeeperContext: ChatMessage[];
-  /** Every tool call made so far in this call (name + arguments) and the reply it got. */
-  readonly toolReplies: Map<string, string>;
+  /** Asha's last successful tool call (name + arguments) and its reply, since the shopkeeper
+   * last spoke; null otherwise. Only this one may be reused. */
+  lastTool: { readonly key: string; readonly reply: string } | null;
   toolCalls: number;
 }
 
@@ -66,21 +70,25 @@ function toolKey(tool: ToolMove['tool']): string {
   return `${tool.name} ${JSON.stringify(tool.args)}`;
 }
 
+/** Runs the tool, or reuses the reply when this is an immediate repeat of the last successful
+ * call. Failed replies are never kept, so a refused or temporarily failed call runs again. */
+async function toolReply(move: ToolMove, state: State, deps: ConversationDeps): Promise<string> {
+  const key = toolKey(move.tool);
+  if (state.lastTool?.key === key) return state.lastTool.reply;
+  const result = await deps.runTool(move.tool.name, move.tool.args);
+  state.toolCalls += 1;
+  const reply = `TOOL REPLY ${move.tool.name}: ${JSON.stringify(toReplyBody(result))}`;
+  state.lastTool = result.ok ? { key, reply } : null;
+  return reply;
+}
+
 /** Records Asha's tool call and its reply in Sarvam's native tool format (with declared tools,
- * sarvam-105b repeats a call whose reply comes back as plain text). A repeat gets the earlier
- * reply without running the tool again. */
+ * sarvam-105b repeats a call whose reply comes back as plain text). */
 async function runAshaTool(move: ToolMove, state: State, deps: ConversationDeps): Promise<void> {
   const id = `call_${state.ashaContext.length}`;
   const { name, args } = move.tool;
   state.ashaContext.push({ role: 'assistant', content: move.say, toolCall: { id, name, args } });
-  const key = toolKey(move.tool);
-  let reply = state.toolReplies.get(key);
-  if (reply === undefined) {
-    const result = await deps.runTool(name, args);
-    state.toolCalls += 1;
-    reply = `TOOL REPLY ${name}: ${JSON.stringify(toReplyBody(result))}`;
-    state.toolReplies.set(key, reply);
-  }
+  const reply = await toolReply(move, state, deps);
   state.ashaContext.push({ role: 'tool', toolCallId: id, content: reply });
 }
 
@@ -111,7 +119,7 @@ function startState(greeting: string): State {
       { role: 'assistant', content: JSON.stringify(opening) },
     ],
     shopkeeperContext: [{ role: 'user', content: greeting }],
-    toolReplies: new Map(),
+    lastTool: null,
     toolCalls: 0,
   };
 }
@@ -124,6 +132,7 @@ async function exchange(state: State, deps: ConversationDeps): Promise<EndReason
   state.transcript.push({ role: 'user', content: line.say });
   state.shopkeeperContext.push({ role: 'assistant', content: JSON.stringify(line) });
   state.ashaContext.push({ role: 'user', content: `SHOPKEEPER: ${line.say}` });
+  state.lastTool = null;
   if (line.hang_up) return 'shopkeeper_hung_up';
   const reply = await ashaTurn(state, deps);
   if (!reply || reply.spoken === '') return 'asha_failed';

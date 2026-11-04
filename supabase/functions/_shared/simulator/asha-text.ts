@@ -11,7 +11,7 @@ import type { ChatTool } from '../llm/json-llm.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { TOOL_NAMES, TOOL_SPECS } from '../tools/schemas.ts';
 
-export const TEXT_MODE_VERSION = 'v1';
+export const TEXT_MODE_VERSION = 'v2'; // v2: tools declared natively (CP2, 2026-11-04)
 /** Recorded with each simulated call's logs, so evals can tell prompt versions apart. */
 export const ASHA_SIMULATED_VERSION = `${PROMPT_VERSION}+text-${TEXT_MODE_VERSION}`;
 

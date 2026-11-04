@@ -142,6 +142,70 @@ Deno.test('conversation › a repeated tool call gets the earlier reply and does
   assertEquals(last.at(-1)?.toolCallId === last.at(-3)?.toolCallId, false);
 });
 
+/** Like tools(), but each call's result comes from the list (the last one repeats). */
+function toolResults(
+  calls: string[],
+  results: readonly ToolResult[],
+): (name: string, args: unknown) => Promise<ToolResult> {
+  return (name) => {
+    const result = results[Math.min(calls.length, results.length - 1)];
+    calls.push(name);
+    return Promise.resolve(result ?? { ok: true, say: 'done', data: {} });
+  };
+}
+
+const REFUSED: ToolResult = { ok: false, code: 'IDENTITY_NOT_CONFIRMED', say: 'Confirm first.' };
+const DONE: ToolResult = { ok: true, say: 'done', data: {} };
+
+Deno.test('conversation › a failed tool reply is never reused: the same call runs again', async () => {
+  const calls: string[] = [];
+  const dues = asha('', { tool: { name: 'get_dues', args: {} } });
+  const result = await converse(GREETING, {
+    asha: scripted([dues, dues, asha('You owe 8,500 rupees. Goodbye.', { end_call: true })]),
+    shopkeeper: scripted([shop('Yes, I am Ramesh.')]),
+    runTool: toolResults(calls, [REFUSED, DONE]),
+  });
+  assertEquals([calls, result.toolCalls], [['get_dues', 'get_dues'], 2]);
+});
+
+Deno.test('conversation › the same tool after the shopkeeper speaks runs again (e.g. "unsure" twice)', async () => {
+  const calls: string[] = [];
+  const unsure = asha('', { tool: { name: 'confirm_identity', args: { answer: 'unsure' } } });
+  const result = await converse(GREETING, {
+    asha: scripted([
+      unsure,
+      asha('Sorry, is this Ramesh garu?'),
+      unsure,
+      asha('Goodbye.', {
+        end_call: true,
+      }),
+    ]),
+    shopkeeper: scripted([shop('Who?'), shop('Hmm?')]),
+    runTool: tools(calls),
+  });
+  assertEquals(calls, ['confirm_identity', 'confirm_identity']);
+  assertEquals(result.end, 'asha_ended');
+});
+
+Deno.test('conversation › promise A, then B, then A again: all three are saved', async () => {
+  const calls: string[] = [];
+  const promise = (amount: number): string =>
+    asha('', { tool: { name: 'log_promise', args: { amount } } });
+  const result = await converse(GREETING, {
+    asha: scripted([
+      promise(2000),
+      promise(3000),
+      promise(2000),
+      asha('Goodbye.', {
+        end_call: true,
+      }),
+    ]),
+    shopkeeper: scripted([shop('2000, no 3000, no 2000.')]),
+    runTool: tools(calls),
+  });
+  assertEquals([calls.length, result.toolCalls], [3, 3]);
+});
+
 Deno.test('conversation › a tool sent with the goodbye still runs', async () => {
   const calls: string[] = [];
   const goodbye = asha('Srinivas garu will call you. Goodbye.', {
