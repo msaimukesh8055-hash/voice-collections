@@ -13,7 +13,8 @@
   "dependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "sarvam-conv-ai-sdk": "0.0.42"
+    "sarvam-conv-ai-sdk": "0.0.42",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
