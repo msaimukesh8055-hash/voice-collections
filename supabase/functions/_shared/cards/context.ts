@@ -29,6 +29,24 @@ export interface WebDeps {
   readonly uploadImage: (png: Uint8Array<ArrayBuffer>) => Promise<string | null>;
   /** A signed dashboard link for the owner (24 hours), or null when no dashboard is set up. */
   readonly dashboardLink: () => Promise<string | null>;
+  /** Reply links (cloud build): one customer's page in the books (signed, 24 hours), or null
+   * when no dashboard is set up. */
+  readonly shopkeeperLink: (shopkeeperId: string) => Promise<string | null>;
+  /** Reply links (cloud build): the public phone page, or null when no dashboard is set up. */
+  readonly phonePageLink: string | null;
+}
+
+/** The "View in books" link for a reply, or null. Never fails: a reply goes out without the
+ * line rather than not at all (the Save has already happened by then). */
+export async function booksLinkFor(ctx: BotContext, shopkeeperId: string): Promise<string | null> {
+  try {
+    return await ctx.web.shopkeeperLink(shopkeeperId);
+  } catch (error) {
+    ctx.log('warn', 'books_link_failed', {
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+    return null;
+  }
 }
 
 /** New shopkeepers get +91 00000 9xxxx: the seed uses 00001–00100, and no real phone starts

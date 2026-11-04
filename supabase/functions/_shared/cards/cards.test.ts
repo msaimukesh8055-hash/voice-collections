@@ -14,6 +14,8 @@ import {
   botSetup,
   FAKE_NEW_PHONE,
   FAKE_NOW,
+  fakeShopkeeperLink,
+  NO_LINKS_WEB,
   refreshed,
 } from './__fixtures__/bot-context.ts';
 
@@ -40,6 +42,11 @@ async function tap(id: string, ctx: BotContext): Promise<readonly Reply[]> {
 async function creditCard(setup: BotSetup, name = 'Ramesh'): Promise<string> {
   const [card] = await startEntry({ name, draft: CREDIT, language: 'en' }, setup.ctx);
   return actionIdOf(card);
+}
+
+/** The Save reply: the balance line, then the "View in books" line for that customer. */
+function savedWithLink(line: string, shopkeeperId: string, label = '📒 View in books'): string {
+  return `${line}\n\n${label}: ${fakeShopkeeperLink(shopkeeperId)}`;
 }
 
 function rameshEntries(setup: BotSetup): number {
@@ -82,7 +89,7 @@ Deno.test('card › Save writes the entry once and replies with the new balance'
   const setup = botSetup();
   const actionId = await creditCard(setup);
   const saved = await tap(cardButtonId(actionId, 'save'), setup.ctx);
-  assertEquals(replyText(saved), 'Saved. Ramesh now owes ₹13,500.');
+  assertEquals(replyText(saved), savedWithLink('Saved. Ramesh now owes ₹13,500.', RAMESH.id));
   const again = await tap(cardButtonId(actionId, 'save'), setup.ctx);
   assertEquals(replyText(again), 'Already saved.');
   const added = setup.state.entries.filter((e) =>
@@ -154,7 +161,7 @@ Deno.test('card › a payment shows the balance after; more than owed is warned,
   assertStringIncludes(replyText([over!]), 'Balance after: ₹0\n⚠️ More than he owes (₹8,500)');
   assertEquals(
     replyText(await tap(cardButtonId(actionIdOf(part), 'save'), setup.ctx)),
-    'Saved. Ramesh now owes ₹6,500.',
+    savedWithLink('Saved. Ramesh now owes ₹6,500.', RAMESH.id),
   );
 });
 
@@ -208,7 +215,8 @@ Deno.test('card › a new name → "Add as new shopkeeper?" → Yes → shopkeep
     language: 'te',
   }]);
   const saved = await tap(cardButtonId(actionIdOf(replies[1]), 'save'), refreshed(setup));
-  assertEquals(replyText(saved), 'Saved. Suresh Babu now owes ₹3,000.');
+  const sureshId = setup.state.shopkeepers.find((each) => each.name === 'Suresh Babu')?.id ?? '';
+  assertEquals(replyText(saved), savedWithLink('Saved. Suresh Babu now owes ₹3,000.', sureshId));
 });
 
 Deno.test('card › No to a new shopkeeper saves nothing', async () => {
@@ -233,7 +241,37 @@ Deno.test('card › replies use the language saved on the card', async () => {
   const [card] = await startEntry({ name: 'Latha', draft: CREDIT, language: 'te' }, setup.ctx);
   assertStringIncludes(replyText([card!]), 'అప్పు జోడించండి');
   const saved = await tap(cardButtonId(actionIdOf(card), 'save'), setup.ctx);
-  assertEquals(replyText(saved), `సేవ్ అయింది. ${LATHA.name} ఇప్పుడు ₹7,000 ఇవ్వాలి.`);
+  const telugu = `సేవ్ అయింది. ${LATHA.name} ఇప్పుడు ₹7,000 ఇవ్వాలి.`;
+  assertEquals(replyText(saved), savedWithLink(telugu, LATHA.id, '📒 ఖాతాలో చూడండి'));
+});
+
+Deno.test('card › reply links: the Telugu Save carries its English twin with the same link', async () => {
+  const setup = botSetup();
+  const [card] = await startEntry({ name: 'Latha', draft: CREDIT, language: 'te' }, setup.ctx);
+  const [saved] = await tap(cardButtonId(actionIdOf(card), 'save'), setup.ctx);
+  const english = saved?.kind === 'text' ? saved.english : undefined;
+  assertEquals(english, savedWithLink(`Saved. ${LATHA.name} now owes ₹7,000.`, LATHA.id));
+});
+
+Deno.test('card › reply links: Hindi Save gets the Hindi label', async () => {
+  const setup = botSetup();
+  const [card] = await startEntry({ name: 'Ramesh', draft: CREDIT, language: 'hi' }, setup.ctx);
+  const saved = await tap(cardButtonId(actionIdOf(card), 'save'), setup.ctx);
+  assertStringIncludes(replyText(saved), `📒 खाते में देखें: ${fakeShopkeeperLink(RAMESH.id)}`);
+});
+
+Deno.test('card › reply links: no dashboard set up → Save reply has no link line', async () => {
+  const setup = botSetup({ web: NO_LINKS_WEB });
+  const saved = await tap(cardButtonId(await creditCard(setup), 'save'), setup.ctx);
+  assertEquals(replyText(saved), 'Saved. Ramesh now owes ₹13,500.');
+});
+
+Deno.test('card › reply links: a link that fails to sign never fails the Save reply', async () => {
+  const web = { ...NO_LINKS_WEB, shopkeeperLink: () => Promise.reject(new Error('no crypto')) };
+  const setup = botSetup({ web });
+  const saved = await tap(cardButtonId(await creditCard(setup), 'save'), setup.ctx);
+  assertEquals(replyText(saved), 'Saved. Ramesh now owes ₹13,500.');
+  assertEquals(setup.logs.map((log) => log.event), ['books_link_failed']);
 });
 
 Deno.test('card › a second tap racing the first is told what happened', async () => {

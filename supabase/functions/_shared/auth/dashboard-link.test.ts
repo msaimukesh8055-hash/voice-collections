@@ -6,6 +6,8 @@ import {
   DASHBOARD_LINK_TTL_MS,
   dashboardLink,
   isValidDashboardToken,
+  phonePageLink,
+  shopkeeperLink,
   signDashboardToken,
 } from './dashboard-link.ts';
 
@@ -61,4 +63,24 @@ Deno.test('call link › opens that exact call: /calls?id=<call id>, the same 24
   assertEquals(link, `https://voice.example/calls?id=${callId}#t=${GOLDEN_TOKEN}`);
   assert(await isValidDashboardToken(link.split('#t=')[1] ?? null, SECRET, NOW));
   assert(!(await isValidDashboardToken(GOLDEN_TOKEN, SECRET, later(DASHBOARD_LINK_TTL_MS))));
+});
+
+Deno.test('shopkeeper link › opens that customer: /shopkeepers?id=<id>, the same 24 h token', async () => {
+  const shopkeeperId = 'a0000000-0000-4000-8000-000000000001';
+  const link = await shopkeeperLink('https://voice.example/', SECRET, { shopkeeperId, now: NOW });
+  assertEquals(link, `https://voice.example/shopkeepers?id=${shopkeeperId}#t=${GOLDEN_TOKEN}`);
+  assert(await isValidDashboardToken(link.split('#t=')[1] ?? null, SECRET, NOW));
+});
+
+Deno.test('shopkeeper link › an odd id is escaped, so it cannot add to the address', async () => {
+  const link = await shopkeeperLink('https://voice.example', SECRET, {
+    shopkeeperId: 'x&y#z',
+    now: NOW,
+  });
+  assertMatch(link, /^https:\/\/voice\.example\/shopkeepers\?id=x%26y%23z#t=/);
+});
+
+Deno.test('phone page link › /phone on the dashboard address, with no token', () => {
+  assertEquals(phonePageLink('https://voice.example/'), 'https://voice.example/phone');
+  assertEquals(phonePageLink('https://voice.example').includes('#t='), false);
 });

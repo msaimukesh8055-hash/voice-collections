@@ -44,6 +44,8 @@ export interface ReminderPhrases {
   readonly remindAllButton: string;
   readonly ringing: (name: string) => string;
   readonly alreadyCalling: (name: string) => string;
+  /** Reply links (cloud build): under "Calling X…" / "already being called", the phone page. */
+  readonly answerHere: (link: string) => string;
   /** Dry-run fix 5: "call Ramesh" in natural words gets this card; only [Call] calls. */
   readonly callConfirm: (name: string) => string;
   readonly callButton: string;
@@ -85,6 +87,7 @@ const EN: ReminderPhrases = {
   ringing: (name) =>
     `📞 Calling ${name} now. It rings on the phone page (after any call already on it): answer as ${name}.`,
   alreadyCalling: (name) => `${name} is already being called.`,
+  answerHere: (link) => `📞 Answer here: ${link}`,
   callConfirm: (name) => `📞 Call ${name} now?`,
   callButton: 'Call',
   callCancelled: 'OK, no call made.',
@@ -143,6 +146,7 @@ const HI: ReminderPhrases = {
   ringing: (name) =>
     `📞 ${name} को अभी कॉल हो रही है। फ़ोन पेज पर घंटी बजेगी (कोई कॉल चल रही हो तो उसके बाद): ${name} बनकर जवाब दें।`,
   alreadyCalling: (name) => `${name} को पहले से कॉल हो रही है।`,
+  answerHere: (link) => `📞 यहाँ उठाएँ: ${link}`,
   callConfirm: (name) => `📞 ${name} को अभी कॉल करें?`,
   callButton: 'कॉल करें',
   callCancelled: 'ठीक है, कॉल नहीं की गई।',
@@ -196,6 +200,7 @@ const TE: ReminderPhrases = {
   ringing: (name) =>
     `📞 ఇప్పుడు ${name}కి కాల్ చేస్తున్నాం. ఫోన్ పేజీలో మోగుతుంది (ఇప్పటికే కాల్ నడుస్తుంటే దాని తర్వాత): ${name}గా జవాబు ఇవ్వండి.`,
   alreadyCalling: (name) => `${name}కి ఇప్పటికే కాల్ వెళ్తోంది.`,
+  answerHere: (link) => `📞 ఇక్కడ ఎత్తండి: ${link}`,
   callConfirm: (name) => `📞 ${name}కి ఇప్పుడు కాల్ చేయాలా?`,
   callButton: 'కాల్ చేయి',
   callCancelled: 'సరే, కాల్ చేయలేదు.',

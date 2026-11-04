@@ -3,6 +3,8 @@
 // message: the "Heard" line is dropped (he just said it), formatting and emoji are removed,
 // "₹5,000" is read as "5,000 rupees", and a numbered list keeps only its first 3 rows. Figures
 // always stay in the text message too (SPEC §6.7). ⚠️ The rupee words are drafts for Saim.
+// A line with a link in it ("📒 View in books: https://…", "📞 Answer here: …") is never read
+// aloud (reply links, cloud build): the link is for tapping, in the text message.
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from './phrases.ts';
 import { hasText, type Reply } from './replies.ts';
@@ -19,6 +21,7 @@ const RUPEES: Readonly<Record<Language, string>> = {
 };
 
 const LIST_ROW = /^\d+\.\s/;
+const LINK = /https?:\/\//i;
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}]/gu;
 
 function cleanLine(line: string, language: Language): string {
@@ -56,7 +59,7 @@ export function spokenText(replies: readonly Reply[], language: Language): strin
   if (!first) return '';
   const heard = phrasesFor(language).heard;
   const body = first.text.split('\n\n').filter((block) => !block.startsWith(heard)).join('\n');
-  const lines = shortLists(body.split('\n'))
+  const lines = shortLists(body.split('\n').filter((line) => !LINK.test(line)))
     .map((line) => cleanLine(line, language))
     .filter((line) => line !== '');
   const text = asSentences(lines);

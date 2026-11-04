@@ -60,3 +60,17 @@ Deno.test('spoken › nothing to speak → empty; very long → cut', () => {
   assertEquals(long.length, MAX_SPOKEN_CHARS);
   assertEquals(long.endsWith('…'), true);
 });
+
+Deno.test('spoken › reply links are never read aloud (View in books, Answer here)', () => {
+  const saved: Reply = {
+    kind: 'text',
+    text:
+      'Saved. Ramesh now owes ₹13,500.\n\n📒 View in books: https://x.example/shopkeepers?id=1#t=T',
+  };
+  assertEquals(spokenText([saved], 'en'), 'Saved. Ramesh now owes 13,500 rupees.');
+  const calling: Reply = {
+    kind: 'text',
+    text: '📞 ఇప్పుడు Rameshకి కాల్ చేస్తున్నాం.\n\n📞 ఇక్కడ ఎత్తండి: https://x.example/phone',
+  };
+  assertEquals(spokenText([calling], 'te'), 'ఇప్పుడు Rameshకి కాల్ చేస్తున్నాం.');
+});

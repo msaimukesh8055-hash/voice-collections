@@ -6,7 +6,9 @@
 //                            before it
 //   [Remind Ramesh] / "remind Ramesh" → one live call through queueCall (the M3 pre-call check):
 //                            it rings the phone page for anyone (Live remind, pre-M6), one at a
-//                            time; a second one waits as 'queued' and rings after the first
+//                            time; a second one waits as 'queued' and rings after the first.
+//                            "Calling X…" and "already being called" end with "📞 Answer here:
+//                            <phone page>" (reply links, cloud build) when a dashboard is set up
 //   [Remind all due] / "remind all"   → "Call 6 people? (1 called in the last hour)" [Yes] [No]
 //   Yes                    → the batch is queued (pre-call check per person), all simulated;
 //                            they start in the worker, at most 4 at once
@@ -25,7 +27,7 @@ import { phrasesFor } from '../whatsapp/phrases.ts';
 import { blocks, type Reply, textIn, textReply, withEnglish } from '../whatsapp/replies.ts';
 import { dueAlertReplies } from './alert-replies.ts';
 import { loadDueAlert } from './load-alert.ts';
-import { reminderPhrasesFor } from './phrases.ts';
+import { type ReminderPhrases, reminderPhrasesFor } from './phrases.ts';
 import { MAX_REMIND_ALL, planRemindAll, RECENT_CALL_MS, type RemindPlan } from './plan.ts';
 
 export const RemindAllPayloadSchema = z.object({
@@ -55,8 +57,13 @@ async function remindShopkeeper(
   const result = await queueCall({ repo, clock }, { shopkeeperId: shopkeeper.id, mode: 'live' });
   if (!result.ok) return [say((phrases) => phrases.blocked(result.code, shopkeeper.name))];
   ctx.log('info', 'reminder_queued', { callId: result.callId, again: result.alreadyQueued });
-  if (result.alreadyQueued) return [say((phrases) => phrases.alreadyCalling(shopkeeper.name))];
-  return [say((phrases) => phrases.ringing(shopkeeper.name))];
+  const phone = ctx.web.phonePageLink;
+  const withPhoneLink = (phrases: ReminderPhrases, first: string): string =>
+    blocks(first, phone ? phrases.answerHere(phone) : null);
+  if (result.alreadyQueued) {
+    return [say((phrases) => withPhoneLink(phrases, phrases.alreadyCalling(shopkeeper.name)))];
+  }
+  return [say((phrases) => withPhoneLink(phrases, phrases.ringing(shopkeeper.name)))];
 }
 
 /** A Remind tap (by id) or "remind X" (already matched to one shopkeeper). */

@@ -1,7 +1,8 @@
 // supabase/functions/_shared/cards/actions.ts
 // Button taps on cards (M4 Decision 4). Each tap first moves the card out of 'open' with a
 // compare-and-set, so a second tap (or Meta re-sending the tap) does nothing harmful:
-//   Save   → open→saved, then the one ledger write; reply with the new balance
+//   Save   → open→saved, then the one ledger write; reply with the new balance and the
+//            "View in books" link to that customer's page (reply links, cloud build)
 //   Edit   → open→cancelled, "send the corrected line"
 //   Cancel → open→cancelled, nothing saved
 //   Yes/No → new shopkeeper (open→done) then the Save card / open→cancelled
@@ -13,8 +14,8 @@ import { formatInr } from '../format.ts';
 import { computeDues } from '../ledger/dues.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { type Reply, textReply } from '../whatsapp/replies.ts';
-import { type BotContext, findShopkeeper } from './context.ts';
+import { blocks, type Reply, textIn, textReply } from '../whatsapp/replies.ts';
+import { booksLinkFor, type BotContext, findShopkeeper } from './context.ts';
 import type { CardVerb, Tap } from './ids.ts';
 import {
   type EntryPayload,
@@ -88,9 +89,16 @@ async function save(action: PendingAction, ctx: BotContext): Promise<readonly Re
     await ctx.book.transitionPendingAction(action.id, 'saved', 'open');
     return [textReply(phrases.saveFailed)];
   }
-  const entries = await ctx.book.listShopkeeperEntries(payload.shopkeeperId);
+  const [entries, link] = await Promise.all([
+    ctx.book.listShopkeeperEntries(payload.shopkeeperId),
+    booksLinkFor(ctx, payload.shopkeeperId),
+  ]);
   const name = findShopkeeper(ctx, payload.shopkeeperId)?.name ?? '';
-  return [textReply(phrases.saved(name, formatInr(computeDues(entries, ctx.today).outstanding)))];
+  const balance = formatInr(computeDues(entries, ctx.today).outstanding);
+  return [textIn(payload.language, function savedLine(each): string {
+    const words = phrasesFor(each);
+    return blocks(words.saved(name, balance), link ? words.viewInBooks(link) : null);
+  })];
 }
 
 async function cancel(

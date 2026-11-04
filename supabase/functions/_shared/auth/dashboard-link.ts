@@ -29,6 +29,25 @@ export async function callLink(
   return `${baseUrl.replace(/\/+$/, '')}/calls?id=${id}#t=${token}`;
 }
 
+/** Reply links (cloud build): a link that opens one customer's page in the books (their entries,
+ * score, calls): `<DASHBOARD_URL>/shopkeepers?id=<shopkeeper id>#t=<token>`, the same 24-hour
+ * token as the dashboard link. */
+export async function shopkeeperLink(
+  baseUrl: string,
+  secret: string,
+  shopkeeper: { readonly shopkeeperId: string; readonly now: Date },
+): Promise<string> {
+  const token = await signDashboardToken(secret, shopkeeper.now);
+  const id = encodeURIComponent(shopkeeper.shopkeeperId);
+  return `${baseUrl.replace(/\/+$/, '')}/shopkeepers?id=${id}#t=${token}`;
+}
+
+/** Reply links (cloud build): the phone page where Ramesh answers Asha's call. No token: the
+ * phone page is public and shows no book data. */
+export function phonePageLink(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/phone`;
+}
+
 /** True only for a token we signed that has not expired. Constant-time signature compare. */
 export async function isValidDashboardToken(
   token: string | null,

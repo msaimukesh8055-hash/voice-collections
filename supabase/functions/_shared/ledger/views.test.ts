@@ -272,3 +272,20 @@ Deno.test('lookup › no note → no note line', () => {
   });
   assert(!replyText(replies).includes('📝'));
 });
+
+Deno.test('lookup › reply links: View in books is the last line; absent or null → no line', () => {
+  const view = {
+    lastNote: null,
+    shopkeeper: RAMESH,
+    entries: [],
+    lastPromise: null,
+    score: null,
+    today: FAKE_TODAY,
+    language: 'en',
+  } as const;
+  const link = 'https://x.example/shopkeepers?id=1#t=T';
+  const lines = replyText(shopkeeperReplies({ ...view, booksLink: link })).split('\n');
+  assertEquals(lines.slice(-2), ['', `📒 View in books: ${link}`]);
+  assert(!replyText(shopkeeperReplies({ ...view, booksLink: null })).includes('📒'));
+  assert(!replyText(shopkeeperReplies(view)).includes('📒'));
+});

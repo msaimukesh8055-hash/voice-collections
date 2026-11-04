@@ -10,7 +10,7 @@ import { interpret } from '../_shared/brain/interpret.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 import { handleCardTap } from '../_shared/cards/actions.ts';
 import { handleClaimTap } from '../_shared/cards/claims.ts';
-import { type BotContext, findShopkeeper } from '../_shared/cards/context.ts';
+import { booksLinkFor, type BotContext, findShopkeeper } from '../_shared/cards/context.ts';
 import { parseTap } from '../_shared/cards/ids.ts';
 import { startEntry } from '../_shared/cards/start.ts';
 import type { BookShopkeeper, MessagePath } from '../_shared/db/book-repository.ts';
@@ -67,14 +67,16 @@ async function showShopkeeper(
   ctx: BotContext,
   language: Language,
 ): Promise<readonly Reply[]> {
-  const [entries, lastPromise, lastNote] = await Promise.all([
+  const [entries, lastPromise, lastNote, booksLink] = await Promise.all([
     ctx.book.listShopkeeperEntries(shopkeeper.id),
     ctx.book.getLastPromise(shopkeeper.id),
     ctx.reminder.repo.getLastNote(shopkeeper.id),
+    booksLinkFor(ctx, shopkeeper.id),
   ]);
   const score = await scoreWithEntries(shopkeeper.id, entries, ctx);
-  const today = ctx.today;
-  return shopkeeperReplies({ shopkeeper, entries, lastPromise, lastNote, score, today, language });
+  const { today } = ctx;
+  const view = { shopkeeper, entries, lastPromise, lastNote, score, today, language, booksLink };
+  return shopkeeperReplies(view);
 }
 
 async function bookView(ctx: BotContext): Promise<BookView> {

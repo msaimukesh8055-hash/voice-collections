@@ -3,7 +3,11 @@
 // something falls due this month; the upload failing still gives the full text.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
-import { botSetup, FAKE_DASHBOARD_LINK } from '../_shared/cards/__fixtures__/bot-context.ts';
+import {
+  botSetup,
+  FAKE_DASHBOARD_LINK,
+  FAKE_WEB,
+} from '../_shared/cards/__fixtures__/bot-context.ts';
 import type { WebDeps } from '../_shared/cards/context.ts';
 import { bookEntry, RAMESH } from '../_shared/db/fake-book-repository.ts';
 import type { Hearing } from '../_shared/speech/hear.ts';
@@ -28,6 +32,8 @@ function uploads(result: string | null): WebDeps & { pngs: Uint8Array[] } {
       return Promise.resolve(result);
     },
     dashboardLink: () => Promise.resolve(FAKE_DASHBOARD_LINK),
+    shopkeeperLink: FAKE_WEB.shopkeeperLink,
+    phonePageLink: FAKE_WEB.phonePageLink,
   };
 }
 

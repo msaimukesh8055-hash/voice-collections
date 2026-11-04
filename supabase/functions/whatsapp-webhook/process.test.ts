@@ -25,7 +25,7 @@ import { NOT_REGISTERED } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
 import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
 import { voiceNote } from '../_shared/audio/__fixtures__/ogg-files.ts';
-import { FAKE_WEB } from '../_shared/cards/__fixtures__/bot-context.ts';
+import { FAKE_WEB, fakeShopkeeperLink } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -152,7 +152,10 @@ Deno.test('process › "Ramesh 5000 due 15th" → card → Save → new balance;
   await receive(s, { buttonId: cardButtonId(actionId, 'save'), id: 'wamid.2' });
   await receive(s, { buttonId: cardButtonId(actionId, 'save'), id: 'wamid.3' });
   const replies = s.sent.map((item) => replyText([item.reply]));
-  assertEquals(replies.slice(1), ['Saved. Ramesh now owes ₹13,500.', 'Already saved.']);
+  const saved = `Saved. Ramesh now owes ₹13,500.\n\n📒 View in books: ${
+    fakeShopkeeperLink(RAMESH.id)
+  }`;
+  assertEquals(replies.slice(1), [saved, 'Already saved.']);
   assertEquals(s.state.inbound.map((row) => row.path), ['command', 'button', 'button']);
 });
 

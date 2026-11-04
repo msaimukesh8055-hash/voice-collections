@@ -13,7 +13,7 @@ import { downloadMedia, uploadMedia } from '../_shared/whatsapp/media.ts';
 import { createSpeaker } from '../_shared/speech/tts.ts';
 import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
-import { dashboardLink } from '../_shared/auth/dashboard-link.ts';
+import { dashboardLink, phonePageLink, shopkeeperLink } from '../_shared/auth/dashboard-link.ts';
 import { createTranscriber } from '../_shared/speech/stt.ts';
 import { MAX_SIMULATED_AT_ONCE } from '../_shared/calls/queue.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
@@ -95,6 +95,18 @@ const processDeps: ProcessDeps = {
       env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
         ? dashboardLink(env.DASHBOARD_URL, env.DASHBOARD_LINK_SECRET, new Date())
         : Promise.resolve(null),
+    shopkeeperLink: (shopkeeperId) =>
+      env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
+        ? shopkeeperLink(env.DASHBOARD_URL, env.DASHBOARD_LINK_SECRET, {
+          shopkeeperId,
+          now: new Date(),
+        })
+        : Promise.resolve(null),
+    // The phone page is public, but it only answers when the dashboard is set up, so the line
+    // follows the same rule as the other links (both settings present).
+    phonePageLink: env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
+      ? phonePageLink(env.DASHBOARD_URL)
+      : null,
   },
   voice: {
     speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole }),

@@ -73,6 +73,26 @@ describe('a call link from the WhatsApp summary (dry-run fix 8)', () => {
   });
 });
 
+describe('a customer link from a WhatsApp reply (reply links, cloud build)', () => {
+  const SHOPKEEPER = 'a0000000-0000-4000-8000-000000000001';
+
+  it('keeps the token from /shopkeepers?id=…#t=… and stays on that customer', () => {
+    const storage = memoryStorage();
+    const replaced: string[] = [];
+    const location = {
+      pathname: '/shopkeepers',
+      search: `?id=${SHOPKEEPER}`,
+      hash: '#t=1793872800.sig',
+    };
+    function clearHash(): void {
+      replaced.push(addressWithoutToken(location));
+    }
+    expect(readToken({ hash: location.hash, storage, clearHash })).toBe('1793872800.sig');
+    expect(storage.data.get('dashboardToken')).toBe('1793872800.sig');
+    expect(replaced).toEqual([`/shopkeepers?id=${SHOPKEEPER}`]);
+  });
+});
+
 describe('createDashboardApi', () => {
   const base = { baseUrl: 'https://x/calls-api', anonKey: 'anon', region: 'ap-south-1' };
 

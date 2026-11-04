@@ -174,7 +174,8 @@ export interface TokenPlace {
 }
 
 /** The address with the token's "#t=…" taken off and everything else kept: a call link
- * `/calls?id=<call id>#t=…` (dry-run fix 8) stays on that call. */
+ * `/calls?id=<call id>#t=…` (dry-run fix 8) stays on that call, and a customer link
+ * `/shopkeepers?id=<shopkeeper id>#t=…` (reply links) stays on that customer. */
 export function addressWithoutToken(location: Pick<Location, 'pathname' | 'search'>): string {
   return location.pathname + location.search;
 }

@@ -56,6 +56,8 @@ export interface Phrases {
   /** Button on a "didn't answer" after-call summary (M5 Decision 4): reminds him again. */
   readonly tryAgain: string;
   readonly saved: (name: string, balance: string) => string;
+  /** Reply links (cloud build): under Save and a lookup, opens that customer's page. */
+  readonly viewInBooks: (link: string) => string;
   readonly alreadySaved: string;
   readonly cancelled: string;
   readonly editHint: string;
@@ -134,6 +136,7 @@ const EN: Phrases = {
   choose: 'Choose',
   tryAgain: 'Try again',
   saved: (name, balance) => `Saved. ${name} now owes ${balance}.`,
+  viewInBooks: (link) => `📒 View in books: ${link}`,
   alreadySaved: 'Already saved.',
   cancelled: 'Cancelled. Nothing saved.',
   editHint: 'Send the corrected line, e.g. *Ramesh 5000 due 20th*',
@@ -207,6 +210,7 @@ const HI: Phrases = {
   choose: 'चुनें',
   tryAgain: 'फिर से कोशिश',
   saved: (name, balance) => `सेव हो गया। ${name} पर अब ${balance} बाकी।`,
+  viewInBooks: (link) => `📒 खाते में देखें: ${link}`,
   alreadySaved: 'पहले ही सेव हो चुका है।',
   cancelled: 'रद्द। कुछ सेव नहीं हुआ।',
   editHint: 'सही लाइन भेजें, जैसे *Ramesh 5000 due 20th*',
@@ -279,6 +283,7 @@ const TE: Phrases = {
   choose: 'ఎంచుకోండి',
   tryAgain: 'మళ్ళీ ప్రయత్నించు',
   saved: (name, balance) => `సేవ్ అయింది. ${name} ఇప్పుడు ${balance} ఇవ్వాలి.`,
+  viewInBooks: (link) => `📒 ఖాతాలో చూడండి: ${link}`,
   alreadySaved: 'ఇప్పటికే సేవ్ అయింది.',
   cancelled: 'రద్దు చేశాం. ఏదీ సేవ్ కాలేదు.',
   editHint: 'సరైన లైన్ పంపండి, ఉదా. *Ramesh 5000 due 20th*',

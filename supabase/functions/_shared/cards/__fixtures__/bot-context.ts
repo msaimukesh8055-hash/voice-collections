@@ -34,10 +34,27 @@ export interface BotSetupOptions {
 }
 
 export const FAKE_DASHBOARD_LINK = 'https://dashboard.example/#t=TOKEN';
-/** Upload always works; the dashboard link is a fixed fake. */
+export const FAKE_PHONE_LINK = 'https://dashboard.example/phone';
+
+/** The fake customer-page link for one shopkeeper. */
+export function fakeShopkeeperLink(shopkeeperId: string): string {
+  return `https://dashboard.example/shopkeepers?id=${shopkeeperId}#t=TOKEN`;
+}
+
+/** Upload always works; the dashboard, customer and phone links are fixed fakes. */
 export const FAKE_WEB: WebDeps = {
   uploadImage: () => Promise.resolve('IMG1'),
   dashboardLink: () => Promise.resolve(FAKE_DASHBOARD_LINK),
+  shopkeeperLink: (shopkeeperId) => Promise.resolve(fakeShopkeeperLink(shopkeeperId)),
+  phonePageLink: FAKE_PHONE_LINK,
+};
+
+/** No dashboard set up (DASHBOARD_URL or DASHBOARD_LINK_SECRET missing): no links at all. */
+export const NO_LINKS_WEB: WebDeps = {
+  uploadImage: () => Promise.resolve('IMG1'),
+  dashboardLink: () => Promise.resolve(null),
+  shopkeeperLink: () => Promise.resolve(null),
+  phonePageLink: null,
 };
 
 export function botSetup(options: BotSetupOptions = {}): BotSetup {

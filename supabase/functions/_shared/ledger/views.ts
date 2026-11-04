@@ -187,6 +187,8 @@ export interface ShopkeeperView {
   readonly score: ScoreTag | null;
   readonly today: string;
   readonly language: Language;
+  /** Reply links (cloud build): that customer's page in the books; absent or null = no line. */
+  readonly booksLink?: string | null;
 }
 
 function claimCard(view: ShopkeeperView, claim: BookEntry, phrases: Phrases): Reply {
@@ -236,6 +238,7 @@ function lookupText(view: ShopkeeperView): string {
       ...(claims.length > 0 ? [phrases.openClaims(claims.length)] : []),
     ],
     view.lastNote ? `${phrases.lastNote}: ${view.lastNote}` : null,
+    view.booksLink ? phrases.viewInBooks(view.booksLink) : null,
   );
 }
 
