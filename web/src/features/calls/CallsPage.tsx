@@ -38,7 +38,7 @@ export function CallsPage({
   readonly id: string | null;
 }): React.JSX.Element {
   return (
-    <Layout current="/calls">
+    <Layout current="/calls" dashboard={dashboard}>
       {id ? <One dashboard={dashboard} id={id} /> : <All dashboard={dashboard} />}
     </Layout>
   );

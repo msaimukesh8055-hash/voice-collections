@@ -3,7 +3,8 @@
 // from the WhatsApp link `/#t=<token>`; the token is moved into this tab's sessionStorage and
 // removed from the address bar, then sent as x-dashboard-token on every read. Replies are checked
 // with Zod. A missing or expired token becomes `needsLink` so the page can say "open it from
-// WhatsApp" instead of an error.
+// WhatsApp" instead of an error. On `npm run dev` only (ADR-0017 addendum), a page with no link
+// asks the local Vite server for a token instead; production builds never pass `devToken`.
 import { z } from 'zod';
 import { DASHBOARD_TOKEN_HEADER } from '@shared/auth/dashboard-header.ts';
 import { REGION_HEADER } from '@shared/region.ts';
@@ -150,6 +151,8 @@ export type CallDetail = z.infer<typeof CallDetailSchema>['call'];
 
 export interface DashboardApi {
   readonly hasToken: () => boolean;
+  /** Resolves true when reads use a localhost dev token (the page shows "Local demo mode"). */
+  readonly localDemo: () => Promise<boolean>;
   overview: () => Promise<Overview>;
   shopkeepers: () => Promise<ShopkeeperList>;
   shopkeeper: (id: string) => Promise<ShopkeeperDetail>;
@@ -194,7 +197,19 @@ export interface DashboardApiOptions {
   readonly anonKey: string;
   readonly region: string;
   readonly token: string | null;
+  /** Dev only: fetches a localhost token when there is no link token. Never set in production. */
+  readonly devToken?: (() => Promise<string | null>) | undefined;
   readonly fetchImpl?: typeof fetch;
+}
+
+const DevTokenSchema = z.object({ token: z.string().min(1) });
+
+/** Asks the local Vite dev server for a token (web/dev/devDashboardToken.ts); null if it has none. */
+export async function fetchDevToken(fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  const response = await fetchImpl('/__dev/dashboard-token').catch(() => null);
+  if (!response?.ok) return null;
+  const parsed = DevTokenSchema.safeParse(await response.json().catch(() => null));
+  return parsed.success ? parsed.data.token : null;
 }
 
 async function errorOf(response: Response): Promise<Error> {
@@ -205,20 +220,44 @@ async function errorOf(response: Response): Promise<Error> {
     : new AppApiError(UNEXPECTED_ERROR, null);
 }
 
+interface TokenSource {
+  readonly current: () => Promise<string | null>;
+  /** True once a localhost dev token was fetched and is in use. */
+  readonly isLocal: () => boolean;
+}
+
+/** The link token; else (dev only) one localhost token, fetched once and shared by all reads. */
+function tokenSource(token: string | null, devToken: DashboardApiOptions['devToken']): TokenSource {
+  let load: Promise<string | null> | null = null;
+  let local = false;
+  return {
+    current: async () => {
+      if (token || !devToken) return token;
+      load ??= devToken();
+      const fetched = await load;
+      local = fetched !== null;
+      return fetched;
+    },
+    isLocal: () => local,
+  };
+}
+
 export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
-  const { baseUrl, anonKey, region, token, fetchImpl = fetch } = options;
+  const { baseUrl, anonKey, region, token, devToken, fetchImpl = fetch } = options;
+  const tokens = tokenSource(token, devToken);
 
   async function request<T>(
     path: string,
     schema: z.ZodType<T>,
     init: RequestInit = {},
   ): Promise<T> {
-    if (!token) throw new NeedsLinkError('No link');
+    const sendToken = await tokens.current();
+    if (!sendToken) throw new NeedsLinkError('No link');
     const headers = {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
       [REGION_HEADER]: region,
-      [DASHBOARD_TOKEN_HEADER]: token,
+      [DASHBOARD_TOKEN_HEADER]: sendToken,
       'Content-Type': 'application/json',
     };
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
@@ -234,7 +273,8 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
 
   const id = encodeURIComponent;
   return {
-    hasToken: () => token !== null,
+    hasToken: () => token !== null || tokens.isLocal(),
+    localDemo: () => tokens.current().then(tokens.isLocal),
     overview: () => request('/v1/dashboard/overview', OverviewSchema),
     shopkeepers: () => request('/v1/dashboard/shopkeepers', ShopkeeperListSchema),
     shopkeeper: (shopkeeperId) =>

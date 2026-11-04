@@ -1,6 +1,6 @@
 // web/src/lib/dashboardApi.test.ts
 // The dashboard client (M6): the link token's journey, the headers sent, and the replies.
-import { createDashboardApi, NeedsLinkError, readToken } from './dashboardApi.ts';
+import { createDashboardApi, fetchDevToken, NeedsLinkError, readToken } from './dashboardApi.ts';
 import { OVERVIEW } from '../test/dashboardFakes.ts';
 import { AppApiError } from './appApi.ts';
 
@@ -108,5 +108,52 @@ describe('createDashboardApi', () => {
     const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.method).toBe('POST');
     expect(init.body).toBe('{"englishUnderTelugu":false}');
+  });
+});
+
+describe('localhost dev token (npm run dev only)', () => {
+  const base = { baseUrl: 'https://x/calls-api', anonKey: 'anon', region: 'ap-south-1' };
+
+  it('fetchDevToken reads the token, or null on 404, a network error or a bad reply', async () => {
+    const ok = vi.fn(() => Promise.resolve(Response.json({ token: 'DEV' })));
+    expect(await fetchDevToken(ok)).toBe('DEV');
+    expect(ok).toHaveBeenCalledWith('/__dev/dashboard-token');
+    expect(await fetchDevToken(() => Promise.resolve(new Response('', { status: 404 })))).toBe(
+      null,
+    );
+    expect(await fetchDevToken(() => Promise.reject(new Error('down')))).toBe(null);
+    expect(await fetchDevToken(() => Promise.resolve(Response.json({ token: '' })))).toBe(null);
+  });
+
+  it('with no link token, fetches the dev token once and sends it on every read', async () => {
+    const devToken = vi.fn(() => Promise.resolve('DEV'));
+    const fetchImpl = vi.fn(() => Promise.resolve(Response.json(OVERVIEW)));
+    const api = createDashboardApi({ ...base, token: null, devToken, fetchImpl });
+    await Promise.all([api.overview(), api.overview()]);
+    expect(devToken).toHaveBeenCalledOnce();
+    const [, init] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['x-dashboard-token']).toBe('DEV');
+    expect(await api.localDemo()).toBe(true);
+    expect(api.hasToken()).toBe(true);
+  });
+
+  it('a link token wins: the dev token is never asked for', async () => {
+    const devToken = vi.fn(() => Promise.resolve('DEV'));
+    const fetchImpl = vi.fn(() => Promise.resolve(Response.json(OVERVIEW)));
+    const api = createDashboardApi({ ...base, token: 'LINK', devToken, fetchImpl });
+    await api.overview();
+    expect(devToken).not.toHaveBeenCalled();
+    expect(await api.localDemo()).toBe(false);
+  });
+
+  it('no dev token (404 or production) still means "open the link from WhatsApp"', async () => {
+    const api = createDashboardApi({
+      ...base,
+      token: null,
+      devToken: () => Promise.resolve(null),
+      fetchImpl: vi.fn(),
+    });
+    await expect(api.overview()).rejects.toBeInstanceOf(NeedsLinkError);
+    expect(await api.localDemo()).toBe(false);
   });
 });

@@ -25,3 +25,10 @@ The owner should be able to talk to the bot, hear it back, and show a pitch audi
 - New columns: `owners.english_under_telugu`, `calls.transcript_en`.
 - Per-message Sarvam cost appears for the English twin (≈ ₹0.5–1 per Telugu message, demo setting only) and for each voice round trip (≈ ₹0.6–1).
 - The link points to the laptop's dev server until the Vercel deploy (M8).
+
+## Addendum (2026-11-04, approved by Saim): local demo token on `npm run dev`
+- **Why.** On the laptop, opening the dashboard should not need a fresh WhatsApp link every time. This is a demo convenience for localhost only.
+- **How.** A Vite dev-server plugin (`web/dev/devDashboardToken.ts`, `apply: 'serve'`, so it is absent from `vite build` and `vite preview`) serves `GET /__dev/dashboard-token`. It signs a normal 24-hour token with `DASHBOARD_LINK_SECRET` from the repo-root `.env` (read with `loadEnv`, no `VITE_` prefix, so it never reaches browser code) using the same signing code as the bot (`_shared/auth/dashboard-sign.ts`, Web Crypto only, so it runs in both Node and Deno). It answers only loopback callers (127.0.0.1 / ::1), refuses cross-site browser requests, and returns 404 when the secret is missing, so the page then behaves as before. Vite's own CORS (localhost origins only) and host check (blocks DNS rebinding) run first. The dev server stays bound to localhost (no `--host`).
+- **What did not change.** calls-api still checks every token in constant time; a token from the dev server is just a real signed token, and nothing server-side was loosened. Origin/referer checks were not used as a lock (they can be faked).
+- **Production.** The page asks for the dev token only when `import.meta.env.DEV` is true; a production build drops that code. `npm run check:secrets` fails if `/__dev/` or anything shaped like a signed token appears in `web/dist`. The hosted (M8, Vercel) dashboard still needs the WhatsApp link.
+- **Seen on screen.** A small "Local demo mode" note shows in the page header when the dev token is in use.

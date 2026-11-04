@@ -187,7 +187,7 @@ function EnglishSwitch({
 export function DashboardPage({ api, dashboard }: DashboardPageProps): React.JSX.Element {
   const state = useLoad(dashboard.overview, 'overview');
   return (
-    <Layout current="/">
+    <Layout current="/" dashboard={dashboard}>
       <LoadState state={state}>
         {(overview: Overview) => (
           <>
