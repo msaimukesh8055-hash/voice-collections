@@ -3,7 +3,9 @@
 // never holds the Voice Agents key. Guarded so it is not an open proxy: only for a call token
 // just accepted on the phone page, only one URL per token, only our own org/workspace/app.
 // One token = one Sarvam session = at most one billed call (capped at 4 minutes by Sarvam).
+// On top, an always-on daily cap on issued URLs bounds the spend (CP2 M3, ADR-0012).
 import { z } from 'zod';
+import { istMidnight } from '../_shared/clock.ts';
 import type { Repository } from '../_shared/db/repository.ts';
 import type { ErrorCode } from '../_shared/errors.ts';
 import { errorResponse, jsonResponse } from '../_shared/http.ts';
@@ -12,6 +14,12 @@ import { CALL_TOKEN_HEADER, SARVAM_RUNTIME_URL } from '../_shared/sarvam.ts';
 
 /** The page asks for the URL right after Accept; a token left unused this long is stale. */
 export const CALL_URL_WINDOW_MS = 2 * 60 * 1000;
+/**
+ * Budget guard (CP2 M3): at most this many Sarvam call URLs (billed live sessions) a day, counted
+ * on the real clock from IST midnight. Always on: no demo switch turns it off (like do-not-call).
+ * 20 sessions × 4 min × ₹3.50 ≈ ₹280 a day at worst.
+ */
+export const MAX_LIVE_SESSIONS_PER_DAY = 20;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 /** Query parameters the SDK sends; anything else is dropped. */
 const FORWARDED_QUERY = ['interaction_type', 'version'] as const;
@@ -35,7 +43,20 @@ export interface ProxyDeps {
 /** What the SDK needs; any extra fields Sarvam sends are passed through untouched. */
 const SignedUrlSchema = z.looseObject({ url: z.string().min(1), reference_id: z.string().min(1) });
 
-type Refusal = 'bad_target' | 'missing_token' | 'unknown_token' | 'not_accepted' | 'stale' | 'race';
+type Refusal =
+  | 'bad_target'
+  | 'missing_token'
+  | 'unknown_token'
+  | 'not_accepted'
+  | 'stale'
+  | 'daily_cap'
+  | 'race';
+
+export interface ProxyRequest {
+  /** The org, workspace and app ids from the path. */
+  readonly params: readonly string[];
+  readonly cors?: HeadersInit;
+}
 
 function isOwnApp(params: readonly string[], sarvam: SarvamSettings): boolean {
   const [org, workspace, app] = params;
@@ -65,6 +86,9 @@ async function claimCallUrl(req: Request, deps: ProxyDeps): Promise<Refusal | nu
   if (session.status !== 'accepted' || session.acceptedAt === null) return 'not_accepted';
   const now = deps.clock();
   if (now.getTime() - Date.parse(session.acceptedAt) > CALL_URL_WINDOW_MS) return 'stale';
+  // Counted just before the claim; parallel claims can overshoot by at most the few in flight.
+  const issuedToday = await deps.repo.countCallUrlsIssuedSince(istMidnight(now));
+  if (issuedToday >= MAX_LIVE_SESSIONS_PER_DAY) return 'daily_cap';
   const patch = { status: 'in_progress', urlIssuedAt: now.toISOString() } as const;
   const claimed = await deps.repo.transitionCall(session.callId, ['accepted'], patch);
   return claimed ? null : 'race';
@@ -95,15 +119,14 @@ async function fetchSignedUrl(url: string, deps: ProxyDeps): Promise<SignedUrl |
 /** GET /v1/sarvam/orgs/{org}/workspaces/{ws}/apps/{app}/url — `params` are those three ids. */
 export async function proxyCallUrl(
   req: Request,
-  params: readonly string[],
   deps: ProxyDeps,
-  cors: HeadersInit = {},
+  { params, cors = {} }: ProxyRequest,
 ): Promise<Response> {
   if (deps.sarvam.appId === null) return errorResponse('VOICE_NOT_CONFIGURED', cors);
   const refusal = isOwnApp(params, deps.sarvam) ? await claimCallUrl(req, deps) : 'bad_target';
   if (refusal !== null) {
     deps.log('warn', 'call_url_refused', { reason: refusal });
-    return errorResponse('FORBIDDEN', cors);
+    return errorResponse(refusal === 'daily_cap' ? 'RATE_LIMITED' : 'FORBIDDEN', cors);
   }
   const result = await fetchSignedUrl(upstreamUrl(req, params), deps);
   return typeof result === 'string' ? errorResponse(result, cors) : jsonResponse(result, 200, cors);

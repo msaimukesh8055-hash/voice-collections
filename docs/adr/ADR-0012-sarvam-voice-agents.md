@@ -23,3 +23,9 @@ The pitch moved to Sarvam AI (SPEC v2.0): Telugu-first credit recovery for a sma
 - Sarvam sends no interaction id to tools, so the token is locked by call state (ADR-0009 amendment). The interaction id comes from the browser at hang-up, and from the Analytics API in M5.
 - Tool auth must be attached by hand in Sarvam's console (the MCP connector refuses secrets).
 - A pre-1.0 SDK can change shape: pinned, wrapped behind `VoiceClient` (`web/src/lib/sarvamClient.ts`) so only one adapter file touches it.
+
+## Amendment — 2026-11-03 (CP2 M3): daily cap on live sessions
+- The key proxy issues at most **`MAX_LIVE_SESSIONS_PER_DAY` = 20** Sarvam call URLs per IST day (`supabase/functions/calls-api/sarvam-proxy.ts`). It counts calls with `url_issued_at` since IST midnight on the **real clock** (never the demo clock), across all shopkeepers, using existing rows (no migration).
+- Over the cap the proxy answers `429 RATE_LIMITED` with the catalogue's safe message, asks Sarvam nothing and leaves the call `accepted` (it goes stale). The phone page shows "Today's live call limit has been reached. Please try again tomorrow."
+- **Always on.** Like do-not-call, no compliance switch (ADR-0011) or demo setting turns it off. Worst case is 20 × 4 min × ₹3.50 ≈ ₹280 a day, inside the ₹1,000 cap. Changing the number is a code change.
+- Known limit: the count is read just before the claim, so requests racing in parallel can go a few sessions over. Accepted: each one needs its own freshly accepted call token, and rings are rate-limited (3 a minute). The rest of the "no login" gap closes with the M6 dashboard token before go-live.

@@ -2,6 +2,7 @@
 // One owner message → replies. Button taps run the card action; text goes through the brain
 // (fixed commands first, then the LLM) and the resulting command runs from a typed lookup map.
 // Reads answer from the ledger; changes only ever create a card (nothing saved before Save).
+// "pending" and a lookup also show the reliability score (the same one "X score" explains).
 import { type Command, type CommandKind } from '../_shared/brain/commands.ts';
 import { interpret } from '../_shared/brain/interpret.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
@@ -13,15 +14,17 @@ import { startEntry } from '../_shared/cards/start.ts';
 import type { BookShopkeeper, MessagePath } from '../_shared/db/book-repository.ts';
 import { matchShopkeepers } from '../_shared/ledger/match.ts';
 import {
+  type BookView,
   closedReply,
   lookupPickReply,
   pendingReply,
   shopkeeperReplies,
+  shownPending,
 } from '../_shared/ledger/views.ts';
 import type { Language } from '../_shared/schemas/shopkeeper.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { dueAlertCommand, offerRemindAll, remindOne } from '../_shared/reminders/remind.ts';
-import { scoreReplies } from '../_shared/reminders/score-explain.ts';
+import { scoreReplies, scoresFor, scoreWithEntries } from '../_shared/reminders/score-explain.ts';
 import { phrasesFor } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, textReply } from '../_shared/whatsapp/replies.ts';
 
@@ -52,12 +55,20 @@ async function showShopkeeper(
     ctx.book.listShopkeeperEntries(shopkeeper.id),
     ctx.book.getLastPromise(shopkeeper.id),
   ]);
-  return shopkeeperReplies({ shopkeeper, entries, lastPromise, today: ctx.today, language });
+  const score = await scoreWithEntries(shopkeeper.id, entries, ctx);
+  return shopkeeperReplies({ shopkeeper, entries, lastPromise, score, today: ctx.today, language });
 }
 
-async function bookView(ctx: BotContext): Promise<Parameters<typeof pendingReply>[0]> {
+async function bookView(ctx: BotContext): Promise<BookView> {
   const entries = await ctx.book.listEntries(ctx.owner.id);
   return { shopkeepers: ctx.shopkeepers, entries, today: ctx.today, language: ctx.language };
+}
+
+/** "pending" with each shown row's score band (SPEC §6.1); only those rows are scored. */
+async function pendingWithScores(ctx: BotContext): Promise<Reply> {
+  const view = await bookView(ctx);
+  const scores = await scoresFor(shownPending(view), ctx);
+  return pendingReply({ ...view, scores });
 }
 
 /** Runs `run` for the one shopkeeper the name matches; asks for the shop name when it matches
@@ -77,7 +88,7 @@ function withOneShopkeeper(
 
 const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
   help: (_command, ctx) => Promise.resolve([textReply(phrasesFor(ctx.language).help)]),
-  pending: async (_command, ctx) => [pendingReply(await bookView(ctx))],
+  pending: async (_command, ctx) => [await pendingWithScores(ctx)],
   closed: async (_command, ctx) => [closedReply(await bookView(ctx))],
   lookup: (command, ctx) => {
     const match = matchShopkeepers(command.name, ctx.shopkeepers);

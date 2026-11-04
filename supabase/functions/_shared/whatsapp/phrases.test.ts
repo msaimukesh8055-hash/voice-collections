@@ -1,5 +1,6 @@
 // supabase/functions/_shared/whatsapp/phrases.test.ts
 import { assert, assertEquals } from '@std/assert';
+import { parseCommand } from '../brain/commands.ts';
 import { SUPPORTED_LANGUAGES } from '../schemas/shopkeeper.ts';
 import { PHRASES, phrasesFor } from './phrases.ts';
 
@@ -12,6 +13,7 @@ const BUTTON_KEYS = [
   'confirmReceived',
   'notReceived',
   'choose',
+  'tryAgain',
 ] as const;
 /** Meta cuts button titles at 20 characters; ours must fit uncut. */
 const MAX_BUTTON_TITLE = 20;
@@ -47,4 +49,36 @@ Deno.test('phrases › every line renders to non-empty text in every language', 
       assert(rendered.trim().length > 0, `${language}.${key}`);
     }
   }
+});
+
+/** Each bold example in the help message, e.g. "*remind all*". */
+function helpExamples(help: string): string[] {
+  return [...help.matchAll(/\*([^*]+)\*/g)].map((found) => found[1] ?? '');
+}
+
+Deno.test('phrases › help lists the M5 commands, the same in every language', () => {
+  const english = helpExamples(phrasesFor('en').help);
+  for (const example of ['due', 'remind Ramesh', 'remind all', 'Ramesh score']) {
+    assert(english.includes(example), example);
+  }
+  for (const language of SUPPORTED_LANGUAGES) {
+    assertEquals(helpExamples(phrasesFor(language).help), english, language);
+  }
+});
+
+Deno.test('phrases › every help example really is a command the bot understands', () => {
+  const kinds = helpExamples(phrasesFor('en').help).map((example) =>
+    parseCommand(example, '2026-11-02')?.kind ?? `not understood: ${example}`
+  );
+  assertEquals(kinds, [
+    'pending',
+    'closed',
+    'lookup',
+    'add_credit',
+    'mark_paid',
+    'due_alert',
+    'remind',
+    'remind_all',
+    'score',
+  ]);
 });

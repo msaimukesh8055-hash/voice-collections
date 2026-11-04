@@ -28,8 +28,15 @@ interface DistanceRow {
   readonly end: number;
 }
 
+/** One letter of `a` against the whole of `b`: which row of the table it fills in. */
+interface RowStep {
+  readonly letter: string;
+  readonly rowIndex: number;
+}
+
 /** One row of the edit-distance table, walking left to right with the diagonal and left cells. */
-function nextRow(previous: DistanceRow, letter: string, b: string, rowIndex: number): DistanceRow {
+function nextRow(previous: DistanceRow, step: RowStep, b: string): DistanceRow {
+  const { letter, rowIndex } = step;
   let diagonal = rowIndex;
   let left = rowIndex + 1;
   const rest = previous.row.slice(1).map((up, j) => {
@@ -47,8 +54,10 @@ export function editDistance(a: string, b: string): number {
     row: Array.from({ length: b.length + 1 }, (_, index) => index),
     end: b.length,
   };
-  return [...a].reduce<DistanceRow>((row, letter, index) => nextRow(row, letter, b, index), first)
-    .end;
+  return [...a].reduce<DistanceRow>(
+    (row, letter, rowIndex) => nextRow(row, { letter, rowIndex }, b),
+    first,
+  ).end;
 }
 
 function distanceTo(query: string, shopkeeper: BookShopkeeper): number {

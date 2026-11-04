@@ -42,14 +42,35 @@ const DEFAULT_SETTINGS = {
 const id = encodeURIComponent;
 
 /** Total from a Content-Range header such as "0-2/3" or "*\/3". */
-function totalFrom(contentRange: string | null): number {
+function totalFrom(contentRange: string | null, operation: string): number {
   const total = Number(contentRange?.split('/')[1]);
-  if (!Number.isInteger(total)) throw new RepositoryError('countCallsSince', 'no count');
+  if (!Number.isInteger(total)) throw new RepositoryError(operation, 'no count');
   return total;
 }
 
+const COUNT_REQUEST = { method: 'HEAD', prefer: 'count=exact' } as const;
+
 function updatedOne(rows: unknown): boolean {
   return z.array(IdRow).parse(rows).length === 1;
+}
+
+/** Attempt limits (per shopkeeper) and the daily live-session cap (all calls, CP2 M3). */
+function callCounts(
+  query: PostgrestClient,
+): Pick<Repository, 'countCallsSince' | 'countCallUrlsIssuedSince'> {
+  return {
+    async countCallsSince(shopkeeperId, since): Promise<number> {
+      const path = `calls?select=id&shopkeeper_id=eq.${id(shopkeeperId)}` +
+        `&queued_at=gte.${id(since.toISOString())}`;
+      const reply = await query('countCallsSince', path, COUNT_REQUEST);
+      return totalFrom(reply.contentRange, 'countCallsSince');
+    },
+    async countCallUrlsIssuedSince(since): Promise<number> {
+      const path = `calls?select=id&url_issued_at=gte.${id(since.toISOString())}`;
+      const reply = await query('countCallUrlsIssuedSince', path, COUNT_REQUEST);
+      return totalFrom(reply.contentRange, 'countCallUrlsIssuedSince');
+    },
+  };
 }
 
 function callQueries(
@@ -58,7 +79,6 @@ function callQueries(
   Repository,
   | 'getDemoSettings'
   | 'getShopkeeper'
-  | 'countCallsSince'
   | 'createCall'
   | 'getCallSession'
   | 'findRingingCall'
@@ -72,12 +92,6 @@ function callQueries(
     async getShopkeeper(shopkeeperId): Promise<Shopkeeper | null> {
       const path = `shopkeepers?select=${SHOPKEEPER_COLUMNS}&id=eq.${id(shopkeeperId)}`;
       return firstRow(SHOPKEEPER_ROW, (await query('getShopkeeper', path)).rows);
-    },
-    async countCallsSince(shopkeeperId, since): Promise<number> {
-      const path = `calls?select=id&shopkeeper_id=eq.${id(shopkeeperId)}` +
-        `&queued_at=gte.${id(since.toISOString())}`;
-      const request = { method: 'HEAD', prefer: 'count=exact' } as const;
-      return totalFrom((await query('countCallsSince', path, request)).contentRange);
     },
     async createCall(call): Promise<string> {
       const body = { shopkeeper_id: call.shopkeeperId, language: call.language, mode: call.mode };
@@ -201,6 +215,7 @@ function inserts(
 export function createSupabaseRepository(query: PostgrestClient): Repository {
   return {
     ...callQueries(query),
+    ...callCounts(query),
     ...callUpdates(query),
     ...ledgerQueries(query),
     ...promiseUpdates(query),

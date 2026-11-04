@@ -95,15 +95,20 @@ function readQueries(query: PostgrestClient): Pick<
   };
 }
 
-function callWrites(query: PostgrestClient): Pick<
-  ReminderRepository,
-  'createCalls' | 'claimSimulatedCall' | 'endStaleSimulatedCalls' | 'finishSimulatedCall'
-> {
-  const returning = (body: object): { method: 'PATCH'; body: object; prefer: string } => ({
-    method: 'PATCH',
-    body,
-    prefer: 'return=representation',
-  });
+/** A PATCH that returns the changed rows, so the caller learns which rows it actually moved. */
+function returning(body: object): { method: 'PATCH'; body: object; prefer: string } {
+  return { method: 'PATCH', body, prefer: 'return=representation' };
+}
+
+/** The columns that close a call and hand it to the follow-up worker straight away. */
+function completedNow(endedAt: Date): Record<string, string> {
+  const at = endedAt.toISOString();
+  return { status: 'completed', ended_at: at, followup_status: 'pending', followup_next_at: at };
+}
+
+function callWrites(
+  query: PostgrestClient,
+): Pick<ReminderRepository, 'createCalls' | 'claimSimulatedCall'> {
   return {
     async createCalls(calls): Promise<readonly CreatedCall[]> {
       if (calls.length === 0) return [];
@@ -122,28 +127,24 @@ function callWrites(query: PostgrestClient): Pick<
       const rows = (await query('claimSimulatedCall', 'rpc/claim_simulated_call', request)).rows;
       return z.uuid().nullable().parse(rows);
     },
+  };
+}
+
+function simulatedCallEnds(
+  query: PostgrestClient,
+): Pick<ReminderRepository, 'endStaleSimulatedCalls' | 'finishSimulatedCall'> {
+  return {
     async endStaleSimulatedCalls(staleBefore, now): Promise<readonly string[]> {
       const path = 'calls?mode=eq.simulated&status=eq.in_progress' +
         `&accepted_at=lt.${id(staleBefore.toISOString())}&select=id`;
-      const at = now.toISOString();
-      const body = {
-        status: 'completed',
-        ended_at: at,
-        followup_status: 'pending',
-        followup_next_at: at,
-      };
-      return ids((await query('endStaleSimulatedCalls', path, returning(body))).rows);
+      return ids((await query('endStaleSimulatedCalls', path, returning(completedNow(now)))).rows);
     },
     async finishSimulatedCall(callId, end): Promise<boolean> {
       const path = `calls?id=eq.${id(callId)}&status=eq.in_progress&select=id`;
-      const at = end.endedAt.toISOString();
       const body = {
-        status: 'completed',
-        ended_at: at,
+        ...completedNow(end.endedAt),
         duration_seconds: end.durationSeconds,
         transcript: end.transcript,
-        followup_status: 'pending',
-        followup_next_at: at,
       };
       return ids((await query('finishSimulatedCall', path, returning(body))).rows).length === 1;
     },
@@ -155,6 +156,7 @@ export function createSupabaseReminderRepository(query: PostgrestClient): Remind
   return {
     ...readQueries(query),
     ...callWrites(query),
+    ...simulatedCallEnds(query),
     claimDailyAlert: (claim) =>
       insertOnce('claimDailyAlert', 'owner_alerts', {
         owner_id: claim.ownerId,

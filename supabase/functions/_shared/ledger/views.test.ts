@@ -13,7 +13,13 @@ import {
 import type { BookShopkeeper } from '../db/book-repository.ts';
 import { claimButtonId } from '../cards/ids.ts';
 import { replyText } from '../whatsapp/replies.ts';
-import { closedReply, lookupPickReply, pendingReply, shopkeeperReplies } from './views.ts';
+import {
+  closedReply,
+  lookupPickReply,
+  pendingReply,
+  type ScoreTag,
+  shopkeeperReplies,
+} from './views.ts';
 
 const SHOPKEEPERS = [RAMESH, LATHA, PRAVEEN_1, PRAVEEN_2];
 const VIEW = {
@@ -21,6 +27,7 @@ const VIEW = {
   entries: fakeBookEntries(),
   today: FAKE_TODAY,
   language: 'en' as const,
+  scores: new Map<string, ScoreTag>(),
 };
 
 Deno.test('pending › biggest first, with days overdue or "not due yet"', () => {
@@ -55,6 +62,23 @@ Deno.test('pending › at most 10 rows, then "and N more"', () => {
   assertEquals(lines[11], '…and 2 more');
 });
 
+Deno.test('pending › each row shows the score band (SPEC §6.1); "New" without a number', () => {
+  const scores = new Map<string, ScoreTag>([
+    [RAMESH.id, { score: 42, band: 'risky' }],
+    [LATHA.id, { score: 100, band: 'new' }],
+  ]);
+  const lines = replyText([pendingReply({ ...VIEW, scores })]).split('\n');
+  assertEquals(lines[1], '1. Ramesh (Ramesh Kirana) · ₹8,500 · 12 days overdue · Risky 42');
+  assert(lines[2]?.endsWith(' · New'), lines[2]);
+  const hindi = replyText([pendingReply({ ...VIEW, scores, language: 'hi' })]);
+  assertStringIncludes(hindi, 'जोखिम 42');
+});
+
+Deno.test('pending › a row without a score shows no band', () => {
+  const lines = replyText([pendingReply(VIEW)]).split('\n');
+  assert(!lines[1]?.includes('Risky'));
+});
+
 Deno.test("pending › nobody owing gives a friendly line, in the owner's language", () => {
   assertEquals(
     replyText([pendingReply({ ...VIEW, entries: [] })]),
@@ -86,6 +110,7 @@ Deno.test('lookup › balance, last 5 entries, last promise and open claims', ()
     shopkeeper: RAMESH,
     entries: fakeBookEntries().filter((e) => e.shopkeeperId === RAMESH.id),
     lastPromise: { amount: 3000, promiseDate: '2026-10-30', status: 'broken' },
+    score: null,
     today: FAKE_TODAY,
     language: 'en',
   });
@@ -98,11 +123,38 @@ Deno.test('lookup › balance, last 5 entries, last promise and open claims', ()
   assertEquals(summary.at(-1), 'Open claims: 1');
 });
 
+Deno.test('lookup › shows the score and band after the last promise (SPEC §6.1)', () => {
+  const lines = replyText(
+    shopkeeperReplies({
+      shopkeeper: RAMESH,
+      entries: [],
+      lastPromise: { amount: 3000, promiseDate: '2026-10-30', status: 'broken' },
+      score: { score: 42, band: 'risky' },
+      today: FAKE_TODAY,
+      language: 'en',
+    }),
+  ).split('\n');
+  assertEquals(lines.slice(-2), [
+    'Last promise: ₹3,000 · Fri 30 Oct (broken)',
+    'Score: 42 (Risky)',
+  ]);
+  const telugu = shopkeeperReplies({
+    shopkeeper: RAMESH,
+    entries: [],
+    lastPromise: null,
+    score: { score: 80, band: 'reliable' },
+    today: FAKE_TODAY,
+    language: 'te',
+  });
+  assertStringIncludes(replyText(telugu), 'స్కోరు: 80 (నమ్మకమైన)');
+});
+
 Deno.test('lookup › each open claim gets Confirm received / Not received buttons', () => {
   const replies = shopkeeperReplies({
     shopkeeper: RAMESH,
     entries: fakeBookEntries().filter((e) => e.shopkeeperId === RAMESH.id),
     lastPromise: null,
+    score: null,
     today: FAKE_TODAY,
     language: 'en',
   });
@@ -119,6 +171,7 @@ Deno.test('lookup › a new shopkeeper with no entries and no claims', () => {
     shopkeeper: LATHA,
     entries: [],
     lastPromise: null,
+    score: null,
     today: FAKE_TODAY,
     language: 'hi',
   });
@@ -135,6 +188,7 @@ Deno.test('lookup › a rejected claim is marked and a confirmed one is plain', 
       shopkeeper: RAMESH,
       entries,
       lastPromise: null,
+      score: null,
       today: FAKE_TODAY,
       language: 'en',
     }),
@@ -171,6 +225,7 @@ Deno.test('lookup › entries on the same day are newest-created first', () => {
       shopkeeper: RAMESH,
       entries,
       lastPromise: null,
+      score: null,
       today: FAKE_TODAY,
       language: 'en',
     }),

@@ -141,3 +141,31 @@ Deno.test('queue › a stale simulated call frees its slot and is ended for foll
   const end = { transcript: [], endedAt: later, durationSeconds: 1 };
   assertEquals(await fake.reminders.finishSimulatedCall(ended[0] ?? '', end), false);
 });
+
+// CP2 M1: attempt windows count on the real clock; the demo clock only decides calling hours.
+function threeCallsBefore(clock: Date, id: string): { shopkeeperId: string; queuedAt: string }[] {
+  return [1, 2, 3].map((hours) => ({
+    shopkeeperId: id,
+    queuedAt: new Date(clock.getTime() - hours * 3600_000).toISOString(),
+  }));
+}
+
+Deno.test('queue › limits on, demo clock a day ahead: real calls today still count', async () => {
+  const ahead = new Date(NOW.getTime() + 24 * 3600_000).toISOString();
+  const { deps: d, fake } = deps({ callLimitsEnabled: true, demoClock: ahead });
+  const id = target(2).shopkeeperId;
+  fake.state.recentCalls = threeCallsBefore(NOW, id);
+  const batch = await queueReminders(d, [target(2)]);
+  assertEquals(batch.blocked, [{ shopkeeperId: id, code: 'ATTEMPT_LIMIT_REACHED' }]);
+  assertEquals(fake.state.calls.length, 0);
+});
+
+Deno.test('queue › limits on, demo clock a day behind: yesterday does not count as today', async () => {
+  const behind = new Date(NOW.getTime() - 24 * 3600_000).toISOString();
+  const { deps: d, fake } = deps({ callLimitsEnabled: true, demoClock: behind });
+  const id = target(2).shopkeeperId;
+  const yesterday = new Date(NOW.getTime() - 24 * 3600_000);
+  fake.state.recentCalls = threeCallsBefore(yesterday, id);
+  const batch = await queueReminders(d, [target(2)]);
+  assertEquals([batch.blocked, batch.simulated.length], [[], 1]);
+});

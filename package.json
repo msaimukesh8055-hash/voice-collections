@@ -27,7 +27,8 @@
     "agent:record": "node --env-file=.env scripts/agent-record.ts",
     "seed:generate": "node scripts/seed/write-seed.ts",
     "smoke:tools": "node --env-file=.env scripts/smoke-tools.ts",
-    "smoke:whatsapp": "node --env-file=.env scripts/smoke-whatsapp.ts"
+    "smoke:whatsapp": "node --env-file=.env scripts/smoke-whatsapp.ts",
+    "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

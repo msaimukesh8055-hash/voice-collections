@@ -255,6 +255,12 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
           call.shopkeeperId === shopkeeperId && Date.parse(call.queuedAt) >= since.getTime()
         ).length,
       ),
+    countCallUrlsIssuedSince: (since) =>
+      Promise.resolve(
+        state.calls.filter((call) =>
+          call.urlIssuedAt !== null && Date.parse(call.urlIssuedAt) >= since.getTime()
+        ).length,
+      ),
     createCall: (call) => {
       const created = fakeCall({
         ...call,

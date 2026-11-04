@@ -23,21 +23,34 @@ export const FAKE_OWNER: Owner = {
   language: 'te',
 };
 
-function shopkeeper(n: number, name: string, shopName: string, area = 'Old Town'): BookShopkeeper {
+type ShopkeeperNames = Pick<BookShopkeeper, 'name' | 'shopName'> & { readonly area?: string };
+
+function shopkeeper(n: number, names: ShopkeeperNames): BookShopkeeper {
   return {
     id: `5e000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
-    name,
-    shopName,
-    area,
+    area: 'Old Town',
+    ...names,
     language: 'te',
   };
 }
 
-export const RAMESH = shopkeeper(1, 'Ramesh', 'Ramesh Kirana');
-export const LATHA = shopkeeper(2, 'Latha', 'Latha General Stores', 'Gandhi Bazaar');
-export const PRAVEEN_1 = shopkeeper(3, 'Praveen', 'Praveen Bakery', 'Sai Nagar');
-export const PRAVEEN_2 = shopkeeper(4, 'Praveen', 'Praveen Super Market', 'Ganesh Nagar');
-export const SURESH = shopkeeper(5, 'Suresh', 'Suresh Fancy Store');
+export const RAMESH = shopkeeper(1, { name: 'Ramesh', shopName: 'Ramesh Kirana' });
+export const LATHA = shopkeeper(2, {
+  name: 'Latha',
+  shopName: 'Latha General Stores',
+  area: 'Gandhi Bazaar',
+});
+export const PRAVEEN_1 = shopkeeper(3, {
+  name: 'Praveen',
+  shopName: 'Praveen Bakery',
+  area: 'Sai Nagar',
+});
+export const PRAVEEN_2 = shopkeeper(4, {
+  name: 'Praveen',
+  shopName: 'Praveen Super Market',
+  area: 'Ganesh Nagar',
+});
+export const SURESH = shopkeeper(5, { name: 'Suresh', shopName: 'Suresh Fancy Store' });
 
 export const CLAIM_ID = 'e0000000-0000-4000-8000-0000000000c1';
 

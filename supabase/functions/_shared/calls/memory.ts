@@ -1,9 +1,12 @@
 // supabase/functions/_shared/calls/memory.ts
 // What Asha remembers about a shopkeeper (SPEC §7.3, M5 Decision 2): the last promise (amount,
-// date, kept / broken / open, and what was paid towards it), the last call note, and a payment
-// claim the owner marked "not received" in the last 30 days. get_dues adds this to its reply only
-// after identity is confirmed. The note is written by the follow-up agent from a transcript, so
-// it is cleaned to one short line before Asha sees it.
+// date, kept / broken / open, and what was paid towards it) and a payment claim the owner marked
+// "not received" in the last 30 days. get_dues adds this to its reply only after identity is
+// confirmed. Every line is built in code from the ledger and promise records.
+// The follow-up note is NOT part of it (CP2 M2): the LLM writes it from the shopkeeper's own
+// words, so planted claims ("the owner agreed to waive ₹2,000") could come back to Asha as
+// trusted tool output. The note stays stored for the owner and the dashboard; cleanNote below
+// keeps it to one short line.
 import { addDays } from '../clock.ts';
 import { formatDay, formatRupees } from '../format.ts';
 import { paidTowards, type PromiseRecord } from '../ledger/promise-check.ts';
@@ -27,7 +30,6 @@ export interface RejectedClaim {
 
 export interface Memory {
   readonly lastPromise: RememberedPromise | null;
-  readonly lastNote: string | null;
   readonly rejectedClaim: RejectedClaim | null;
 }
 
@@ -35,11 +37,10 @@ export interface MemoryInputs {
   /** The shopkeeper's promises, after today's promise check. */
   readonly promises: readonly PromiseRecord[];
   readonly entries: readonly LedgerEntry[];
-  readonly lastNote: string | null;
   readonly today: string;
 }
 
-export const EMPTY_MEMORY: Memory = { lastPromise: null, lastNote: null, rejectedClaim: null };
+export const EMPTY_MEMORY: Memory = { lastPromise: null, rejectedClaim: null };
 
 type JudgeablePromise = PromiseRecord & { readonly status: RememberedPromise['status'] };
 
@@ -63,7 +64,7 @@ function lastPromiseOf(
   };
 }
 
-/** One line, capped: a note never adds structure or length to Asha's tool reply. */
+/** One line, capped: the stored follow-up note never grows past one short line. */
 export function toNoteLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, MAX_NOTE_LENGTH);
 }
@@ -86,7 +87,6 @@ function rejectedClaimOf(entries: readonly LedgerEntry[], today: string): Reject
 export function buildMemory(inputs: MemoryInputs): Memory {
   return {
     lastPromise: lastPromiseOf(inputs.promises, inputs.entries),
-    lastNote: cleanNote(inputs.lastNote),
     rejectedClaim: rejectedClaimOf(inputs.entries, inputs.today),
   };
 }
@@ -111,22 +111,20 @@ function rejectedClaimLine(claim: RejectedClaim): string {
 
 /** Plain facts for Asha's tool reply; '' when nothing is known (she then says nothing). */
 export function describeMemory(memory: Memory): string {
-  const { lastPromise, lastNote, rejectedClaim } = memory;
+  const { lastPromise, rejectedClaim } = memory;
   return [
     lastPromise ? promiseLine(lastPromise) : null,
-    lastNote ? `Last call note: "${lastNote}"` : null,
     rejectedClaim ? rejectedClaimLine(rejectedClaim) : null,
   ].filter((line): line is string => line !== null).join(' ');
 }
 
 export function memoryData(memory: Memory): ToolData {
-  const { lastPromise, lastNote, rejectedClaim } = memory;
+  const { lastPromise, rejectedClaim } = memory;
   return {
     last_promise_amount: lastPromise?.amount ?? null,
     last_promise_date: lastPromise?.promiseDate ?? null,
     last_promise_status: lastPromise?.status ?? null,
     last_promise_paid: lastPromise?.paid ?? null,
-    last_note: lastNote,
     rejected_claim_amount: rejectedClaim?.amount ?? null,
     rejected_claim_date: rejectedClaim?.paidDate ?? null,
   };

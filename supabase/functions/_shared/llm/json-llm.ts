@@ -53,8 +53,16 @@ interface Prompt {
 
 type Provider = (prompt: Prompt) => Promise<string>;
 
+const SarvamToolCall = z.object({
+  function: z.object({ name: z.string(), arguments: z.string().nullable().catch(null) }),
+});
 const SarvamReply = z.object({
-  choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
+  choices: z.array(z.object({
+    message: z.object({
+      content: z.string().nullable(),
+      tool_calls: z.array(SarvamToolCall).nullable().optional(),
+    }),
+  })).min(1),
 });
 const GeminiReply = z.object({
   candidates: z.array(
@@ -94,10 +102,13 @@ async function postJson(
   return await response.json();
 }
 
-/** One turn of a conversation: "user" is the other side, "assistant" is the model itself. */
+/** One turn of a conversation: "user" is the other side, "assistant" is the model itself, "tool"
+ * is a tool's reply to the assistant's `toolCall` with the same id (Sarvam only). */
 export interface ChatMessage {
-  readonly role: 'user' | 'assistant';
+  readonly role: 'user' | 'assistant' | 'tool';
   readonly content: string;
+  readonly toolCall?: { readonly id: string; readonly name: string; readonly args: unknown };
+  readonly toolCallId?: string;
 }
 
 export interface ChatRequest {
@@ -106,6 +117,59 @@ export interface ChatRequest {
   readonly maxTokens: number;
   /** 0 for checked answers (default); higher for a simulated shopkeeper's natural replies. */
   readonly temperature?: number;
+  /** Tools the model may call (Sarvam only; Asha in simulated calls). */
+  readonly tools?: readonly ChatTool[];
+}
+
+/** One tool as declared to the model: its arguments as a JSON Schema. */
+export interface ChatTool {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: unknown;
+}
+
+function declareTools(tools: readonly ChatTool[]): unknown[] {
+  return tools.map((tool) => ({
+    type: 'function',
+    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+  }));
+}
+
+function parseArguments(text: string | null): unknown {
+  try {
+    return JSON.parse(text ?? '{}');
+  } catch {
+    return {}; // Bad arguments: the tool's own schema check refuses them.
+  }
+}
+
+/** Tool turns in Sarvam's native (OpenAI-style) shape; with declared tools, sarvam-105b repeats
+ * calls whose replies come back as plain user text. */
+function sarvamMessage(message: ChatMessage): Record<string, unknown> {
+  if (message.role === 'tool') {
+    return { role: 'tool', tool_call_id: message.toolCallId, content: message.content };
+  }
+  const call = message.toolCall;
+  if (!call) return { role: message.role, content: message.content };
+  const fn = { name: call.name, arguments: JSON.stringify(call.args) };
+  return {
+    role: 'assistant',
+    content: message.content === '' ? null : message.content,
+    tool_calls: [{ id: call.id, type: 'function', function: fn }],
+  };
+}
+
+type SarvamMessage = z.infer<typeof SarvamReply>['choices'][number]['message'];
+
+/** sarvam-105b calls a declared tool natively (content null, `tool_calls` set) even when the
+ * prompt asks for a JSON move; without declared tools it returned nothing at all (found by the
+ * CP2 reminder smoke, 2026-11-04). A native call comes back as the same move JSON the text-mode
+ * section asks for, so the simulator reads both the same way. */
+function sarvamText(message: SarvamMessage): string {
+  const call = message.tool_calls?.[0];
+  if (!call) return message.content ?? '';
+  const tool = { name: call.function.name, args: parseArguments(call.function.arguments) };
+  return JSON.stringify({ say: message.content ?? '', tool, end_call: false });
 }
 
 /** Raw text of one multi-turn answer from sarvam-105b (reasoning off). Throws on an HTTP error,
@@ -113,14 +177,16 @@ export interface ChatRequest {
 export async function askSarvamChat(config: JsonLlmConfig, request: ChatRequest): Promise<string> {
   const body = {
     model: SARVAM_MODEL,
-    messages: [{ role: 'system', content: request.system }, ...request.messages],
+    messages: [{ role: 'system', content: request.system }, ...request.messages.map(sarvamMessage)],
     temperature: request.temperature ?? 0,
     max_tokens: request.maxTokens,
     reasoning_effort: null,
+    ...(request.tools ? { tools: declareTools(request.tools) } : {}),
   };
   const headers = { 'api-subscription-key': config.sarvamApiKey };
   const reply = SarvamReply.parse(await postJson(config, { url: SARVAM_CHAT_URL, headers, body }));
-  return reply.choices[0]?.message.content ?? '';
+  const message = reply.choices[0]?.message;
+  return message ? sarvamText(message) : '';
 }
 
 /** As askSarvamChat, on Gemini 2.5 Flash (JSON mode, thinking off). Gemini calls the model's

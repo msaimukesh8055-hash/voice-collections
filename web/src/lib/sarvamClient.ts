@@ -12,6 +12,9 @@ import { createSpeechDetector } from './micLevel.ts';
 const CONNECT_TIMEOUT_SECONDS = 15;
 export const MIC_ERROR = 'Microphone blocked. Allow microphone access for this page and try again.';
 export const CONNECT_ERROR = 'Could not connect the call. Please try again.';
+/** The proxy's always-on daily cap on live sessions (429 RATE_LIMITED, CP2 M3, ADR-0012). */
+export const DAILY_LIMIT_ERROR =
+  "Today's live call limit has been reached. Please try again tomorrow.";
 
 /** Plain-string views of the SDK's enums, so this file never imports the SDK. */
 export type SdkRole = 'user' | 'bot';
@@ -147,13 +150,25 @@ function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks 
   };
 }
 
+/** The SDK throws its RateLimitError (code RATE_LIMITED) when the proxy answers 429. */
+function isRateLimited(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code: unknown = 'code' in error ? error.code : undefined;
+  return error.name === 'RateLimitError' || code === 'RATE_LIMITED';
+}
+
+function startErrorMessage(error: unknown): string {
+  if (isMicError(error)) return MIC_ERROR;
+  return isRateLimited(error) ? DAILY_LIMIT_ERROR : CONNECT_ERROR;
+}
+
 async function connect(agent: AgentHandle): Promise<void> {
   try {
     await agent.start();
     if (await agent.waitForConnect(CONNECT_TIMEOUT_SECONDS)) return;
   } catch (error) {
     await agent.stop().catch(() => undefined);
-    throw new VoiceCallError(isMicError(error) ? MIC_ERROR : CONNECT_ERROR);
+    throw new VoiceCallError(startErrorMessage(error));
   }
   await agent.stop().catch(() => undefined);
   throw new VoiceCallError(CONNECT_ERROR);

@@ -1,16 +1,19 @@
 // supabase/functions/_shared/ledger/views.ts
 // The owner's read-only ledger replies (SPEC §6.1): "pending" (biggest first, top 10, days
-// overdue), "closed" (credits paid off this month) and one shopkeeper (balance, last 5 entries,
-// last promise, open claims with [Confirm received] [Not received]). All figures come from
-// dues.ts / cleared.ts with the demo-clock "today" passed in.
+// overdue, score band), "closed" (credits paid off this month) and one shopkeeper (balance, last 5
+// entries, last promise, score, open claims with [Confirm received] [Not received]). All figures
+// come from dues.ts / cleared.ts with the demo-clock "today" passed in; scores are worked out by
+// the caller (score.ts, the same as "why is X N?") and passed in, so this file stays pure.
 import type { BookEntry, BookShopkeeper, LastPromise } from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import { claimButtonId, lookupRowId } from '../cards/ids.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
+import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { type Phrases, phrasesFor } from '../whatsapp/phrases.ts';
 import { MAX_BUTTONS, MAX_LIST_ROWS, type Reply, textReply } from '../whatsapp/replies.ts';
 import { clearedCredits } from './cleared.ts';
 import { computeDues, type Dues } from './dues.ts';
+import type { Score } from './score.ts';
 
 export const VIEW_ROWS = 10;
 const LAST_ENTRIES = 5;
@@ -20,6 +23,20 @@ export interface BookView {
   readonly entries: readonly BookEntry[];
   readonly today: string;
   readonly language: Language;
+}
+
+/** What the views show of a score: the number and its band (SPEC §9). */
+export type ScoreTag = Pick<Score, 'score' | 'band'>;
+
+/** "pending" also needs the score of each row it shows (missing → no band on that row). */
+export interface PendingView extends BookView {
+  readonly scores: ReadonlyMap<string, ScoreTag>;
+}
+
+interface Owing {
+  readonly shopkeeper: BookShopkeeper;
+  readonly entries: readonly BookEntry[];
+  readonly dues: Dues;
 }
 
 function label(shopkeeper: BookShopkeeper): string {
@@ -41,26 +58,45 @@ function withMore(lines: readonly string[], total: number, phrases: Phrases): st
   return total > VIEW_ROWS ? [...shown, phrases.andMore(total - VIEW_ROWS)] : shown;
 }
 
-function pendingLine(shopkeeper: BookShopkeeper, dues: Dues, phrases: Phrases): string {
-  const late = dues.overdueAmount > 0 ? phrases.daysOverdue(dues.daysOverdue) : phrases.notDueYet;
-  return `${label(shopkeeper)} · ${formatInr(dues.outstanding)} · ${late}`;
+/** "Risky 42"; a new shopkeeper's number means little yet, so just "New". */
+function scoreTagText(tag: ScoreTag, language: Language): string {
+  const band = summaryPhrasesFor(language).bands[tag.band];
+  return tag.band === 'new' ? band : `${band} ${tag.score}`;
 }
 
-export function pendingReply(view: BookView): Reply {
-  const phrases = phrasesFor(view.language);
+function pendingLine(item: Owing, view: PendingView, phrases: Phrases): string {
+  const { shopkeeper, dues } = item;
+  const late = dues.overdueAmount > 0 ? phrases.daysOverdue(dues.daysOverdue) : phrases.notDueYet;
+  const tag = view.scores.get(shopkeeper.id);
+  const band = tag ? ` · ${scoreTagText(tag, view.language)}` : '';
+  return `${label(shopkeeper)} · ${formatInr(dues.outstanding)} · ${late}${band}`;
+}
+
+/** Everyone who owes money, biggest first. */
+function owingOf(view: BookView): readonly Owing[] {
   const groups = entriesBy(view.entries);
-  const owing = view.shopkeepers
-    .map((shopkeeper) => ({
-      shopkeeper,
-      dues: computeDues(groups.get(shopkeeper.id) ?? [], view.today),
-    }))
+  return view.shopkeepers
+    .map((shopkeeper) => {
+      const entries = groups.get(shopkeeper.id) ?? [];
+      return { shopkeeper, entries, dues: computeDues(entries, view.today) };
+    })
     .filter((item) => item.dues.outstanding > 0)
     .sort((a, b) => b.dues.outstanding - a.dues.outstanding);
+}
+
+/** The rows "pending" will show (top 10), with their entries, so the caller scores only those. */
+export function shownPending(
+  view: BookView,
+): ReadonlyArray<Pick<Owing, 'shopkeeper' | 'entries'>> {
+  return owingOf(view).slice(0, VIEW_ROWS);
+}
+
+export function pendingReply(view: PendingView): Reply {
+  const phrases = phrasesFor(view.language);
+  const owing = owingOf(view);
   if (owing.length === 0) return textReply(phrases.nothingPending);
   const total = owing.reduce((sum, item) => sum + item.dues.outstanding, 0);
-  const lines = owing.map((item, index) =>
-    `${index + 1}. ${pendingLine(item.shopkeeper, item.dues, phrases)}`
-  );
+  const lines = owing.map((item, index) => `${index + 1}. ${pendingLine(item, view, phrases)}`);
   const title = phrases.pendingTitle(owing.length, formatInr(total));
   return textReply([title, ...withMore(lines, owing.length, phrases)].join('\n'));
 }
@@ -118,10 +154,17 @@ function promiseLine(promise: LastPromise | null, phrases: Phrases): string {
   } (${status})`;
 }
 
+function scoreLine(tag: ScoreTag, language: Language): string {
+  const phrases = summaryPhrasesFor(language);
+  return phrases.score(tag.score, phrases.bands[tag.band]);
+}
+
 export interface ShopkeeperView {
   readonly shopkeeper: BookShopkeeper;
   readonly entries: readonly BookEntry[];
   readonly lastPromise: LastPromise | null;
+  /** Null only if it could not be worked out; the line is then left out. */
+  readonly score: ScoreTag | null;
   readonly today: string;
   readonly language: Language;
 }
@@ -154,6 +197,7 @@ export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
       ? [`${phrases.lastEntries}:`, ...recent.map((e) => entryLine(e, phrases))]
       : []),
     promiseLine(view.lastPromise, phrases),
+    ...(view.score ? [scoreLine(view.score, view.language)] : []),
     ...(claims.length > 0 ? [phrases.openClaims(claims.length)] : []),
   ];
   const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
