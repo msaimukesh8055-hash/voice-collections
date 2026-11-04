@@ -158,3 +158,16 @@ Deno.test('client › a template without values sends no components', () => {
   const message = toMetaMessage(TO, reply) as { template: { components: unknown[] } };
   assertEquals(message.template.components, []);
 });
+
+Deno.test('client › a voice reply and an image are sent by media id (M6)', () => {
+  assertEquals(toMetaMessage('91', { kind: 'audio', mediaId: 'A1' }), {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: '91',
+    type: 'audio',
+    audio: { id: 'A1' },
+  });
+  const image = toMetaMessage('91', { kind: 'image', mediaId: 'I1', text: 'c'.repeat(2000) });
+  assertEquals(image.type, 'image');
+  assertEquals((image.image as { caption: string }).caption.length, 1024);
+});

@@ -65,7 +65,8 @@ const PENDING = new Set([
   'pending dues',
 ]);
 const CLOSED = new Set(['closed', 'paid off', 'cleared', 'settled', 'closed list', 'chukta']);
-/** "who is due?" and the template's "Reply DUE" (M5 Decision 7). "dues" stays "pending". */
+/** "who is due?" / "who is overdue?" and the template's "Reply DUE" (M5 Decision 7). "dues"
+ * stays "pending". */
 const DUE_ALERT = new Set([
   'due',
   'due today',
@@ -80,6 +81,15 @@ const DUE_ALERT = new Set([
   'eevala due',
   'ivala due',
   'evaru due',
+  // M6: "overdue" asks for the same alert (it lists overdue people too).
+  'overdue',
+  'overdue list',
+  'who is overdue',
+  'whos overdue',
+  "who's overdue",
+  'who’s overdue',
+  'who all are overdue',
+  'show overdue',
 ]);
 const REMIND_ALL = new Set([
   'remind all',

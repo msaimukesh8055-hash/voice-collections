@@ -4,11 +4,16 @@
 // ⚠️ The Hindi and Telugu lines are drafts and must be checked by a native speaker before the
 // demo (same check as Asha's greetings). A missing line in any language is a type error.
 import type { Language } from '../schemas/shopkeeper.ts';
+import type { HearingProblem } from '../speech/hear.ts';
 
 export interface Phrases {
   readonly help: string;
   readonly sorry: string;
   readonly textOnly: string;
+  /** M6: the line above a voice note's reply, showing what Saaras heard. */
+  readonly heard: string;
+  /** M6: why a voice note was not listened to (each decided before Saaras is paid). */
+  readonly voiceProblem: Readonly<Record<HearingProblem, string>>;
   readonly somethingWrong: string;
   readonly pendingTitle: (people: number, total: string) => string;
   readonly daysOverdue: (days: number) => string;
@@ -29,6 +34,8 @@ export interface Phrases {
   readonly rejected: string;
   readonly lastPromise: string;
   readonly noPromise: string;
+  /** M6: the follow-up note from the last call, shown in the lookup. */
+  readonly lastNote: string;
   readonly promiseStatus: Readonly<Record<'open' | 'kept' | 'broken' | 'replaced', string>>;
   readonly openClaims: (count: number) => string;
   readonly claimQuestion: (name: string, amount: string, day: string) => string;
@@ -68,14 +75,24 @@ export const NOT_REGISTERED =
   'This number is not registered with Easy Recovery AI. Please contact the shop owner.';
 
 const EN: Phrases = {
-  help: 'Namaste! I keep your credit book.\n' +
+  help: 'Namaste! I keep your credit book.\n\n' +
     '• *pending* — who owes you\n• *closed* — paid off this month\n• *Ramesh* — one account\n' +
     '• *Ramesh 5000 due 15th* — add credit\n• *Ramesh paid 2000* — record a payment\n' +
     '• *due* — who is due or overdue\n• *remind Ramesh* — Asha calls him\n' +
-    '• *remind all* — Asha calls everyone due\n• *Ramesh score* — his score explained\n' +
+    '• *remind all* — Asha calls everyone due\n• *Ramesh score* — his score explained\n\n' +
     'Nothing is saved until you tap Save.',
   sorry: "Sorry, I didn't get that.",
-  textOnly: 'I can read text messages for now. Voice notes are coming soon.',
+  textOnly: 'I can read text messages and voice notes. Please send one of those.',
+  heard: '🎤 Heard',
+  voiceProblem: {
+    too_long:
+      'That voice note is over 30 seconds. Please keep it short, e.g. "Ramesh 5000 due 15th".',
+    too_big: 'That voice note is too long. Please keep it under 30 seconds.',
+    not_voice: 'I can only listen to WhatsApp voice notes. Please record one, or type the message.',
+    empty: "I couldn't hear anything. Please try again, a little closer to the phone.",
+    failed: "Sorry, I couldn't listen to that just now. Please send it again, or type it.",
+    cap: 'Voice notes are paused for today (daily limit). Please type the message.',
+  },
   somethingWrong: 'Something went wrong. Please send that again.',
   pendingTitle: (people, total) => `*Pending:* ${people} people owe you ${total}`,
   daysOverdue: (days) => `${days} days overdue`,
@@ -96,6 +113,7 @@ const EN: Phrases = {
   rejected: '(not received)',
   lastPromise: 'Last promise',
   noPromise: 'none',
+  lastNote: '📝 Last call note',
   promiseStatus: { open: 'open', kept: 'kept', broken: 'broken', replaced: 'replaced' },
   openClaims: (count) => `Open claims: ${count}`,
   claimQuestion: (name, amount, day) =>
@@ -131,14 +149,23 @@ const EN: Phrases = {
 };
 
 const HI: Phrases = {
-  help: 'नमस्ते! मैं आपका उधार खाता रखता हूँ।\n' +
+  help: 'नमस्ते! मैं आपका उधार खाता रखता हूँ।\n\n' +
     '• *pending* — किसका कितना बाकी है\n• *closed* — इस महीने चुकता\n• *Ramesh* — एक खाता\n' +
     '• *Ramesh 5000 due 15th* — उधार जोड़ें\n• *Ramesh paid 2000* — भुगतान दर्ज करें\n' +
     '• *due* — किसका देय या बकाया है\n• *remind Ramesh* — Asha उन्हें कॉल करेंगी\n' +
-    '• *remind all* — Asha सभी देय लोगों को कॉल करेंगी\n• *Ramesh score* — उनका स्कोर समझें\n' +
+    '• *remind all* — Asha सभी देय लोगों को कॉल करेंगी\n• *Ramesh score* — उनका स्कोर समझें\n\n' +
     'Save दबाने तक कुछ सेव नहीं होता।',
   sorry: 'माफ़ कीजिए, मैं समझ नहीं पाया।',
-  textOnly: 'अभी मैं सिर्फ़ टेक्स्ट पढ़ सकता हूँ। वॉइस नोट जल्द आएँगे।',
+  textOnly: 'मैं टेक्स्ट मैसेज और वॉइस नोट समझ सकता हूँ। कृपया इनमें से एक भेजें।',
+  heard: '🎤 सुना',
+  voiceProblem: {
+    too_long: 'यह वॉइस नोट 30 सेकंड से लंबा है। कृपया छोटा रखें, जैसे "Ramesh 5000 due 15th"।',
+    too_big: 'यह वॉइस नोट बहुत लंबा है। कृपया 30 सेकंड से कम रखें।',
+    not_voice: 'मैं सिर्फ़ WhatsApp वॉइस नोट सुन सकता हूँ। कृपया एक रिकॉर्ड करें, या मैसेज टाइप करें।',
+    empty: 'मुझे कुछ सुनाई नहीं दिया। कृपया फ़ोन के थोड़ा पास से फिर कोशिश करें।',
+    failed: 'माफ़ कीजिए, अभी मैं इसे सुन नहीं पाया। कृपया फिर भेजें, या टाइप करें।',
+    cap: 'आज के लिए वॉइस नोट बंद हैं (रोज़ की सीमा)। कृपया मैसेज टाइप करें।',
+  },
   somethingWrong: 'कुछ गड़बड़ हो गई। कृपया फिर से भेजें।',
   pendingTitle: (people, total) => `*बाकी:* ${people} लोगों पर ${total} बाकी`,
   daysOverdue: (days) => `${days} दिन से बकाया`,
@@ -159,6 +186,7 @@ const HI: Phrases = {
   rejected: '(नहीं मिला)',
   lastPromise: 'पिछला वादा',
   noPromise: 'कोई नहीं',
+  lastNote: '📝 पिछली कॉल का नोट',
   promiseStatus: { open: 'खुला', kept: 'निभाया', broken: 'टूटा', replaced: 'बदला' },
   openClaims: (count) => `खुले दावे: ${count}`,
   claimQuestion: (name, amount, day) =>
@@ -194,14 +222,23 @@ const HI: Phrases = {
 };
 
 const TE: Phrases = {
-  help: 'నమస్కారం! నేను మీ అప్పు పుస్తకం చూసుకుంటాను.\n' +
+  help: 'నమస్కారం! నేను మీ అప్పు పుస్తకం చూసుకుంటాను.\n\n' +
     '• *pending* — ఎవరు ఎంత ఇవ్వాలి\n• *closed* — ఈ నెల తీరినవి\n• *Ramesh* — ఒక ఖాతా\n' +
     '• *Ramesh 5000 due 15th* — అప్పు జోడించండి\n• *Ramesh paid 2000* — చెల్లింపు నమోదు\n' +
     '• *due* — ఎవరి గడువు వచ్చింది, ఎవరు ఆలస్యం\n• *remind Ramesh* — Asha ఆయనకు కాల్ చేస్తుంది\n' +
-    '• *remind all* — గడువు వచ్చిన అందరికీ Asha కాల్ చేస్తుంది\n• *Ramesh score* — ఆయన స్కోరు వివరణ\n' +
+    '• *remind all* — గడువు వచ్చిన అందరికీ Asha కాల్ చేస్తుంది\n• *Ramesh score* — ఆయన స్కోరు వివరణ\n\n' +
     'Save నొక్కే వరకు ఏదీ సేవ్ కాదు.',
   sorry: 'క్షమించండి, నాకు అర్థం కాలేదు.',
-  textOnly: 'ప్రస్తుతం నేను టెక్స్ట్ మాత్రమే చదవగలను. వాయిస్ నోట్స్ త్వరలో.',
+  textOnly: 'నేను టెక్స్ట్ మెసేజ్‌లు, వాయిస్ నోట్‌లు అర్థం చేసుకోగలను. దయచేసి వాటిలో ఒకటి పంపండి.',
+  heard: '🎤 విన్నది',
+  voiceProblem: {
+    too_long: 'ఈ వాయిస్ నోట్ 30 సెకన్ల కంటే ఎక్కువ. దయచేసి చిన్నగా చెప్పండి, ఉదా. "Ramesh 5000 due 15th".',
+    too_big: 'ఈ వాయిస్ నోట్ చాలా పొడవుగా ఉంది. దయచేసి 30 సెకన్ల లోపు ఉంచండి.',
+    not_voice: 'నేను WhatsApp వాయిస్ నోట్‌లు మాత్రమే వినగలను. దయచేసి ఒకటి రికార్డ్ చేయండి, లేదా మెసేజ్ టైప్ చేయండి.',
+    empty: 'నాకు ఏమీ వినిపించలేదు. దయచేసి ఫోన్‌కు కొంచెం దగ్గరగా మళ్ళీ ప్రయత్నించండి.',
+    failed: 'క్షమించండి, ఇప్పుడు దీన్ని వినలేకపోయాను. దయచేసి మళ్ళీ పంపండి, లేదా టైప్ చేయండి.',
+    cap: 'ఈ రోజుకు వాయిస్ నోట్‌లు ఆపబడ్డాయి (రోజువారీ పరిమితి). దయచేసి మెసేజ్ టైప్ చేయండి.',
+  },
   somethingWrong: 'ఏదో పొరపాటు జరిగింది. దయచేసి మళ్ళీ పంపండి.',
   pendingTitle: (people, total) => `*బాకీ:* ${people} మంది ${total} ఇవ్వాలి`,
   daysOverdue: (days) => `${days} రోజులు ఆలస్యం`,
@@ -222,6 +259,7 @@ const TE: Phrases = {
   rejected: '(రాలేదు)',
   lastPromise: 'చివరి మాట',
   noPromise: 'లేదు',
+  lastNote: '📝 చివరి కాల్ నోట్',
   promiseStatus: { open: 'ఉంది', kept: 'నిలబెట్టారు', broken: 'తప్పారు', replaced: 'మార్చారు' },
   openClaims: (count) => `నిర్ధారించాల్సినవి: ${count}`,
   claimQuestion: (name, amount, day) => `${name} ${day} న ${amount} కట్టానని చెప్పారు. మీకు అందిందా?`,

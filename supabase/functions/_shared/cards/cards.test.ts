@@ -50,10 +50,12 @@ Deno.test('card › add credit shows amount, due date and balance after, and sav
   const setup = botSetup();
   const before = rameshEntries(setup);
   const [card] = await startEntry({ name: 'ramesh', draft: CREDIT, language: 'en' }, setup.ctx);
-  assertEquals(replyText([card!]).split('\n').slice(0, 4), [
+  assertEquals(replyText([card!]).split('\n').slice(0, 6), [
     '*Add credit*',
+    '',
     'Ramesh (Ramesh Kirana)',
     '₹5,000 · due Sun 15 Nov',
+    '',
     'Balance after: ₹13,500',
   ]);
   assertEquals(buttonsOf(card).length, 3);

@@ -9,7 +9,7 @@ import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { applyPromiseChanges, checkPromises } from '../ledger/promise-check.ts';
 import { computeScore, type Score } from '../ledger/score.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
-import { type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, type Reply, textReply } from '../whatsapp/replies.ts';
 import { reminderPhrasesFor } from './phrases.ts';
 
 /** The score from a shopkeeper's entries (already read), his promises (judged in memory first)
@@ -56,8 +56,7 @@ export function explainScore(name: string, score: Score, language: Language): st
   const phrases = reminderPhrasesFor(language);
   const { parts, facts } = score;
   const promisesJudged = facts.promisesKept + facts.promisesBroken;
-  const lines = [
-    phrases.scoreTitle(name, score.score, summaryPhrasesFor(language).bands[score.band]),
+  const partLines = [
     countsOr(
       phrases.paidOnTime(parts.paidOnTime, facts.creditsOnTime, facts.creditsJudged),
       facts.creditsJudged,
@@ -75,7 +74,12 @@ export function explainScore(name: string, score: Score, language: Language): st
       language,
     ),
   ];
-  return score.band === 'new' ? [...lines, phrases.newBand].join('\n') : lines.join('\n');
+  const title = phrases.scoreTitle(
+    name,
+    score.score,
+    summaryPhrasesFor(language).bands[score.band],
+  );
+  return blocks(title, partLines, score.band === 'new' ? phrases.newBand : null);
 }
 
 export async function scoreReplies(

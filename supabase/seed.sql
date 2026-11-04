@@ -6,8 +6,8 @@
 
 truncate table public.owners restart identity cascade;
 
-insert into public.owners (id, name, business_name, city, language) values
-  ('0e000000-0000-4000-8000-000000000001', 'Srinivas Reddy', 'Sri Lakshmi Traders', 'Anantapur', 'te');
+insert into public.owners (id, name, business_name, city, language, english_under_telugu) values
+  ('0e000000-0000-4000-8000-000000000001', 'Srinivas Reddy', 'Sri Lakshmi Traders', 'Anantapur', 'te', true);
 
 insert into public.shopkeepers (id, owner_id, name, shop_name, area, phone, language, persona) values
   ('5e000000-0000-4000-8000-000000000001', '0e000000-0000-4000-8000-000000000001', 'Ramesh', 'Ramesh Kirana', 'Old Town', '+91 00000 00001', 'te', 'slow_payer'),

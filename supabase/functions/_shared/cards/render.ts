@@ -7,7 +7,7 @@ import type { BookShopkeeper } from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import type { Reply } from '../whatsapp/replies.ts';
+import { blocks, type Reply } from '../whatsapp/replies.ts';
 import { cardButtonId, pickRowId } from './ids.ts';
 import type { EntryPayload } from './schemas.ts';
 
@@ -38,19 +38,23 @@ export function entryCard(input: EntryCardInput): Reply {
   const phrases = phrasesFor(language);
   const isCredit = draft.type === 'credit';
   const after = Math.max(0, input.outstanding + (isCredit ? draft.amount : -draft.amount));
-  const lines = [
+  const text = blocks(
     isCredit ? phrases.addCreditTitle : phrases.paymentTitle,
-    shopkeeperLabel(input.shopkeeper),
-    amountLine(input),
-    ...(draft.note ? [`${phrases.note}: ${draft.note}`] : []),
-    `${phrases.balanceAfter}: ${formatInr(after)}`,
-    ...(!isCredit && draft.amount > input.outstanding
-      ? [phrases.overpaid(formatInr(input.outstanding))]
-      : []),
-  ];
+    [
+      shopkeeperLabel(input.shopkeeper),
+      amountLine(input),
+      ...(draft.note ? [`${phrases.note}: ${draft.note}`] : []),
+    ],
+    [
+      `${phrases.balanceAfter}: ${formatInr(after)}`,
+      ...(!isCredit && draft.amount > input.outstanding
+        ? [phrases.overpaid(formatInr(input.outstanding))]
+        : []),
+    ],
+  );
   return {
     kind: 'buttons',
-    text: lines.join('\n'),
+    text,
     buttons: [
       { id: cardButtonId(input.actionId, 'save'), title: phrases.save },
       { id: cardButtonId(input.actionId, 'edit'), title: phrases.edit },

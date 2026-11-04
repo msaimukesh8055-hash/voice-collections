@@ -16,7 +16,7 @@ import {
 
 const Rupees = z.coerce.number().positive();
 
-export const OWNER_COLUMNS = 'id,name,business_name,city,language';
+export const OWNER_COLUMNS = 'id,name,business_name,city,language,english_under_telugu';
 export const BOOK_SHOPKEEPER_COLUMNS = 'id,name,shop_name,area,language';
 export const ENTRY_COLUMNS =
   'id,shopkeeper_id,kind,amount,entry_date,due_date,status,payment_mode,created_at';
@@ -28,12 +28,14 @@ export const OWNER_ROW = z.object({
   business_name: z.string(),
   city: z.string(),
   language: LanguageSchema,
+  english_under_telugu: z.boolean(),
 }).transform((row): Owner => ({
   id: row.id,
   name: row.name,
   businessName: row.business_name,
   city: row.city,
   language: row.language,
+  englishUnderTelugu: row.english_under_telugu,
 }));
 
 export const BOOK_SHOPKEEPER_ROW = z.object({

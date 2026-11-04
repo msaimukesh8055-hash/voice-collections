@@ -219,5 +219,17 @@ export function createSupabaseBookRepository(query: PostgrestClient): BookReposi
     ...bookWrites(query),
     ...actionQueries(query),
     ...messageQueries(query),
+    ...countQueries(query),
+  };
+}
+
+/** Today's voice notes and voice replies, for the daily caps (M6 Decision 10). */
+function countQueries(query: PostgrestClient): Pick<BookRepository, 'countMessages'> {
+  return {
+    async countMessages({ direction, msgType, istDay, max }): Promise<number> {
+      const path = `wa_messages?select=id&direction=eq.${direction}` +
+        `&msg_type=eq.${id(msgType)}&ist_day=eq.${id(istDay)}&limit=${max}`;
+      return z.array(IdRow).parse((await query('countMessages', path)).rows).length;
+    },
   };
 }

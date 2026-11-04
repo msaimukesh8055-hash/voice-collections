@@ -34,7 +34,33 @@ export type Reply =
     readonly languageCode: string;
     readonly bodyParams: readonly string[];
     readonly text: string;
-  };
+  }
+  /** A file already uploaded to Meta (M6): a Bulbul voice reply (MP3). */
+  | { readonly kind: 'audio'; readonly mediaId: string }
+  /** A file already uploaded to Meta (M6): the insights pie chart, with a caption. */
+  | { readonly kind: 'image'; readonly mediaId: string; readonly text: string };
+
+/** Replies with a text body (everything except a voice reply). */
+export type TextualReply = Exclude<Reply, { kind: 'audio' }>;
+
+export function hasText(reply: Reply): reply is TextualReply {
+  return reply.kind !== 'audio';
+}
+
+type Block = string | readonly string[] | null;
+
+/** A message built from blocks with one blank line between them (M6 Decision 6: title, blank
+ * line, body, blank line, footer). A block is one line or several lines kept together; empty
+ * blocks are left out, so a message never has two blank lines in a row. */
+export function blocks(...parts: readonly Block[]): string {
+  return parts
+    .map(function blockText(part): string {
+      if (part === null) return '';
+      return typeof part === 'string' ? part : part.join('\n');
+    })
+    .filter((text) => text.trim() !== '')
+    .join('\n\n');
+}
 
 export function textReply(text: string): Reply {
   return { kind: 'text', text };
@@ -43,7 +69,10 @@ export function textReply(text: string): Reply {
 /** Plain text of every reply, joined (tests and the owner-number leak check use it). */
 export function replyText(replies: readonly Reply[]): string {
   return replies.map(function textOf(reply): string {
-    if (reply.kind === 'text' || reply.kind === 'template') return reply.text;
+    if (reply.kind === 'audio') return '[voice note]';
+    if (reply.kind === 'text' || reply.kind === 'template' || reply.kind === 'image') {
+      return reply.text;
+    }
     const extras = reply.kind === 'buttons'
       ? reply.buttons.map((button) => button.title)
       : reply.rows.map((row) => `${row.title} ${row.description ?? ''}`);

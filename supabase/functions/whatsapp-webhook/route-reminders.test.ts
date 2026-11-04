@@ -3,6 +3,7 @@
 // actions and nobody called; Remind → one live call for anyone (Live remind, pre-M6), a second
 // waits its turn; Remind all due → count + skips → Yes queues everyone simulated, once (a second
 // tap later, or two taps at once) → No queues nothing; score explain. Fakes only.
+import type { Hearing } from '../_shared/speech/hear.ts';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { type BotSetup, botSetup } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { parseTap, remindAllButtonId, remindButtonId } from '../_shared/cards/ids.ts';
@@ -15,6 +16,7 @@ import type { BrainLlm } from '../_shared/brain/llm.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
 const NO_LLM: BrainLlm = () => Promise.resolve({ suggestion: null, path: 'failed' });
+const NO_HEARING = (): Promise<Hearing> => Promise.resolve({ kind: 'failed' });
 
 function text(body: string): InboundMessage {
   return { id: `wamid.${body}`, from: '910000000001', kind: 'text', text: body };
@@ -25,7 +27,8 @@ function tap(buttonId: string): InboundMessage {
 }
 
 async function send(setup: BotSetup, message: InboundMessage): Promise<readonly Reply[]> {
-  return (await routeMessage(message, setup.ctx, { llm: NO_LLM, demoNow: NOW })).replies;
+  return (await routeMessage(message, setup.ctx, { llm: NO_LLM, demoNow: NOW, hear: NO_HEARING }))
+    .replies;
 }
 
 function buttonIds(replies: readonly Reply[]): string[] {
@@ -78,7 +81,11 @@ Deno.test('reminders › the alert runs the promise check first (an open promise
       },
     },
   };
-  const result = await routeMessage(text('due'), ctx, { llm: NO_LLM, demoNow: NOW });
+  const result = await routeMessage(text('due'), ctx, {
+    llm: NO_LLM,
+    demoNow: NOW,
+    hear: NO_HEARING,
+  });
   assertStringIncludes(replyText(result.replies), 'Broke a promise* (1)');
   assertEquals(changed, ['90000000-0000-4000-8000-0000000000f1:broken']);
 });
@@ -239,7 +246,7 @@ Deno.test('reminders › a remind-all card whose people vanished starts nothing'
   const offer = await send(setup, text('remind all'));
   const ctx = { ...setup.ctx, shopkeepers: [] };
   const id = buttonIds(offer)[0] ?? '';
-  const result = await routeMessage(tap(id), ctx, { llm: NO_LLM, demoNow: NOW });
+  const result = await routeMessage(tap(id), ctx, { llm: NO_LLM, demoNow: NOW, hear: NO_HEARING });
   assertStringIncludes(replyText(result.replies), 'Nobody to call');
   assertEquals(setup.reminder.store.state.calls.length, 0);
 });
@@ -268,7 +275,7 @@ Deno.test('reminders › score for an unknown name says not found', async () => 
   const result = await routeMessage(
     { id: 'w', from: '1', kind: 'text', text: 'score of Zzz' },
     { ...setup.ctx, shopkeepers: setup.ctx.shopkeepers },
-    { llm: NO_LLM, demoNow: NOW },
+    { llm: NO_LLM, demoNow: NOW, hear: NO_HEARING },
   );
   assertEquals(result.command, 'unknown');
 });

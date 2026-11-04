@@ -37,10 +37,10 @@ Deno.test('summary › promise call: outcome, promise, tone level, next step, sc
   });
   assertEquals(reply, {
     kind: 'text',
-    text: '📞 *Asha called Ramesh* (Ramesh Kirana)\n' +
+    text: '📞 *Asha called Ramesh* (Ramesh Kirana)\n\n' +
       'Promised to pay\n' +
       'Promise: ₹2,000 by Mon 9 Nov\n' +
-      'Tone: level 2 (firm)\n' +
+      'Tone: level 2 (firm)\n\n' +
       'Next: Check on Mon 9 Nov\n' +
       'Score: 46 (Risky)',
   });

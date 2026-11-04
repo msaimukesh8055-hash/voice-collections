@@ -141,3 +141,11 @@ Deno.test('commands › score explain: "why is X N?" and "X score" (M5)', () => 
   assertEquals(parse('why is Ramesh Kirana 42'), { kind: 'score', name: 'Ramesh Kirana' });
   assertEquals(parse('why is ramesh 4200')?.kind === 'score', false);
 });
+
+Deno.test('commands › "overdue" and "who is overdue?" open the due alert (M6)', () => {
+  for (
+    const text of ['overdue', 'Overdue', 'who is overdue?', "who's overdue", 'overdue list']
+  ) {
+    assertEquals(parse(text), { kind: 'due_alert' }, text);
+  }
+});

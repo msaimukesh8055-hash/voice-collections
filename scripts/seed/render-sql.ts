@@ -38,8 +38,9 @@ truncate table public.owners restart identity cascade;
 `;
 
 function ownerSql(): string {
-  return `insert into public.owners (id, name, business_name, city, language) values
-  (${text(OWNER.id)}, ${text(OWNER.name)}, ${text(OWNER.businessName)}, ${text(OWNER.city)}, ${text(OWNER.language)});
+  // english_under_telugu: the M6 demo setting, on for the demo owner (Saim).
+  return `insert into public.owners (id, name, business_name, city, language, english_under_telugu) values
+  (${text(OWNER.id)}, ${text(OWNER.name)}, ${text(OWNER.businessName)}, ${text(OWNER.city)}, ${text(OWNER.language)}, true);
 `;
 }
 

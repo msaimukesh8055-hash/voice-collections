@@ -9,6 +9,7 @@ import type {
   BookShopkeeper,
   LastPromise,
   NewShopkeeper,
+  OutboundRecord,
   Owner,
   PendingAction,
 } from './book-repository.ts';
@@ -21,6 +22,7 @@ export const FAKE_OWNER: Owner = {
   businessName: 'Sri Lakshmi Traders',
   city: 'Anantapur',
   language: 'te',
+  englishUnderTelugu: false,
 };
 
 type ShopkeeperNames = Pick<BookShopkeeper, 'name' | 'shopName'> & { readonly area?: string };
@@ -120,8 +122,10 @@ export interface FakeBookState {
     senderHash: string;
     path: string | null;
     command: string | null;
+    msgType?: string;
+    istDay?: string;
   }[];
-  outbound: readonly { waMessageId: string | null; senderHash: string; msgType: string }[];
+  outbound: readonly OutboundRecord[];
   strangerReplies: readonly string[];
   newShopkeepers: readonly NewShopkeeper[];
 }
@@ -225,7 +229,7 @@ function actionStore(state: FakeBookState): Pick<
 
 function messageStore(state: FakeBookState): Pick<
   BookRepository,
-  'recordInbound' | 'markInboundHandled' | 'recordOutbound' | 'claimStrangerReply'
+  'recordInbound' | 'markInboundHandled' | 'recordOutbound' | 'claimStrangerReply' | 'countMessages'
 > {
   return {
     recordInbound: (message) => {
@@ -237,6 +241,8 @@ function messageStore(state: FakeBookState): Pick<
         senderHash: message.senderHash,
         path: null,
         command: null,
+        msgType: message.msgType,
+        istDay: message.istDay,
       };
       state.inbound = [...state.inbound, row];
       return Promise.resolve(true);
@@ -256,6 +262,11 @@ function messageStore(state: FakeBookState): Pick<
       if (state.strangerReplies.includes(key)) return Promise.resolve(false);
       state.strangerReplies = [...state.strangerReplies, key];
       return Promise.resolve(true);
+    },
+    countMessages: ({ direction, msgType, istDay, max }) => {
+      const rows = direction === 'in' ? state.inbound : state.outbound;
+      const found = rows.filter((row) => row.msgType === msgType && row.istDay === istDay);
+      return Promise.resolve(Math.min(found.length, max));
     },
   };
 }
