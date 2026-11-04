@@ -41,7 +41,6 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.remindAllText(7),
       p.remindAllButton,
       p.ringing('Ramesh'),
-      p.simulatedStarted('Latha'),
       p.alreadyCalling('Latha'),
       ...BLOCKS.map((code) => p.blocked(code, 'Latha')),
       p.confirmAll(7),
@@ -70,12 +69,19 @@ Deno.test('reminder phrases › skips list only what happened', () => {
   }
 });
 
-Deno.test('reminder phrases › started-all mentions the live name and simulated count when set', () => {
+Deno.test('reminder phrases › started-all gives the count and the 4-at-a-time limit', () => {
   for (const language of SUPPORTED_LANGUAGES) {
-    const p = reminderPhrasesFor(language);
-    assertStringIncludes(p.startedAll(5, 'Ramesh', 4), 'Ramesh');
-    assertStringIncludes(p.startedAll(5, 'Ramesh', 4), '4');
-    assertEquals(p.startedAll(1, null, 0).includes('Ramesh'), false);
+    assertStringIncludes(reminderPhrasesFor(language).startedAll(7), '7');
+    assertStringIncludes(reminderPhrasesFor(language).startedAll(7), '4');
   }
-  assertStringIncludes(reminderPhrasesFor('en').startedAll(1, 'Ramesh', 0), 'Calling 1 person.');
+  assertStringIncludes(reminderPhrasesFor('en').startedAll(1), 'Calling 1 person with simulated');
+  assertStringIncludes(reminderPhrasesFor('en').startedAll(2), 'Calling 2 people with simulated');
+});
+
+Deno.test('reminder phrases › one-person Remind says it rings on the phone page, as that person', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const line = reminderPhrasesFor(language).ringing('Imran');
+    assertEquals(line.split('Imran').length - 1, 2, `${language}: name twice`);
+  }
+  assertStringIncludes(reminderPhrasesFor('en').ringing('Imran'), 'rings on the phone page');
 });

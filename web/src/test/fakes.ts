@@ -5,7 +5,12 @@ import type { AppApi, IncomingCall } from '../lib/appApi.ts';
 import type { CallEvents, VoiceClient } from '../lib/sarvamClient.ts';
 import { ACCEPTED_CALL, TOKEN } from './fixtures.ts';
 
-export const RINGING_CALL: IncomingCall = { callToken: TOKEN, callerName: 'Sri Lakshmi Traders' };
+export const RINGING_CALL: IncomingCall = {
+  callToken: TOKEN,
+  callerName: 'Sri Lakshmi Traders',
+  shopkeeperName: 'Ramesh',
+  shopName: 'Ramesh Kirana',
+};
 
 export interface FakeApi {
   readonly api: AppApi;

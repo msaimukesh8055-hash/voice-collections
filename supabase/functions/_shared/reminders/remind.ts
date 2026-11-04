@@ -1,11 +1,12 @@
 // supabase/functions/_shared/reminders/remind.ts
 // The owner's reminder actions on WhatsApp (SPEC §6.4, §6.5, M5 Decision 8):
 //   "who is due?" / "due"  → the due alert (promise check first), Remind per person
-//   [Remind Ramesh] / "remind Ramesh" → one call through queueCall (the M3 pre-call check); the
-//                            live shopkeeper rings the phone page, anyone else is simulated
+//   [Remind Ramesh] / "remind Ramesh" → one live call through queueCall (the M3 pre-call check):
+//                            it rings the phone page for anyone (Live remind, pre-M6), one at a
+//                            time; a second one waits as 'queued' and rings after the first
 //   [Remind all due] / "remind all"   → "Call 6 people? (1 called in the last hour)" [Yes] [No]
-//   Yes                    → the batch is queued (pre-call check per person); simulated calls
-//                            start in the worker, at most 4 at once
+//   Yes                    → the batch is queued (pre-call check per person), all simulated;
+//                            they start in the worker, at most 4 at once
 // Nobody is ever called without one of the owner's taps or messages.
 import { z } from 'zod';
 import { MAX_SIMULATED_AT_ONCE, queueReminders } from '../calls/queue.ts';
@@ -47,15 +48,11 @@ async function remindShopkeeper(
 ): Promise<readonly Reply[]> {
   const phrases = reminderPhrasesFor(language);
   const { repo, clock } = ctx.reminder;
-  const { liveShopkeeperId } = await repo.getDemoSettings();
-  const mode = shopkeeper.id === liveShopkeeperId ? 'live' : 'simulated';
-  const result = await queueCall({ repo, clock }, { shopkeeperId: shopkeeper.id, mode });
+  const result = await queueCall({ repo, clock }, { shopkeeperId: shopkeeper.id, mode: 'live' });
   if (!result.ok) return [textReply(phrases.blocked(result.code, shopkeeper.name))];
-  ctx.log('info', 'reminder_queued', { callId: result.callId, mode, again: result.alreadyQueued });
+  ctx.log('info', 'reminder_queued', { callId: result.callId, again: result.alreadyQueued });
   if (result.alreadyQueued) return [textReply(phrases.alreadyCalling(shopkeeper.name))];
-  if (mode === 'live') return [textReply(phrases.ringing(shopkeeper.name))];
-  ctx.reminder.startSimulations(1);
-  return [textReply(phrases.simulatedStarted(shopkeeper.name))];
+  return [textReply(phrases.ringing(shopkeeper.name))];
 }
 
 /** A Remind tap (by id) or "remind X" (already matched to one shopkeeper). */
@@ -131,15 +128,12 @@ export async function startRemindAll(
   const batch = await queueReminders({ repo, store, clock }, targets);
   ctx.reminder.startSimulations(Math.min(batch.simulated.length, MAX_SIMULATED_AT_ONCE));
   ctx.log('info', 'remind_all_queued', {
-    live: batch.live !== null,
     simulated: batch.simulated.length,
     blocked: batch.blocked.length,
   });
-  const live = shopkeepers.find((shopkeeper) => shopkeeper.id === batch.live?.shopkeeperId);
-  const liveName = live?.name ?? null;
-  const count = batch.simulated.length + (batch.live ? 1 : 0);
+  const count = batch.simulated.length;
   const lines = [
-    count > 0 ? phrases.startedAll(count, liveName, batch.simulated.length) : phrases.nobodyToCall,
+    count > 0 ? phrases.startedAll(count) : phrases.nobodyToCall,
     ...(batch.blocked.length > 0 ? [phrases.notCalled(batch.blocked.length)] : []),
   ];
   return [textReply(lines.join('\n'))];
