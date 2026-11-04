@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-04 · M6 — Voice notes, translation, insights · 🟡 Planned (awaiting Saim's approval)**
+Voice notes in (Saaras takes WhatsApp's OGG/Opus directly, no conversion) and out (Bulbul MP3), replies translated once ahead of time by Sarvam Translate with names and amounts filled in after, English under Telugu as a setting, spacing, insights with a pie chart, dashboard pages; 10 decisions, ~6.5 h in two halves, ≈₹80 Sarvam spend.
+Details → [`milestones/M6.md`](milestones/M6.md)
+
 **2026-11-03 · M5 — Reminder loop · ✅ Done (awaiting commit)**
 Due alert with Remind / Remind all (10 a time), simulated text calls (Asha vs a Gemini shopkeeper), Asha v3 memory + tone ladder, follow-up agent with WhatsApp summaries, promise check, reliability score, pg_cron jobs.
 634 Deno tests + gate green; smoke 6/8 (11 simulated calls all followed up); fixed a placeholder Vault secret; Meta block cleared by human verification · Details → [`milestones/M5.md`](milestones/M5.md)
