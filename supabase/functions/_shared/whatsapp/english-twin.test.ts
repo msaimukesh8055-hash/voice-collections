@@ -2,8 +2,9 @@
 // "English under Telugu" (M6 Decision 5): which messages get it, the layout, the long-message
 // split, and that Translate failing never blocks the Telugu message. Fakes only.
 import { assertEquals } from '@std/assert';
+import { entryCard } from '../cards/render.ts';
 import type { TranslateRequest } from '../speech/translate.ts';
-import { createFakeBookRepository, FAKE_OWNER } from '../db/fake-book-repository.ts';
+import { createFakeBookRepository, FAKE_OWNER, RAMESH } from '../db/fake-book-repository.ts';
 import {
   ownerTwinSettings,
   SETTINGS_TTL_MS,
@@ -69,14 +70,12 @@ Deno.test('english twin › a Telugu message gets a blank line and its English, 
   const h = harness();
   const id = await h.send({ kind: 'text', text: TELUGU });
   assertEquals(id, 'wamid.1');
+  // A block with no Telugu ("1. Ramesh · ₹8,500") is used as it is, without Translate.
   assertEquals(h.sent, [{
     kind: 'text',
-    text: `${TELUGU}\n\nEN(*పెండింగ్:* 2 మంది బాకీ ₹10,500)\n\nEN(1. Ramesh · ₹8,500)`,
+    text: `${TELUGU}\n\nEN(*పెండింగ్:* 2 మంది బాకీ ₹10,500)\n\n1. Ramesh · ₹8,500`,
   }]);
-  assertEquals(h.asked.map((r) => [r.from, r.to, r.keep]), [
-    ['te', 'en', ['Ramesh']],
-    ['te', 'en', ['Ramesh']],
-  ]);
+  assertEquals(h.asked.map((r) => [r.from, r.to, r.keep]), [['te', 'en', ['Ramesh']]]);
 });
 
 Deno.test('english twin › buttons stay Telugu; only the body gets the English', async () => {
@@ -107,9 +106,10 @@ Deno.test('english twin › setting off → Telugu only, no Translate call', asy
 });
 
 Deno.test('english twin › any block failing to translate → Telugu alone (no half English)', async () => {
+  const text = `${TELUGU} · 12 రోజులు ఆలస్యం`;
   const h = harness({ translate: (r) => (r.text.startsWith('1.') ? null : 'ok') });
-  await h.send({ kind: 'text', text: TELUGU });
-  assertEquals(h.sent, [{ kind: 'text', text: TELUGU }]);
+  await h.send({ kind: 'text', text });
+  assertEquals(h.sent, [{ kind: 'text', text }]);
 });
 
 Deno.test('english twin › settings failing to load → Telugu alone', async () => {
@@ -154,4 +154,51 @@ Deno.test('english twin › the setting comes from the owner; names include shop
   assertEquals(await ownerTwinSettings(off.book)(), { on: false, names: [] });
   const none = createFakeBookRepository({ owner: null });
   assertEquals(await ownerTwinSettings(none.book)(), { on: false, names: [] });
+});
+
+Deno.test('english twin › "🎤 Heard" line gets its fixed English, with no Translate call', async () => {
+  const h = harness();
+  const heard = '🎤 విన్నది: “Ramesh ki 5000 …”';
+  await h.send({ kind: 'text', text: heard });
+  assertEquals(h.sent, [{ kind: 'text', text: `${heard}\n\n🎤 Heard: “Ramesh ki 5000 …”` }]);
+  assertEquals(h.asked.length, 0);
+});
+
+Deno.test('english twin › the real payment card: fixed English, name block kept, zero Translate calls', async () => {
+  const h = harness();
+  const card = entryCard({
+    actionId: 'a0000000-0000-4000-8000-000000000001',
+    shopkeeper: RAMESH,
+    payload: {
+      shopkeeperId: RAMESH.id,
+      draft: { type: 'payment', amount: 5000, dueDate: null, note: null, dueDefaulted: false },
+      language: 'te',
+    },
+    outstanding: 8500,
+  });
+  assertEquals(
+    card.kind === 'buttons' ? card.text : '',
+    [
+      '*చెల్లింపు అందింది*',
+      'Ramesh (Ramesh Kirana)\n₹5,000',
+      'తర్వాత బాకీ: ₹3,500',
+    ].join('\n\n'),
+  );
+  await h.send(card);
+  const english = ['*Payment received*', 'Ramesh (Ramesh Kirana)\n₹5,000', 'Balance after: ₹3,500']
+    .join('\n\n');
+  assertEquals(h.sent.length, 1);
+  assertEquals(
+    h.sent[0]?.kind === 'buttons' ? h.sent[0].text : '',
+    `${card.kind === 'buttons' ? card.text : ''}\n\n${english}`,
+  );
+  assertEquals(h.asked.length, 0);
+});
+
+Deno.test('english twin › a label line plus free Telugu still goes to Translate, label kept', async () => {
+  const h = harness();
+  await h.send({ kind: 'text', text: '🎤 విన్నది: “రమేష్ కి 5000”\nతర్వాత బాకీ: ₹3,500' });
+  assertEquals(h.asked.length, 1);
+  assertEquals(h.asked[0]?.text, '🎤 Heard: “రమేష్ కి 5000”\nBalance after: ₹3,500');
+  assertEquals(h.asked[0]?.keep, ['Ramesh', '🎤 Heard', 'Balance after']);
 });

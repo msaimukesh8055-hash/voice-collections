@@ -6,10 +6,13 @@
 // markers. Buttons and list rows stay Telugu (WhatsApp allows 20–24 characters there). If the
 // pair is too long for one message, the English goes in a second message right after. If
 // Translate fails, the Telugu message goes out alone: the twin never blocks a reply.
+// The bot's own Telugu labels get their fixed English from phrases.ts first (fixed-english.ts);
+// a paragraph with no Telugu left is used as it is, with no Translate call.
 import { TELUGU_SCRIPT } from '../brain/language.ts';
 import type { BookRepository } from '../db/book-repository.ts';
 import type { Translator } from '../speech/translate.ts';
 import type { WhatsAppClient } from './client.ts';
+import { withFixedEnglish } from './fixed-english.ts';
 import { blocks, type Reply, textReply } from './replies.ts';
 
 /** Meta's limits: plain text 4,096 characters; the body of a message with buttons or a list
@@ -46,9 +49,12 @@ async function englishOf(
   names: readonly string[],
 ): Promise<string | null> {
   const parts = await Promise.all(
-    text.split('\n\n').map((part) =>
-      deps.translate({ text: part, from: 'te', to: 'en', keep: names })
-    ),
+    text.split('\n\n').map(function englishOfPart(part): Promise<string | null> {
+      const fixed = withFixedEnglish(part);
+      if (!TELUGU_SCRIPT.test(fixed.text)) return Promise.resolve(fixed.text);
+      const keep = [...names, ...fixed.labels];
+      return deps.translate({ text: fixed.text, from: 'te', to: 'en', keep });
+    }),
   );
   return parts.some((part) => part === null) ? null : blocks(...parts);
 }
