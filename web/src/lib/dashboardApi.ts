@@ -224,21 +224,34 @@ interface TokenSource {
   readonly current: () => Promise<string | null>;
   /** True once a localhost dev token was fetched and is in use. */
   readonly isLocal: () => boolean;
+  /**
+   * Dev only: the link token was refused (expired or forged, e.g. an old one left in this tab's
+   * storage), so stop using it and switch to the localhost token. True if `sent` was the link
+   * token and there is a localhost token to try (every read refused with the link retries once,
+   * even when several were in flight together).
+   */
+  readonly dropLink: (sent: string) => boolean;
 }
 
 /** The link token; else (dev only) one localhost token, fetched once and shared by all reads. */
 function tokenSource(token: string | null, devToken: DashboardApiOptions['devToken']): TokenSource {
   let load: Promise<string | null> | null = null;
   let local = false;
+  let linkRefused = false;
   return {
     current: async () => {
-      if (token || !devToken) return token;
+      if (!devToken || (token && !linkRefused)) return token;
       load ??= devToken();
       const fetched = await load;
       local = fetched !== null;
       return fetched;
     },
     isLocal: () => local,
+    dropLink: (sent) => {
+      if (!devToken || !token || sent !== token) return false;
+      linkRefused = true;
+      return true;
+    },
   };
 }
 
@@ -265,6 +278,8 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
       () => null,
     );
     if (!response) throw new AppApiError(NETWORK_ERROR, null);
+    // Dev only: a refused link token gets one retry with the localhost token.
+    if (response.status === 401 && tokens.dropLink(sendToken)) return request(path, schema, init);
     if (!response.ok) throw await errorOf(response);
     const parsed = schema.safeParse(await response.json().catch(() => null));
     if (!parsed.success) throw new AppApiError(UNEXPECTED_ERROR, null);

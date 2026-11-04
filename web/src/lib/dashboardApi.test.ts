@@ -146,6 +146,53 @@ describe('localhost dev token (npm run dev only)', () => {
     expect(await api.localDemo()).toBe(false);
   });
 
+  it('a refused link token (expired or left in storage) falls back to the dev token once', async () => {
+    const devToken = vi.fn(() => Promise.resolve('DEV'));
+    function linkRefused(_url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      const sent = (init?.headers as Record<string, string>)['x-dashboard-token'];
+      return Promise.resolve(
+        sent === 'DEV' ? Response.json(OVERVIEW) : new Response('{}', { status: 401 }),
+      );
+    }
+    const fetchImpl = vi.fn(linkRefused);
+    const api = createDashboardApi({ ...base, token: 'OLD', devToken, fetchImpl });
+    expect((await api.overview()).insights.percentCollected).toBe(30);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(await api.localDemo()).toBe(true);
+    await api.overview();
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(devToken).toHaveBeenCalledOnce();
+  });
+
+  it('several reads refused with the old link at once all retry with the dev token', async () => {
+    function linkRefused(_url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      const sent = (init?.headers as Record<string, string>)['x-dashboard-token'];
+      return Promise.resolve(
+        sent === 'DEV' ? Response.json(OVERVIEW) : new Response('{}', { status: 401 }),
+      );
+    }
+    const api = createDashboardApi({
+      ...base,
+      token: 'OLD',
+      devToken: () => Promise.resolve('DEV'),
+      fetchImpl: vi.fn(linkRefused),
+    });
+    const results = await Promise.all([api.overview(), api.overview(), api.overview()]);
+    expect(results.map((overview) => overview.insights.percentCollected)).toEqual([30, 30, 30]);
+  });
+
+  it('if the dev token is refused too, no endless retry: "open the link from WhatsApp"', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(new Response('{}', { status: 401 })));
+    const api = createDashboardApi({
+      ...base,
+      token: 'OLD',
+      devToken: () => Promise.resolve('DEV'),
+      fetchImpl,
+    });
+    await expect(api.overview()).rejects.toBeInstanceOf(NeedsLinkError);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it('no dev token (404 or production) still means "open the link from WhatsApp"', async () => {
     const api = createDashboardApi({
       ...base,
