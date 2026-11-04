@@ -59,6 +59,15 @@ describe('PhonePage', () => {
     expect(api.requests.filter((request) => request === 'incoming')).toHaveLength(2);
   });
 
+  it('shows who to answer as for whichever shopkeeper is called', async () => {
+    const { api } = setup();
+    api.incoming = { ...RINGING_CALL, shopkeeperName: 'Imran', shopName: 'Imran General Store' };
+    await advance(POLL_MS);
+    expect(screen.getByText(/Answer as/)).toHaveTextContent(
+      'Answer as Imran · Imran General Store',
+    );
+  });
+
   it('declines the call and goes back to waiting', async () => {
     const { api } = setup();
     await ring(api);

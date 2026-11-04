@@ -1,6 +1,7 @@
 // web/src/features/phone/PhonePage.tsx
-// /phone — the shopkeeper's phone (SPEC §7.1). Open it in a second window, press "Ring" on the
-// home page, and it rings like a real phone; Accept starts the Sarvam call with Asha.
+// /phone — the shopkeeper's phone (SPEC §7.1). Open it in a second window; a one-person Remind on
+// WhatsApp (any shopkeeper) or "Ring" on the home page makes it ring like a real phone, showing
+// who to answer as; Accept starts the Sarvam call with Asha.
 import type { AppApi } from '../../lib/appApi.ts';
 import type { VoiceClient } from '../../lib/sarvamClient.ts';
 import { CallTimer, formatDuration } from './CallTimer.tsx';
@@ -144,6 +145,8 @@ function PhoneScreen({ call }: { readonly call: PhoneCall }): React.JSX.Element 
       return (
         <RingingScreen
           callerName={screen.call.callerName}
+          shopkeeperName={screen.call.shopkeeperName}
+          shopName={screen.call.shopName}
           onAccept={handleAccept}
           onDecline={handleDecline}
         />

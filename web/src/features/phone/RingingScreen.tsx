@@ -1,13 +1,18 @@
 // web/src/features/phone/RingingScreen.tsx
-// An incoming call, like a real phone: who is calling, Accept and Decline.
+// An incoming call, like a real phone: who is calling, who you answer as (any shopkeeper can be
+// called live, Live remind pre-M6), Accept and Decline.
 interface RingingScreenProps {
   readonly callerName: string;
+  readonly shopkeeperName: string;
+  readonly shopName: string;
   readonly onAccept: () => void;
   readonly onDecline: () => void;
 }
 
 export function RingingScreen({
   callerName,
+  shopkeeperName,
+  shopName,
   onAccept,
   onDecline,
 }: RingingScreenProps): React.JSX.Element {
@@ -20,6 +25,9 @@ export function RingingScreen({
         </div>
         <h2 className="text-2xl font-semibold">{callerName}</h2>
         <p className="text-sm text-ink-muted">Ringing…</p>
+        <p className="rounded-lg bg-surface px-3 py-2 text-sm ring-1 ring-border">
+          Answer as <span className="font-semibold">{shopkeeperName}</span> · {shopName}
+        </p>
       </div>
       <div className="flex w-full justify-around">
         <button

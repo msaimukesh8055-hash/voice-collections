@@ -6,13 +6,14 @@ import { z } from 'zod';
 import { createRowInserter, type PostgrestClient, RepositoryError } from './postgrest.ts';
 import { memoryQueries } from './supabase-memory.ts';
 import type { LedgerEntry } from '../schemas/ledger.ts';
-import type {
-  CallSession,
-  DemoSettings,
-  Repository,
-  SavedClaim,
-  SavedPromise,
-  Shopkeeper,
+import {
+  type CallSession,
+  type DemoSettings,
+  OPEN_LIVE_CALLS_LIMIT,
+  type Repository,
+  type SavedClaim,
+  type SavedPromise,
+  type Shopkeeper,
 } from './repository.ts';
 import {
   CLAIM_ROW,
@@ -82,6 +83,7 @@ function callQueries(
   | 'createCall'
   | 'getCallSession'
   | 'findRingingCall'
+  | 'listOpenLiveCalls'
 > {
   return {
     async getDemoSettings(): Promise<DemoSettings> {
@@ -108,6 +110,12 @@ function callQueries(
       const path = `calls?select=${SESSION_COLUMNS}&shopkeeper_id=eq.${id(shopkeeperId)}` +
         '&status=in.(queued,ringing)&order=queued_at.desc&limit=1';
       return firstRow(SESSION_ROW, (await query('findRingingCall', path)).rows);
+    },
+    async listOpenLiveCalls(): Promise<readonly CallSession[]> {
+      const path = `calls?select=${SESSION_COLUMNS}&mode=eq.live` +
+        '&status=in.(queued,ringing,accepted,in_progress)' +
+        `&order=queued_at.desc&limit=${OPEN_LIVE_CALLS_LIMIT}`;
+      return z.array(SESSION_ROW).parse((await query('listOpenLiveCalls', path)).rows);
     },
   };
 }

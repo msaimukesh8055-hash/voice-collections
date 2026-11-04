@@ -1,8 +1,8 @@
 // supabase/functions/whatsapp-webhook/route-reminders.test.ts
 // The owner's reminder flow through the router (M5 test list): "who is due?" → alert with Remind
-// actions and nobody called; Remind → one call (live rings, others simulated); Remind all due →
-// count + skips → Yes queues once (a second tap later, or two taps at once) → No queues nothing;
-// score explain. Fakes only.
+// actions and nobody called; Remind → one live call for anyone (Live remind, pre-M6), a second
+// waits its turn; Remind all due → count + skips → Yes queues everyone simulated, once (a second
+// tap later, or two taps at once) → No queues nothing; score explain. Fakes only.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { type BotSetup, botSetup } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { parseTap, remindAllButtonId, remindButtonId } from '../_shared/cards/ids.ts';
@@ -83,22 +83,49 @@ Deno.test('reminders › the alert runs the promise check first (an open promise
   assertEquals(changed, ['90000000-0000-4000-8000-0000000000f1:broken']);
 });
 
-Deno.test('reminders › Remind on the live shopkeeper rings the phone page', async () => {
+Deno.test('reminders › Remind on the demo live shopkeeper rings the phone page', async () => {
   const setup = botSetup();
   const replies = await send(setup, tap(remindButtonId(RAMESH.id, 'en')));
-  assertStringIncludes(replyText(replies), 'Calling Ramesh now');
+  assertStringIncludes(replyText(replies), 'Calling Ramesh now. It rings on the phone page');
   assertEquals(setup.reminder.repo.state.calls.map((c) => c.mode), ['live']);
   assertEquals(setup.reminder.started, []);
 });
 
-Deno.test('reminders › Remind on anyone else starts one simulated call', async () => {
+Deno.test('reminders › Remind on anyone else is live too (typed or tapped), never simulated', async () => {
   const setup = botSetup();
   const replies = await send(setup, text('remind Latha'));
-  assertStringIncludes(replyText(replies), 'Simulated call to Latha started');
-  assertEquals(setup.reminder.repo.state.calls.map((c) => c.mode), ['simulated']);
-  assertEquals(setup.reminder.started, [1]);
+  assertStringIncludes(replyText(replies), 'Calling Latha now');
+  assertStringIncludes(replyText(replies), 'answer as Latha');
+  assertEquals(setup.reminder.repo.state.calls.map((c) => [c.shopkeeperId, c.mode]), [
+    [LATHA.id, 'live'],
+  ]);
+  assertEquals(setup.reminder.started, []);
   const again = await send(setup, tap(remindButtonId(LATHA.id, 'en')));
   assertStringIncludes(replyText(again), 'Latha is already being called');
+  assertEquals(setup.reminder.repo.state.calls.length, 1);
+});
+
+Deno.test('reminders › Remind with no live shopkeeper set still rings live', async () => {
+  const settings = {
+    demoClock: null,
+    callingHoursEnabled: false,
+    callLimitsEnabled: false,
+    liveShopkeeperId: null,
+  };
+  const setup = botSetup({ reminder: reminderSetup({ now: NOW, repo: { settings } }) });
+  await send(setup, tap(remindButtonId(LATHA.id, 'en')));
+  assertEquals(setup.reminder.repo.state.calls.map((c) => c.mode), ['live']);
+});
+
+Deno.test('reminders › a second one-person Remind is queued live behind the first', async () => {
+  const setup = botSetup();
+  await send(setup, tap(remindButtonId(RAMESH.id, 'en')));
+  const second = await send(setup, tap(remindButtonId(LATHA.id, 'en')));
+  assertStringIncludes(replyText(second), 'after any call already on it');
+  assertEquals(setup.reminder.repo.state.calls.map((c) => [c.shopkeeperId, c.mode, c.status]), [
+    [RAMESH.id, 'live', 'queued'],
+    [LATHA.id, 'live', 'queued'],
+  ]);
 });
 
 Deno.test('reminders › a blocked Remind says why and calls nobody', async () => {
@@ -141,11 +168,12 @@ Deno.test('reminders › Remind all due → count with skips → Yes queues once
   assertEquals(reminder.store.state.calls.length, 0);
   const [yes] = buttonIds(offer);
   const started = await send(setup, tap(yes ?? ''));
-  assertStringIncludes(replyText(started), "Ramesh's phone page is ringing");
+  assertStringIncludes(replyText(started), 'Calling 1 person with simulated calls');
   assertEquals(reminder.store.state.calls.map((c) => [c.shopkeeperId, c.mode]), [[
     RAMESH.id,
-    'live',
+    'simulated',
   ]]);
+  assertEquals(reminder.repo.state.calls.length, 0);
   const twice = await send(setup, tap(yes ?? ''));
   assertStringIncludes(replyText(twice), 'Already done');
   assertEquals(reminder.store.state.calls.length, 1);
@@ -163,7 +191,7 @@ Deno.test('reminders › two quick taps on Yes at once: one wins, the other says
   const texts = [replyText(first ?? []), replyText(second ?? [])];
   assertEquals(texts.filter((reply) => reply === 'Already done.').length, 1, texts.join(' | '));
   assertEquals(setup.reminder.store.state.calls.length, 2);
-  assertEquals(setup.reminder.started, [1]);
+  assertEquals(setup.reminder.started, [2]);
   assertEquals(setup.state.actions.map((action) => action.status), ['done']);
 });
 
@@ -173,8 +201,9 @@ Deno.test('reminders › Remind all with simulated people starts at most 4', asy
   assertStringIncludes(replyText(offer), 'Call 2 people?');
   const [yes] = buttonIds(offer);
   const started = await send(setup, tap(yes ?? ''));
-  assertStringIncludes(replyText(started), '1 simulated, at most 4 at a time');
-  assertEquals(setup.reminder.started, [1]);
+  assertStringIncludes(replyText(started), 'Calling 2 people with simulated calls, at most 4');
+  assertEquals(setup.reminder.store.state.calls.map((c) => c.mode), ['simulated', 'simulated']);
+  assertEquals(setup.reminder.started, [2]);
 });
 
 Deno.test('reminders › No on the card queues nothing', async () => {

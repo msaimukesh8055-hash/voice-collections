@@ -3,7 +3,12 @@ import type { IncomingCall } from '../../lib/appApi.ts';
 import { TOKEN } from '../../test/fixtures.ts';
 import { INITIAL_VIEW, type PhoneAction, phoneReducer, type PhoneView } from './phoneState.ts';
 
-const CALL: IncomingCall = { callToken: TOKEN, callerName: 'Sri Lakshmi Traders' };
+const CALL: IncomingCall = {
+  callToken: TOKEN,
+  callerName: 'Sri Lakshmi Traders',
+  shopkeeperName: 'Ramesh',
+  shopName: 'Ramesh Kirana',
+};
 
 function run(...actions: PhoneAction[]): PhoneView {
   return actions.reduce(phoneReducer, INITIAL_VIEW);

@@ -1,9 +1,10 @@
 // supabase/functions/calls-api/phone-routes.ts
-// The borrower phone page (SPEC §7.1): it asks every 2 s whether a call is ringing, then
-// accepts, declines or reports the end of the call. Each step is a compare-and-set on the call's
+// The borrower phone page (SPEC §7.1): it asks every 2 s whether a live call is ringing (for
+// any shopkeeper, one at a time), then accepts, declines or reports the end of the call. Each step is a compare-and-set on the call's
 // status, so a call can't be accepted twice or accepted after it was declined.
 import { z } from 'zod';
 import { istDayLabel, resolveNow } from '../_shared/clock.ts';
+import { lineState } from '../_shared/calls/live-line.ts';
 import { isStillRinging } from '../_shared/calls/ringing.ts';
 import type { CallPatch, CallSession } from '../_shared/db/repository.ts';
 import { isInteractionId } from '../_shared/sarvam-analytics.ts';
@@ -46,17 +47,17 @@ async function markMissed(call: CallSession, ctx: RouteContext): Promise<Respons
   return jsonResponse(NO_CALL, 200, ctx.cors);
 }
 
+/** The next live call for the phone page, for any shopkeeper (Live remind, pre-M6): one at a
+ * time, oldest first. The page shows who Saim is answering as, from the call's own row. */
 export async function getIncomingCall(_req: Request, ctx: RouteContext): Promise<Response> {
   const { repo, clock } = ctx.deps;
-  const { liveShopkeeperId } = await repo.getDemoSettings();
-  if (liveShopkeeperId === null) return jsonResponse(NO_CALL, 200, ctx.cors);
-  const [call, shopkeeper] = await Promise.all([
-    repo.findRingingCall(liveShopkeeperId),
-    repo.getShopkeeper(liveShopkeeperId),
-  ]);
-  if (!call || !shopkeeper) return jsonResponse(NO_CALL, 200, ctx.cors);
   const now = clock();
-  if (!isStillRinging(call, now)) return markMissed(call, ctx);
+  const line = lineState(await repo.listOpenLiveCalls(), now);
+  if (line.kind === 'idle' || line.kind === 'busy') return jsonResponse(NO_CALL, 200, ctx.cors);
+  if (line.kind === 'stale') return markMissed(line.call, ctx);
+  const { call } = line;
+  const shopkeeper = await repo.getShopkeeper(call.shopkeeperId);
+  if (!shopkeeper) return jsonResponse(NO_CALL, 200, ctx.cors);
   if (call.status === 'queued') {
     // The 30-second ring starts when a phone page first sees the call.
     await repo.transitionCall(call.callId, ['queued'], {
@@ -64,7 +65,12 @@ export async function getIncomingCall(_req: Request, ctx: RouteContext): Promise
       ringingAt: now.toISOString(),
     });
   }
-  const incoming = { callToken: call.callId, callerName: shopkeeper.businessName };
+  const incoming = {
+    callToken: call.callId,
+    callerName: shopkeeper.businessName,
+    shopkeeperName: shopkeeper.name,
+    shopName: shopkeeper.shopName,
+  };
   return jsonResponse({ call: incoming }, 200, ctx.cors);
 }
 

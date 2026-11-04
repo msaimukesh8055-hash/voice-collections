@@ -5,15 +5,16 @@ import type { ToneLevel } from '../calls/tone.ts';
 import type { PromiseRecord } from '../ledger/promise-check.ts';
 import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
 import type { CallStatus } from '../schemas/shopkeeper.ts';
-import type {
-  CallPatch,
-  CallSession,
-  DemoSettings,
-  NewOwnerCallback,
-  NewPromise,
-  NewToolEvent,
-  Repository,
-  Shopkeeper,
+import {
+  type CallPatch,
+  type CallSession,
+  type DemoSettings,
+  type NewOwnerCallback,
+  type NewPromise,
+  type NewToolEvent,
+  OPEN_LIVE_CALLS_LIMIT,
+  type Repository,
+  type Shopkeeper,
 } from './repository.ts';
 import type { MemoryMethods } from './supabase-memory.ts';
 
@@ -197,6 +198,7 @@ function applyPatch(call: FakeCall, patch: CallPatch): FakeCall {
 }
 
 const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
+const OPEN: readonly CallStatus[] = ['queued', 'ringing', 'accepted', 'in_progress'];
 
 function newestFirst<T extends { readonly createdAt: string }>(rows: readonly T[]): T[] {
   return [...rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -282,6 +284,13 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
         .filter((call) => call.shopkeeperId === shopkeeperId && RINGABLE.includes(call.status))
         .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt));
       return Promise.resolve(ringable[0] ? toSession(ringable[0]) : null);
+    },
+    listOpenLiveCalls: () => {
+      const open = state.calls
+        .filter((call) => call.mode === 'live' && OPEN.includes(call.status))
+        .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt))
+        .slice(0, OPEN_LIVE_CALLS_LIMIT);
+      return Promise.resolve(open.map(toSession));
     },
     transitionCall: (callId, from, patch) => {
       const call = findCall(callId);
