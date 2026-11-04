@@ -233,7 +233,7 @@ The coordinator presents H1 to Saim (Fix now / Skip / Explain / Backlog). H1 is 
 
 ## Fixes applied (2026-11-03, Saim: "fix H1, M1 and M3 now and fix all")
 
-Every review issue and every evaluator gap that could be closed without live services was worked on. The fixes are built and green locally. They are **not deployed** yet, and prompt v4 is **not pushed** to Sarvam.
+Every review issue and every evaluator gap that could be closed without live services was worked on. The fixes are built and green locally. They are **not deployed** yet. Prompt v4 was pushed to Sarvam on 2026-11-04 (see below).
 
 | Issue | Fix | Commit |
 |---|---|---|
@@ -249,7 +249,9 @@ Every review issue and every evaluator gap that could be closed without live ser
 | Gap 8: Remind-all race untested; coverage labels swapped | A test sends two Yes taps at once: only one queues calls. Also a test for a remind whose name matches nobody. The M5 coverage labels are corrected. | `2322d2f` |
 | Gap 9: [Try again] and help entries | The after-call summary for "didn't answer / declined / ended early" carries a **Try again** button (the same Remind tap, so all pre-call checks run again). Help lists `due`, `remind Ramesh`, `remind all` and `Ramesh score` in all three languages. | `2322d2f` |
 
-**Needs Saim or live services (not done here):** push prompt v4 to Sarvam (`agent:build`); deploy the functions; run `smoke:whatsapp` and `smoke:reminders`; Meta template approval; one live Telugu message; M5 smoke steps 5 and 8; M4 "Save twice". No eval scenario for an injected note yet (the `evals/` format arrives in M6).
+**Prompt v4 live on Sarvam (2026-11-04, coordinator, via the Sarvam MCP connector):** the one step-2 sentence was edited in the draft (prompt sha `695136a4…` → `c9ab99e7…`), the full live prompt was checked against `ASHA_PROMPT` (only Sarvam's usual space before `.`/`,` after a tool name differs, as in v3), and Sarvam **version 4** was committed. `sarvam-agent.json` now says `committedVersion: 4`. `npm run agent:record` (the `publishes` row) still needs `.env`.
+
+**Needs Saim or live services (not done here):** `npm run agent:record` for v4; deploy the functions; run `smoke:whatsapp` and `smoke:reminders`; Meta template approval; one live Telugu message; M5 smoke steps 5 and 8; M4 "Save twice". No eval scenario for an injected note yet (the `evals/` format arrives in M6).
 
 ## Score
 
