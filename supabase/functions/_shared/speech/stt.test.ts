@@ -35,7 +35,7 @@ function harness(
   return { transcribe, forms, urls, logs };
 }
 
-Deno.test('stt › sends the voice note as it is, with saaras:v3 codemix and auto language', async () => {
+Deno.test('stt › sends the voice note as it is, with saaras:v3 translit and auto language', async () => {
   const { transcribe, forms, urls } = harness(() =>
     Response.json({ transcript: 'Ramesh కి 5,000 credit', language_code: 'te-IN' })
   );
@@ -44,7 +44,7 @@ Deno.test('stt › sends the voice note as it is, with saaras:v3 codemix and aut
   assertEquals(urls[0], SARVAM_STT_URL);
   const form = forms[0];
   assertEquals(form?.get('model'), 'saaras:v3');
-  assertEquals(form?.get('mode'), 'codemix');
+  assertEquals(form?.get('mode'), 'translit');
   assertEquals(form?.get('language_code'), 'unknown');
   assertEquals((form?.get('file') as File).type, 'audio/ogg');
   assertEquals(form?.get('keyterms'), null);

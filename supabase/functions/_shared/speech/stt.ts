@@ -10,8 +10,12 @@ import type { Language } from '../schemas/shopkeeper.ts';
 export const SARVAM_STT_URL = 'https://api.sarvam.ai/speech-to-text';
 export const STT_TIMEOUT_MS = 15_000;
 
-/** M6 Decision 2, option (a) until the spike says otherwise. */
-export const STT_SETTINGS = { model: 'saaras:v3', mode: 'codemix' } as const;
+/**
+ * M6 Decision 2, option (b), chosen by Saim after the voice spike: translit (all English letters)
+ * got every shopkeeper name and amount right; codemix wrote names in Telugu/Hindi script and
+ * misheard "Farooq".
+ */
+export const STT_SETTINGS = { model: 'saaras:v3', mode: 'translit' } as const;
 
 export interface SttConfig {
   readonly apiKey: string;

@@ -1,8 +1,9 @@
 // supabase/functions/_shared/speech/tts.ts
 // Sarvam Bulbul text-to-speech for the bot's voice replies (M6 Decision 3, SPEC §6.7). MP3 out
 // (Bulbul's Opus output errors on v3, so a WhatsApp "voice bubble" is not possible yet; MP3 plays
-// as an audio message). Voice: Kavitha, the same voice as Asha, in all three languages. Model
-// and speaker are one setting, so the voice spike can change them. Text is never logged.
+// as an audio message). Voice: Kavitha, the same voice as Asha, chosen per language: Bulbul v4
+// has Kavitha only in Telugu, so Hindi and English stay on v3 Kavitha (Saim, voice spike). The
+// spike can override model and speaker. Text is never logged.
 import { z } from 'zod';
 import type { Logger } from '../log.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
@@ -13,8 +14,17 @@ export const TTS_TIMEOUT_MS = 15_000;
 /** Bulbul v3 takes up to 2,500 characters per request. */
 export const MAX_TTS_CHARS = 2500;
 
-/** M6 Decision 3 (voice is Saim's choice after hearing the spike samples). */
-export const TTS_SETTINGS = { model: 'bulbul:v3', speaker: 'kavitha' } as const;
+export interface VoiceSetting {
+  readonly model: string;
+  readonly speaker: string;
+}
+
+/** M6 Decision 3: one voice per reply language (Saim's choice after hearing the spike samples). */
+export const TTS_SETTINGS: Readonly<Record<Language, VoiceSetting>> = {
+  te: { model: 'bulbul:v4-flash', speaker: 'kavitha_te_conversation' },
+  hi: { model: 'bulbul:v3', speaker: 'kavitha' },
+  en: { model: 'bulbul:v3', speaker: 'kavitha' },
+};
 
 export interface TtsConfig {
   readonly apiKey: string;
@@ -52,8 +62,8 @@ export function createSpeaker(config: TtsConfig): Speaker {
         body: JSON.stringify({
           text: input,
           target_language_code: LANGUAGE_CODES[language],
-          model: config.model ?? TTS_SETTINGS.model,
-          speaker: config.speaker ?? TTS_SETTINGS.speaker,
+          model: config.model ?? TTS_SETTINGS[language].model,
+          speaker: config.speaker ?? TTS_SETTINGS[language].speaker,
           output_audio_codec: 'mp3',
         }),
         signal: AbortSignal.timeout(TTS_TIMEOUT_MS),

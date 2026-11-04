@@ -155,6 +155,62 @@ const PAID_WORDS = new Set([
   'ichaadu',
   'chellinchadu',
 ]);
+/**
+ * Words that say the money is still owed ("will pay", "has to pay", "pay cheyaali"). With a "paid"
+ * word they make the sentence a promise or a credit, not a payment, so the code does not guess and
+ * the LLM decides (M6 live smoke: "Ramesh will pay 5000 by 15th credit ichchaanu" read as paid).
+ */
+const STILL_OWED_WORDS = new Set([
+  'will',
+  'shall',
+  'should',
+  'must',
+  'owes',
+  'owe',
+  'later',
+  'cheyaali',
+  'cheyali',
+  'chestadu',
+  'chesthadu',
+  'chestundi',
+  'chesthundi',
+  'chestaru',
+  'chestharu',
+  'isthadu',
+  'istadu',
+  'isthundi',
+  'istundi',
+  'istaru',
+  'ivvaali',
+  'ivvali',
+  'kattali',
+  'kattaali',
+  'kadathadu',
+  'kadtadu',
+  'karega',
+  'karegi',
+  'karenge',
+  'karna',
+  'dena',
+  'dega',
+  'degi',
+  'denge',
+]);
+/** Words that say "credit": with a "paid" word, the sentence is mixed, so the LLM decides. */
+const CREDIT_WORDS = new Set([
+  'credit',
+  'udhaar',
+  'udhar',
+  'udaar',
+  'udhaari',
+  'appu',
+  'loan',
+  'icchanu',
+  'ichanu',
+  'ichchaanu',
+  'ichchanu',
+  'ichaanu',
+]);
 /** Hindi "X ne N diye" = X paid N; "X ko N diye" = gave X goods on credit. */
 const HINDI_GAVE = new Set(['diye', 'diya', 'de', 'di']);
 const HINDI_PAYER_MARK = 'ne';
@@ -174,6 +230,9 @@ const FILLER_WORDS = new Set([
   'give',
   'icchanu',
   'ichanu',
+  'ichchaanu',
+  'ichchanu',
+  'ichaanu',
   'add',
   'new',
   'entry',
@@ -241,6 +300,15 @@ function isPaid(all: readonly string[]): boolean {
   return all.includes(HINDI_PAYER_MARK) && all.some((word) => HINDI_GAVE.has(word));
 }
 
+function isOwedOrCreditWord(word: string): boolean {
+  return STILL_OWED_WORDS.has(word) || CREDIT_WORDS.has(word);
+}
+
+/** "Paid" next to a due date, a "will/has to" word or a credit word: not a clear payment. */
+function isUnclearPayment(all: readonly string[], hasDueDate: boolean): boolean {
+  return hasDueDate || all.some(isOwedOrCreditWord);
+}
+
 function isNameWord(word: string): boolean {
   return !PAID_WORDS.has(word) && !FILLER_WORDS.has(word);
 }
@@ -262,7 +330,10 @@ function entryOf(text: string, today: string): Command | null {
   const name = before.length > 0 ? before : after;
   if (name.length === 0 || name.length > MAX_NAME_WORDS) return null;
   const all = words(rest);
-  if (isPaid(all)) return { kind: 'mark_paid', name: titleCase(name), amount: amount.amount };
+  if (isPaid(all)) {
+    if (isUnclearPayment(all, due !== null)) return null;
+    return { kind: 'mark_paid', name: titleCase(name), amount: amount.amount };
+  }
   const note = before.length > 0 && after.length > 0 ? after.join(' ') : null;
   return {
     kind: 'add_credit',

@@ -34,7 +34,7 @@ function harness(
 
 const MP3 = btoa(String.fromCharCode(0x49, 0x44, 0x33, 4));
 
-Deno.test('tts › asks Bulbul v3 (Kavitha) for MP3 in the reply language', async () => {
+Deno.test('tts › Telugu asks Bulbul v4-flash (Kavitha, Telugu) for MP3', async () => {
   const { speak, bodies, urls } = harness(() => Response.json({ audios: [MP3] }));
   const bytes = await speak(' Ramesh owes 8,500 rupees. ', 'te');
   assertEquals(bytes, new Uint8Array([0x49, 0x44, 0x33, 4]));
@@ -42,10 +42,20 @@ Deno.test('tts › asks Bulbul v3 (Kavitha) for MP3 in the reply language', asyn
   assertEquals(bodies[0], {
     text: 'Ramesh owes 8,500 rupees.',
     target_language_code: 'te-IN',
-    model: 'bulbul:v3',
-    speaker: 'kavitha',
+    model: 'bulbul:v4-flash',
+    speaker: 'kavitha_te_conversation',
     output_audio_codec: 'mp3',
   });
+});
+
+Deno.test('tts › Hindi and English stay on Bulbul v3 Kavitha (no v4 Kavitha for them)', async () => {
+  const { speak, bodies } = harness(() => Response.json({ audios: [MP3] }));
+  await speak('Ramesh 500', 'hi');
+  await speak('Ramesh 500', 'en');
+  assertEquals(
+    bodies.map((body) => [body.target_language_code, body.model, body.speaker]),
+    [['hi-IN', 'bulbul:v3', 'kavitha'], ['en-IN', 'bulbul:v3', 'kavitha']],
+  );
 });
 
 Deno.test('tts › the spike can switch model and voice; long text is cut to 2,500', async () => {

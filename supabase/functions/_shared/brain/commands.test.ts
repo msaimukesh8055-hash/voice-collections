@@ -92,6 +92,37 @@ Deno.test('commands › mark paid in English, Hindi and Telugu (Latin letters)',
   }
 });
 
+Deno.test('commands › "pay" with a due date, "will/has to" or credit goes to the LLM (M6 smoke)', () => {
+  for (
+    const text of [
+      // The live voice note (Saaras translit) that was read as a payment.
+      'Ramesh ki 5000 15th varaku malla then um anthe Ramesh will pay 5000 by 15th credit ichchaanu thanaki.',
+      'Ramesh will pay 5000 by 15th',
+      'Ramesh will pay 5000',
+      'Latha naaku Rs. 5000 pay cheyaali',
+      'Latha 5000 November 15th lo pay chesthundi',
+      'Salim 2000 payment dena hai',
+      'Salim 2000 pay karega',
+      'Ramesh 5000 credit, payment later',
+      'Ramesh paid 2000 due 20th',
+    ]
+  ) {
+    assertEquals(parse(text), null, text);
+  }
+});
+
+Deno.test('commands › "ichchaanu" (I gave) spelt either way reads as credit, not a name', () => {
+  for (
+    const text of ['Ramesh ki 5000 ichchaanu', 'Ramesh ki 5000 ichchanu', 'Ramesh ki 5000 ichaanu']
+  ) {
+    const command = parse(text);
+    assertEquals(command?.kind === 'add_credit' ? [command.name, command.note] : null, [
+      'Ramesh',
+      null,
+    ], text);
+  }
+});
+
 Deno.test('commands › Telugu or Hindi script goes to the LLM', () => {
   assertEquals(parse('రమేష్ 2000 కట్టాడు'), null);
   assertEquals(parse('रमेश ने 2000 दिए'), null);

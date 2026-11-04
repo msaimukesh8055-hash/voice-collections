@@ -4,9 +4,9 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
-**2026-11-04 · M6 — Voice notes, translation, insights · 🔵 Built (not deployed)**
-Voice notes in (Saaras, same path as text) and out (Bulbul MP3), English under Telugu and transcript English via live Sarvam Translate (names/amounts masked), spacing, insights with a ring chart drawn in code, dashboard pages behind a signed 24-hour link; Saim changed Decision 4 (no ahead-of-time translation).
-Deno 808 + web 63 tests, gate green locally; needs db:push, 2 new secrets, deploy, voice spike and phone smoke · Details → [`milestones/M6.md`](milestones/M6.md), [ADR-0017](adr/ADR-0017-voice-notes-translate-dashboard-link.md)
+**2026-11-04 · M6 — Voice notes, translation, insights · ✅ Deployed + smoked (awaiting commit)**
+Voice notes in (Saaras v3 translit, picked by spike) and out (Bulbul: Telugu v4-flash Kavitha, Hindi/English v3 Kavitha), English under Telugu, insights ring chart, dashboard behind a signed 24-hour link. Live smoke found two bugs, both fixed: "will pay … by 15th" read as a payment (parser), and natural sentences couldn't reach due alert / insights / dashboard / score (brain prompt v2).
+Deno 817 + web 63 + root 60, gate green; smoke 7/8 pass + 1 skipped by Saim; seed re-ran on db:push; Sarvam ≈ ₹6–8 · Localhost no-link dashboard pending in cloud · Details → [`milestones/M6.md`](milestones/M6.md), [ADR-0017](adr/ADR-0017-voice-notes-translate-dashboard-link.md)
 
 **2026-11-03 · M5 — Reminder loop · ✅ Done (awaiting commit)**
 Due alert with Remind / Remind all (10 a time), simulated text calls (Asha vs a Gemini shopkeeper), Asha v3 memory + tone ladder, follow-up agent with WhatsApp summaries, promise check, reliability score, pg_cron jobs.
