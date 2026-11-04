@@ -11,7 +11,7 @@ import { formatInr, formatShortDay } from '../format.ts';
 import type { Score } from '../ledger/score.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { type Button, type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, type Button, type Reply, textReply } from '../whatsapp/replies.ts';
 import type { CallFacts, ClaimRecord } from './facts.ts';
 import { type NextStep, outcomeOf } from './rules.ts';
 import { type SummaryPhrases, summaryPhrasesFor } from './summary-phrases.ts';
@@ -40,22 +40,36 @@ function claimLine(phrases: SummaryPhrases, claim: ClaimRecord): string {
   );
 }
 
-function summaryLines(input: SummaryInput, phrases: SummaryPhrases): string[] {
+function present(lines: ReadonlyArray<string | null>): string[] {
+  return lines.filter((line): line is string => line !== null);
+}
+
+/** Three blocks (M6 spacing): who, what happened, what next. */
+function summaryText(input: SummaryInput, phrases: SummaryPhrases): string {
   const { facts, step, score } = input;
   const spoke = facts.connected && facts.identity === 'confirmed';
-  return [
-    phrases.title(facts.shopkeeperName, facts.shopName),
-    facts.mode === 'simulated' ? phrases.simulated : null,
-    phrases.outcomes[outcomeOf(facts)],
-    facts.promise
-      ? phrases.promise(formatInr(facts.promise.amount), formatShortDay(facts.promise.promiseDate))
-      : null,
-    facts.claim ? claimLine(phrases, facts.claim) : null,
-    spoke ? phrases.tone(facts.toneLevel, phrases.toneNames[facts.toneLevel]) : null,
-    `${phrases.next}: ${stepText(phrases, step, facts.shopkeeperName)}`,
-    score ? phrases.score(score.score, phrases.bands[score.band]) : null,
-    facts.transcriptMissing ? phrases.noTranscript : null,
-  ].filter((line): line is string => line !== null);
+  return blocks(
+    present([
+      phrases.title(facts.shopkeeperName, facts.shopName),
+      facts.mode === 'simulated' ? phrases.simulated : null,
+    ]),
+    present([
+      phrases.outcomes[outcomeOf(facts)],
+      facts.promise
+        ? phrases.promise(
+          formatInr(facts.promise.amount),
+          formatShortDay(facts.promise.promiseDate),
+        )
+        : null,
+      facts.claim ? claimLine(phrases, facts.claim) : null,
+      spoke ? phrases.tone(facts.toneLevel, phrases.toneNames[facts.toneLevel]) : null,
+    ]),
+    present([
+      `${phrases.next}: ${stepText(phrases, step, facts.shopkeeperName)}`,
+      score ? phrases.score(score.score, phrases.bands[score.band]) : null,
+      facts.transcriptMissing ? phrases.noTranscript : null,
+    ]),
+  );
 }
 
 function summaryButtons(input: SummaryInput): readonly Button[] {
@@ -73,7 +87,7 @@ function summaryButtons(input: SummaryInput): readonly Button[] {
 
 export function buildSummary(input: SummaryInput): Reply {
   const phrases = summaryPhrasesFor(input.language);
-  const text = summaryLines(input, phrases).join('\n');
+  const text = summaryText(input, phrases);
   const buttons = summaryButtons(input);
   return buttons.length > 0 ? { kind: 'buttons', text, buttons } : textReply(text);
 }

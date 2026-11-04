@@ -11,6 +11,8 @@ export interface Owner {
   readonly businessName: string;
   readonly city: string;
   readonly language: Language;
+  /** M6 demo setting: each Telugu bot message is followed by its English translation. */
+  readonly englishUnderTelugu: boolean;
 }
 
 export interface BookShopkeeper {
@@ -102,6 +104,15 @@ export interface OutboundRecord {
   readonly istDay: string;
 }
 
+/** "How many voice notes today?" for the daily voice caps (M6 Decision 10). */
+export interface MessageCount {
+  readonly direction: 'in' | 'out';
+  readonly msgType: string;
+  readonly istDay: string;
+  /** Counting stops here: the caller only needs to know whether the cap is reached. */
+  readonly max: number;
+}
+
 export interface BookRepository {
   /** The prototype has one owner (Srinivas). */
   getOwner(): Promise<Owner | null>;
@@ -127,4 +138,6 @@ export interface BookRepository {
   recordOutbound(message: OutboundRecord): Promise<void>;
   /** False when this sender already got today's "not registered" reply. */
   claimStrangerReply(senderHash: string, istDay: string): Promise<boolean>;
+  /** Messages of one type and direction on one India day, counted up to `max`. */
+  countMessages(count: MessageCount): Promise<number>;
 }

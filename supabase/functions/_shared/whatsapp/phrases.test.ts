@@ -80,5 +80,7 @@ Deno.test('phrases › every help example really is a command the bot understand
     'remind',
     'remind_all',
     'score',
+    'insights',
+    'dashboard',
   ]);
 });

@@ -17,7 +17,16 @@ const Amount = z.number().positive().max(MAX_AMOUNT);
 export const SuggestionSchema = z.discriminatedUnion('intent', [
   z.object({
     intent: z.literal('ledger_query'),
-    query: z.enum(['pending', 'closed', 'shopkeeper']),
+    // No remind / remind_all: they start real calls, so they stay typed-command only (Saim, 2026-11-04).
+    query: z.enum([
+      'pending',
+      'closed',
+      'shopkeeper',
+      'due_alert',
+      'insights',
+      'dashboard',
+      'score',
+    ]),
     name: Name.nullish(),
   }),
   z.object({
@@ -66,8 +75,12 @@ const TO_COMMAND: { readonly [I in Intent]: ToCommand<I> } = {
     };
   },
   ledger_query: (s) => {
-    if (s.query !== 'shopkeeper') return { kind: s.query };
-    return s.name ? { kind: 'lookup', name: titleCase(s.name) } : null;
+    // Both name queries need a name; without one the owner gets "didn't get that".
+    if (s.query === 'shopkeeper') {
+      return s.name ? { kind: 'lookup', name: titleCase(s.name) } : null;
+    }
+    if (s.query === 'score') return s.name ? { kind: 'score', name: titleCase(s.name) } : null;
+    return { kind: s.query };
   },
 };
 

@@ -11,6 +11,7 @@ const SEND_TIMEOUT_MS = 10_000;
 const LIMITS = {
   text: 4096,
   interactiveBody: 1024,
+  caption: 1024,
   buttonTitle: 20,
   rowTitle: 24,
   rowDescription: 72,
@@ -71,6 +72,11 @@ export function toMetaMessage(to: string, reply: Reply): Record<string, unknown>
   if (reply.kind === 'template') return { ...base, type: 'template', template: templateOf(reply) };
   if (reply.kind === 'text') {
     return { ...base, type: 'text', text: { body: cut(reply.text, LIMITS.text) } };
+  }
+  if (reply.kind === 'audio') return { ...base, type: 'audio', audio: { id: reply.mediaId } };
+  if (reply.kind === 'image') {
+    const image = { id: reply.mediaId, caption: cut(reply.text, LIMITS.caption) };
+    return { ...base, type: 'image', image };
   }
   const body = { text: cut(reply.text, LIMITS.interactiveBody) };
   if (reply.kind === 'buttons') {

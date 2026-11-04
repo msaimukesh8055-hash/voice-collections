@@ -24,9 +24,19 @@ import { WebhookPayloadSchema } from '../_shared/whatsapp/inbound.ts';
 import { NOT_REGISTERED } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
 import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
+import { voiceNote } from '../_shared/audio/__fixtures__/ogg-files.ts';
+import { FAKE_WEB } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
+const NO_VOICE: ProcessDeps['voice'] = {
+  speak: () => Promise.resolve(null),
+  upload: () => Promise.resolve(null),
+};
+const NO_LISTEN: ProcessDeps['listen'] = {
+  download: () => Promise.resolve({ kind: 'failed' }),
+  transcribe: () => Promise.resolve({ kind: 'failed' }),
+};
 
 interface Setup {
   readonly deps: ProcessDeps;
@@ -38,7 +48,13 @@ interface Setup {
 }
 
 function setup(
-  options: { llm?: LlmResult; book?: Partial<BookRepository>; state?: Partial<FakeBookState> } = {},
+  options: {
+    llm?: LlmResult;
+    book?: Partial<BookRepository>;
+    state?: Partial<FakeBookState>;
+    listen?: ProcessDeps['listen'];
+    voice?: ProcessDeps['voice'];
+  } = {},
 ): Setup {
   const fake = createFakeBookRepository(options.state);
   const sent: Array<{ to: string; reply: Reply }> = [];
@@ -71,6 +87,9 @@ function setup(
     newPhone: () => '+91 00000 91234',
     log,
     reminder: reminderSetup({ now: NOW }).deps,
+    listen: options.listen ?? NO_LISTEN,
+    web: FAKE_WEB,
+    voice: options.voice ?? NO_VOICE,
     wakeWorker: () => {
       wakes.push(1);
     },
@@ -175,11 +194,94 @@ Deno.test('process › claim buttons, lookup rows and unknown buttons', async ()
   ]);
 });
 
-Deno.test('process › a voice note gets "text only for now"', async () => {
+Deno.test('process › an image (or audio without a media id) gets "text or voice notes"', async () => {
   const s = setup();
-  await receive(s, { type: 'audio' });
+  await receive(s, { type: 'image' });
   assertEquals(s.state.inbound[0]?.command, 'unsupported');
-  assertEquals(s.sent.length, 1);
+  assertStringIncludes(lastText(s), 'వాయిస్ నోట్‌లు'); // owner's language (Telugu)
+});
+
+/** Meta and Saaras faked: the note is `seconds` long and Saaras "hears" `heard`. */
+function listening(
+  heard: string,
+  options: { seconds?: number; language?: 'te' | 'hi' | 'en' } = {},
+): ProcessDeps['listen'] & { saaras: number[] } {
+  const saaras: number[] = [];
+  return {
+    saaras,
+    download: () =>
+      Promise.resolve({
+        kind: 'ok',
+        bytes: voiceNote(options.seconds ?? 8),
+        mimeType: 'audio/ogg; codecs=opus',
+      }),
+    transcribe: () => {
+      saaras.push(1);
+      return Promise.resolve({ kind: 'heard', text: heard, language: options.language ?? 'en' });
+    },
+  };
+}
+
+Deno.test('process › a voice note becomes the same Save card as the typed text (M6)', async () => {
+  const listen = listening('Ramesh 5000 due 15th');
+  const s = setup({ listen });
+  const before = s.state.entries.length;
+  await receive(s, { audioId: 'MEDIA1' });
+  const text = lastText(s);
+  assert(text.startsWith('🎤 Heard: “Ramesh 5000 due 15th”\n\n*Add credit*'), text);
+  assertStringIncludes(text, '₹5,000 · due Sun 15 Nov');
+  assertEquals(s.sent[0]?.reply.kind, 'buttons');
+  assertEquals(s.state.entries.length, before);
+  assertEquals(s.state.inbound[0], {
+    waMessageId: 'wamid.TEST1',
+    senderHash: s.state.inbound[0]?.senderHash ?? '',
+    path: 'command',
+    command: 'add_credit',
+    msgType: 'voice',
+    istDay: '2026-11-02',
+  });
+});
+
+Deno.test('process › the reply follows the language Saaras heard', async () => {
+  const s = setup({ listen: listening('Ramesh 5000 due 15th', { language: 'te' }) });
+  await receive(s, { audioId: 'M' });
+  assertStringIncludes(lastText(s), '🎤 విన్నది: “Ramesh 5000 due 15th”');
+});
+
+Deno.test('process › a voice note the rules cannot read goes to the LLM like text', async () => {
+  const s = setup({
+    listen: listening('రమేష్ రెండు వేలు ఇచ్చాడు', { language: 'te' }),
+    llm: { suggestion: { intent: 'mark_paid', name: 'Ramesh', amount: 2000 }, path: 'sarvam' },
+  });
+  await receive(s, { audioId: 'M' });
+  assertEquals(s.llmCalls, ['రమేష్ రెండు వేలు ఇచ్చాడు']);
+  assertEquals(s.state.inbound[0]?.path, 'sarvam');
+  assertStringIncludes(lastText(s), '₹2,000');
+});
+
+Deno.test('process › a 40-second voice note is refused before Saaras is paid', async () => {
+  const listen = listening('x', { seconds: 40 });
+  const s = setup({ listen });
+  await receive(s, { audioId: 'M' });
+  assertEquals(listen.saaras.length, 0);
+  assertStringIncludes(lastText(s), '30 సెకన్ల');
+  assertEquals(s.state.inbound[0]?.command, 'voice_too_long');
+});
+
+Deno.test('process › past 50 voice notes today, the 51st is not downloaded', async () => {
+  const listen = listening('pending');
+  const earlier = Array.from({ length: 50 }, (_, i) => ({
+    waMessageId: `wamid.V${i}`,
+    senderHash: 'h',
+    path: 'command',
+    command: 'pending',
+    msgType: 'voice',
+    istDay: '2026-11-02',
+  }));
+  const s = setup({ listen, state: { inbound: earlier } });
+  await receive(s, { audioId: 'M' });
+  assertEquals(listen.saaras.length, 0);
+  assertStringIncludes(lastText(s), 'ఆపబడ్డాయి');
 });
 
 Deno.test('process › a failure while answering sends "something went wrong" and logs it', async () => {
@@ -287,4 +389,81 @@ Deno.test('process › each new owner message wakes the worker once (pg_cron fal
   await receive(s, { text: 'hi', id: 'wamid.W1' });
   await receive(s, { from: FAKE_STRANGER_NUMBER, text: 'hi', id: 'wamid.W2' });
   assertEquals(s.wakes.length, 1);
+});
+
+/** Bulbul and the Meta upload faked; records what was spoken. */
+function speaking(
+  options: { mp3?: boolean; uploadId?: string | null } = {},
+): { voice: ProcessDeps['voice']; spoken: Array<{ text: string; language: string }> } {
+  const spoken: Array<{ text: string; language: string }> = [];
+  const voice: ProcessDeps['voice'] = {
+    speak: (text, language) => {
+      spoken.push({ text, language });
+      return Promise.resolve(options.mp3 === false ? null : new Uint8Array([0x49, 0x44, 0x33]));
+    },
+    upload: () => Promise.resolve(options.uploadId === undefined ? 'MP3ID' : options.uploadId),
+  };
+  return { voice, spoken };
+}
+
+Deno.test('process › a heard voice note gets the text first, then a voice reply (M6)', async () => {
+  const { voice, spoken } = speaking();
+  const s = setup({ listen: listening('pending', { language: 'en' }), voice });
+  await receive(s, { audioId: 'M' });
+  assertEquals(s.sent.map((item) => item.reply.kind), ['text', 'audio']);
+  assertEquals(s.sent[1]?.reply, { kind: 'audio', mediaId: 'MP3ID' });
+  assertEquals(spoken[0]?.language, 'en');
+  assert(!spoken[0]?.text.includes('Heard'), spoken[0]?.text);
+  assertStringIncludes(spoken[0]?.text ?? '', 'rupees');
+  assertEquals(s.state.outbound.map((row) => row.msgType), ['text', 'audio']);
+});
+
+Deno.test('process › typed text never gets a voice reply', async () => {
+  const { voice, spoken } = speaking();
+  const s = setup({ voice });
+  await receive(s, { text: 'pending' });
+  assertEquals(spoken.length, 0);
+  assertEquals(s.sent.length, 1);
+});
+
+Deno.test('process › Bulbul or the upload failing leaves just the text', async () => {
+  for (const options of [{ mp3: false }, { uploadId: null }]) {
+    const { voice } = speaking(options);
+    const s = setup({ listen: listening('pending'), voice });
+    await receive(s, { audioId: 'M' });
+    assertEquals(s.sent.map((item) => item.reply.kind), ['text']);
+  }
+});
+
+Deno.test('process › a voice-reply error is logged, never thrown', async () => {
+  const voice: ProcessDeps['voice'] = {
+    speak: () => Promise.reject(new Error('boom')),
+    upload: () => Promise.resolve('x'),
+  };
+  const s = setup({ listen: listening('pending'), voice });
+  await receive(s, { audioId: 'M' });
+  assertEquals(s.logs.some((log) => log.event === 'voice_reply_failed'), true);
+  assertEquals(s.state.inbound[0]?.command, 'pending');
+});
+
+Deno.test('process › after 50 voice replies today, text only', async () => {
+  const { voice, spoken } = speaking();
+  const earlier = Array.from({ length: 50 }, (_, i) => ({
+    waMessageId: `wamid.A${i}`,
+    senderHash: 'h',
+    msgType: 'audio',
+    istDay: '2026-11-02',
+  }));
+  const s = setup({ listen: listening('pending'), voice, state: { outbound: earlier } });
+  await receive(s, { audioId: 'M' });
+  assertEquals(spoken.length, 0);
+  assertEquals(s.logs.some((log) => log.event === 'voice_reply_cap'), true);
+});
+
+Deno.test('process › a very long transcript is shortened on the Heard line', async () => {
+  const s = setup({ listen: listening(`pending ${'and more '.repeat(60)}`) });
+  await receive(s, { audioId: 'M' });
+  const heard = lastText(s).split('\n\n')[0] ?? '';
+  assertEquals(heard.endsWith('…”'), true);
+  assertEquals(heard.length < 330, true);
 });

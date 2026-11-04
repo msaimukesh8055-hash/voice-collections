@@ -1,5 +1,6 @@
 // supabase/functions/_shared/brain/commands.ts
-// Fixed commands, parsed in code before any LLM (ADR-0014): help, pending, closed, a shopkeeper
+// Fixed commands, parsed in code before any LLM (ADR-0014): help, pending, closed, insights,
+// dashboard, a shopkeeper
 // name, "X paid N" and "X N due D", in English and in Latin-letter Hindi and Telugu. Names,
 // amounts and dates are cut out of the text itself; nothing is guessed. Anything else returns
 // null and goes to the LLM.
@@ -25,7 +26,10 @@ export type Command =
   | { readonly kind: 'due_alert' }
   | { readonly kind: 'remind'; readonly name: string }
   | { readonly kind: 'remind_all' }
-  | { readonly kind: 'score'; readonly name: string };
+  | { readonly kind: 'score'; readonly name: string }
+  // M6: insights (pie chart, % collected, top 5) and the web dashboard link.
+  | { readonly kind: 'insights' }
+  | { readonly kind: 'dashboard' };
 
 export type CommandKind = Command['kind'];
 
@@ -65,7 +69,24 @@ const PENDING = new Set([
   'pending dues',
 ]);
 const CLOSED = new Set(['closed', 'paid off', 'cleared', 'settled', 'closed list', 'chukta']);
-/** "who is due?" and the template's "Reply DUE" (M5 Decision 7). "dues" stays "pending". */
+/** "who is due?" / "who is overdue?" and the template's "Reply DUE" (M5 Decision 7). "dues"
+ * stays "pending". */
+/** "insights" / "report" (SPEC §6.6); also in Telugu and Hindi script, like the greetings. */
+const INSIGHTS = new Set([
+  'insights',
+  'insight',
+  'report',
+  'reports',
+  'monthly report',
+  'collection report',
+  'stats',
+  'summary',
+  'report dikhao',
+  'report chupinchu',
+  'రిపోర్ట్',
+  'रिपोर्ट',
+]);
+const DASHBOARD = new Set(['dashboard', 'dashboard link', 'open dashboard', 'web', 'website']);
 const DUE_ALERT = new Set([
   'due',
   'due today',
@@ -80,6 +101,15 @@ const DUE_ALERT = new Set([
   'eevala due',
   'ivala due',
   'evaru due',
+  // M6: "overdue" asks for the same alert (it lists overdue people too).
+  'overdue',
+  'overdue list',
+  'who is overdue',
+  'whos overdue',
+  "who's overdue",
+  'who’s overdue',
+  'who all are overdue',
+  'show overdue',
 ]);
 const REMIND_ALL = new Set([
   'remind all',
@@ -125,6 +155,62 @@ const PAID_WORDS = new Set([
   'ichaadu',
   'chellinchadu',
 ]);
+/**
+ * Words that say the money is still owed ("will pay", "has to pay", "pay cheyaali"). With a "paid"
+ * word they make the sentence a promise or a credit, not a payment, so the code does not guess and
+ * the LLM decides (M6 live smoke: "Ramesh will pay 5000 by 15th credit ichchaanu" read as paid).
+ */
+const STILL_OWED_WORDS = new Set([
+  'will',
+  'shall',
+  'should',
+  'must',
+  'owes',
+  'owe',
+  'later',
+  'cheyaali',
+  'cheyali',
+  'chestadu',
+  'chesthadu',
+  'chestundi',
+  'chesthundi',
+  'chestaru',
+  'chestharu',
+  'isthadu',
+  'istadu',
+  'isthundi',
+  'istundi',
+  'istaru',
+  'ivvaali',
+  'ivvali',
+  'kattali',
+  'kattaali',
+  'kadathadu',
+  'kadtadu',
+  'karega',
+  'karegi',
+  'karenge',
+  'karna',
+  'dena',
+  'dega',
+  'degi',
+  'denge',
+]);
+/** Words that say "credit": with a "paid" word, the sentence is mixed, so the LLM decides. */
+const CREDIT_WORDS = new Set([
+  'credit',
+  'udhaar',
+  'udhar',
+  'udaar',
+  'udhaari',
+  'appu',
+  'loan',
+  'icchanu',
+  'ichanu',
+  'ichchaanu',
+  'ichchanu',
+  'ichaanu',
+]);
 /** Hindi "X ne N diye" = X paid N; "X ko N diye" = gave X goods on credit. */
 const HINDI_GAVE = new Set(['diye', 'diya', 'de', 'di']);
 const HINDI_PAYER_MARK = 'ne';
@@ -144,6 +230,9 @@ const FILLER_WORDS = new Set([
   'give',
   'icchanu',
   'ichanu',
+  'ichchaanu',
+  'ichchanu',
+  'ichaanu',
   'add',
   'new',
   'entry',
@@ -211,6 +300,15 @@ function isPaid(all: readonly string[]): boolean {
   return all.includes(HINDI_PAYER_MARK) && all.some((word) => HINDI_GAVE.has(word));
 }
 
+function isOwedOrCreditWord(word: string): boolean {
+  return STILL_OWED_WORDS.has(word) || CREDIT_WORDS.has(word);
+}
+
+/** "Paid" next to a due date, a "will/has to" word or a credit word: not a clear payment. */
+function isUnclearPayment(all: readonly string[], hasDueDate: boolean): boolean {
+  return hasDueDate || all.some(isOwedOrCreditWord);
+}
+
 function isNameWord(word: string): boolean {
   return !PAID_WORDS.has(word) && !FILLER_WORDS.has(word);
 }
@@ -232,7 +330,10 @@ function entryOf(text: string, today: string): Command | null {
   const name = before.length > 0 ? before : after;
   if (name.length === 0 || name.length > MAX_NAME_WORDS) return null;
   const all = words(rest);
-  if (isPaid(all)) return { kind: 'mark_paid', name: titleCase(name), amount: amount.amount };
+  if (isPaid(all)) {
+    if (isUnclearPayment(all, due !== null)) return null;
+    return { kind: 'mark_paid', name: titleCase(name), amount: amount.amount };
+  }
   const note = before.length > 0 && after.length > 0 ? after.join(' ') : null;
   return {
     kind: 'add_credit',
@@ -272,6 +373,8 @@ function scoreOf(text: string): Command | null {
 export function parseCommand(text: string, today: string): Command | null {
   const clean = normalise(text);
   if (HELP.has(clean)) return { kind: 'help' };
+  if (INSIGHTS.has(clean)) return { kind: 'insights' };
+  if (DASHBOARD.has(clean)) return { kind: 'dashboard' };
   if (hasIndicScript(clean)) return null;
   if (PENDING.has(clean)) return { kind: 'pending' };
   if (CLOSED.has(clean)) return { kind: 'closed' };

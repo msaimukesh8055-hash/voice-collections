@@ -19,7 +19,7 @@ import type { DueAlert } from '../ledger/due-alert.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { LanguageSchema } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, type Reply, textReply } from '../whatsapp/replies.ts';
 import { dueAlertReplies } from './alert-replies.ts';
 import { loadDueAlert } from './load-alert.ts';
 import { reminderPhrasesFor } from './phrases.ts';
@@ -90,7 +90,7 @@ export async function offerRemindAll(ctx: BotContext, language: Language): Promi
     doNotCall: plan.skippedDoNotCall,
     notIncluded: plan.notIncluded,
   });
-  if (plan.toCall.length === 0) return [textReply([phrases.nobodyToCall, ...skipped].join('\n'))];
+  if (plan.toCall.length === 0) return [textReply(blocks(phrases.nobodyToCall, skipped))];
   const payload: RemindAllPayload = { shopkeeperIds: [...plan.toCall], language };
   const actionId = await ctx.book.createPendingAction({
     ownerId: ctx.owner.id,
@@ -101,7 +101,7 @@ export async function offerRemindAll(ctx: BotContext, language: Language): Promi
   const common = phrasesFor(language);
   return [{
     kind: 'buttons',
-    text: [phrases.confirmAll(plan.toCall.length), ...skipped].join('\n'),
+    text: blocks(phrases.confirmAll(plan.toCall.length), skipped),
     buttons: [
       { id: cardButtonId(actionId, 'yes'), title: common.yes },
       { id: cardButtonId(actionId, 'no'), title: common.no },
@@ -132,9 +132,9 @@ export async function startRemindAll(
     blocked: batch.blocked.length,
   });
   const count = batch.simulated.length;
-  const lines = [
+  const text = blocks(
     count > 0 ? phrases.startedAll(count) : phrases.nobodyToCall,
-    ...(batch.blocked.length > 0 ? [phrases.notCalled(batch.blocked.length)] : []),
-  ];
-  return [textReply(lines.join('\n'))];
+    batch.blocked.length > 0 ? phrases.notCalled(batch.blocked.length) : null,
+  );
+  return [textReply(text)];
 }

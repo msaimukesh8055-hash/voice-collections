@@ -8,23 +8,42 @@ import type { BookEntry, BookShopkeeper } from '../db/book-repository.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { applyPromiseChanges, checkPromises } from '../ledger/promise-check.ts';
 import { computeScore, type Score } from '../ledger/score.ts';
-import type { Language } from '../schemas/shopkeeper.ts';
-import { type Reply, textReply } from '../whatsapp/replies.ts';
+import type { CallStatus, Language } from '../schemas/shopkeeper.ts';
+import type { Repository } from '../db/repository.ts';
+import { blocks, type Reply, textReply } from '../whatsapp/replies.ts';
 import { reminderPhrasesFor } from './phrases.ts';
 
 /** The score from a shopkeeper's entries (already read), his promises (judged in memory first)
  * and his call results. Used by "X score", "pending" and the lookup, so all three agree. */
-export async function scoreWithEntries(
+export function scoreWithEntries(
   shopkeeperId: string,
   entries: readonly BookEntry[],
   ctx: BotContext,
 ): Promise<Score> {
+  const reads = {
+    listPromises: ctx.reminder.repo.listPromises,
+    listCallStatuses: ctx.reminder.listCallStatuses,
+  };
+  return scoreFrom(reads, { shopkeeperId, entries, today: ctx.today });
+}
+
+/** What a score needs to read besides the entries (the dashboard passes its own, M6). */
+export interface ScoreReads {
+  readonly listPromises: Repository['listPromises'];
+  readonly listCallStatuses: (shopkeeperId: string) => Promise<readonly CallStatus[]>;
+}
+
+export async function scoreFrom(
+  reads: ScoreReads,
+  input: { shopkeeperId: string; entries: readonly BookEntry[]; today: string },
+): Promise<Score> {
+  const { shopkeeperId, entries, today } = input;
   const [stored, callStatuses] = await Promise.all([
-    ctx.reminder.repo.listPromises(shopkeeperId),
-    ctx.reminder.listCallStatuses(shopkeeperId),
+    reads.listPromises(shopkeeperId),
+    reads.listCallStatuses(shopkeeperId),
   ]);
-  const promises = applyPromiseChanges(stored, checkPromises(stored, entries, ctx.today));
-  return computeScore({ entries, promises, callStatuses, today: ctx.today });
+  const promises = applyPromiseChanges(stored, checkPromises(stored, entries, today));
+  return computeScore({ entries, promises, callStatuses, today });
 }
 
 export async function scoreOf(shopkeeper: BookShopkeeper, ctx: BotContext): Promise<Score> {
@@ -56,8 +75,7 @@ export function explainScore(name: string, score: Score, language: Language): st
   const phrases = reminderPhrasesFor(language);
   const { parts, facts } = score;
   const promisesJudged = facts.promisesKept + facts.promisesBroken;
-  const lines = [
-    phrases.scoreTitle(name, score.score, summaryPhrasesFor(language).bands[score.band]),
+  const partLines = [
     countsOr(
       phrases.paidOnTime(parts.paidOnTime, facts.creditsOnTime, facts.creditsJudged),
       facts.creditsJudged,
@@ -75,7 +93,12 @@ export function explainScore(name: string, score: Score, language: Language): st
       language,
     ),
   ];
-  return score.band === 'new' ? [...lines, phrases.newBand].join('\n') : lines.join('\n');
+  const title = phrases.scoreTitle(
+    name,
+    score.score,
+    summaryPhrasesFor(language).bands[score.band],
+  );
+  return blocks(title, partLines, score.band === 'new' ? phrases.newBand : null);
 }
 
 export async function scoreReplies(

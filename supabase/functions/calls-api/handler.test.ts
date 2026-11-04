@@ -12,6 +12,7 @@ import {
 import type { Logger } from '../_shared/log.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { handleCallsApi } from './handler.ts';
+import { dashboardSetup } from './__fixtures__/dashboard.ts';
 import type { SarvamSettings } from './sarvam-proxy.ts';
 import type { CallsApiDeps } from './types.ts';
 
@@ -39,6 +40,7 @@ function setup(overrides: Partial<FakeState> = {}, sarvam: Partial<SarvamSetting
     sarvam: { ...SARVAM, ...sarvam },
     fetchImpl,
     kickFollowup: (callId) => kicked.push(callId),
+    dashboard: dashboardSetup().dashboard,
   };
   return { deps, state, kicked };
 }

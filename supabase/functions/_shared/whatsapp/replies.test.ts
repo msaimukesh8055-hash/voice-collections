@@ -1,6 +1,6 @@
 // supabase/functions/_shared/whatsapp/replies.test.ts
 import { assertEquals } from '@std/assert';
-import { replyText, textReply } from './replies.ts';
+import { blocks, replyText, textReply } from './replies.ts';
 
 Deno.test('replies › replyText joins texts, button titles and list rows', () => {
   const text = replyText([
@@ -21,4 +21,23 @@ Deno.test('replies › replyText shows a template by its text (M5)', () => {
     { kind: 'template', name: 'daily_due_alert', languageCode: 'en', bodyParams: ['3'], text: 'T' },
   ]);
   assertEquals(text, 'T');
+});
+
+Deno.test('replies › blocks puts one blank line between blocks (M6 spacing)', () => {
+  assertEquals(
+    blocks('*Title*', ['row 1', 'row 2'], 'Footer'),
+    '*Title*\n\nrow 1\nrow 2\n\nFooter',
+  );
+});
+
+Deno.test('replies › blocks leaves out empty blocks, so never two blank lines in a row', () => {
+  assertEquals(blocks('A', null, [], '', ['  '], 'B'), 'A\n\nB');
+});
+
+Deno.test('replies › replyText shows a voice reply as a marker and an image by its caption', () => {
+  const text = replyText([
+    { kind: 'audio', mediaId: 'a' },
+    { kind: 'image', mediaId: 'i', text: 'Pie' },
+  ]);
+  assertEquals(text, '[voice note]\n---\nPie');
 });

@@ -69,6 +69,7 @@ Deno.test('book repo › owner and shopkeepers are read and mapped', async () =>
     business_name: 'Sri Lakshmi Traders',
     city: 'Anantapur',
     language: 'te',
+    english_under_telugu: true,
   };
   const shopkeeper = {
     id: SHOPKEEPER_ID,
@@ -78,7 +79,8 @@ Deno.test('book repo › owner and shopkeepers are read and mapped', async () =>
     language: 'te',
   };
   const { repo, requests } = setup({ body: [owner] }, { body: [shopkeeper] });
-  assertEquals((await repo.getOwner())?.businessName, 'Sri Lakshmi Traders');
+  const read = await repo.getOwner();
+  assertEquals([read?.businessName, read?.englishUnderTelugu], ['Sri Lakshmi Traders', true]);
   assertEquals((await repo.listShopkeepers(OWNER_ID))[0]?.shopName, 'Ramesh Kirana');
   assertStringIncludes(requests[0]?.url ?? '', '/rest/v1/owners?select=');
   assertStringIncludes(requests[1]?.url ?? '', `owner_id=eq.${OWNER_ID}`);
@@ -237,4 +239,22 @@ Deno.test('book repo › handled marks, outbound rows and the stranger reply rul
   assertStringIncludes(requests[0]?.url ?? '', 'wa_message_id=eq.wamid.1&direction=eq.in');
   assertEquals(requests[0]?.body, { path: 'command', command: 'pending' });
   assert(requests[2]?.body?.['path'] === 'stranger' && requests[2]?.body?.['direction'] === 'out');
+});
+
+Deno.test("book repo › counts today's voice notes, up to the cap (M6)", async () => {
+  const { repo, requests } = setup({
+    status: 200,
+    body: [{ id: ACTION_ID }, { id: SHOPKEEPER_ID }],
+  });
+  const count = await repo.countMessages({
+    direction: 'in',
+    msgType: 'voice',
+    istDay: '2026-11-04',
+    max: 50,
+  });
+  assertEquals(count, 2);
+  assertStringIncludes(
+    requests[0]?.url ?? '',
+    'wa_messages?select=id&direction=eq.in&msg_type=eq.voice&ist_day=eq.2026-11-04&limit=50',
+  );
 });

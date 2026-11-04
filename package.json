@@ -28,6 +28,7 @@
     "seed:generate": "node scripts/seed/write-seed.ts",
     "smoke:tools": "node --env-file=.env scripts/smoke-tools.ts",
     "smoke:whatsapp": "node --env-file=.env scripts/smoke-whatsapp.ts",
+    "spike:voice": "node --env-file=.env scripts/spike-voice.ts",
     "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts"
   },
   "devDependencies": {

@@ -20,10 +20,21 @@ Deno.test('inbound › a button tap and a list pick give the tapped id', () => {
   assertEquals(row?.kind === 'tap' ? row.buttonId : '', 'c:abc:p1');
 });
 
-Deno.test('inbound › voice notes, images and empty texts are "other"', () => {
+Deno.test('inbound › a voice note gives its media id (M6)', () => {
+  const [voice] = parse(metaPayload({ audioId: 'MEDIA1' }));
+  assertEquals(voice, {
+    id: 'wamid.TEST1',
+    from: '910000099999',
+    kind: 'voice',
+    mediaId: 'MEDIA1',
+  });
+});
+
+Deno.test('inbound › images, audio without a media id and empty texts are "other"', () => {
+  const [image] = parse(metaPayload({ type: 'image' }));
   const [audio] = parse(metaPayload({ type: 'audio' }));
   const [blank] = parse(metaPayload({ text: '   ' }));
-  assertEquals([audio?.kind, blank?.kind], ['other', 'other']);
+  assertEquals([image?.kind, audio?.kind, blank?.kind], ['other', 'other', 'other']);
 });
 
 Deno.test('inbound › very long texts are cut', () => {

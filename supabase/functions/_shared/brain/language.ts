@@ -3,8 +3,8 @@
 // first (Telugu or Devanagari letters); Latin-letter Telugu and Hindi are spotted by common words.
 import type { Language } from '../schemas/shopkeeper.ts';
 
-const TELUGU_SCRIPT = /[ఀ-౿]/;
-const DEVANAGARI_SCRIPT = /[ऀ-ॿ]/;
+export const TELUGU_SCRIPT = /[ఀ-౿]/;
+export const DEVANAGARI_SCRIPT = /[ऀ-ॿ]/;
 
 /** Words that only appear in Latin-letter Telugu / Hindi owner messages (kept disjoint). */
 export const TELUGU_WORDS: ReadonlySet<string> = new Set([

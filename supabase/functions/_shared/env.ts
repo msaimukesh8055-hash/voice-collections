@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 const MIN_TOOL_SECRET_LENGTH = 32;
 const MIN_WORKER_SECRET_LENGTH = 32;
+/** Dashboard link secret: random, 32+ characters (M6). */
+const MIN_DASHBOARD_SECRET_LENGTH = 32;
 /** Country code + subscriber number; anything shorter is a typo in the secret. */
 const MIN_PHONE_DIGITS = 10;
 
@@ -17,6 +19,13 @@ const ToolsEnvSchema = ServerEnvSchema.extend({
   /** Bearer secret Sarvam sends on every tool call (stored in Sarvam's Secrets vault). */
   SARVAM_TOOL_SECRET: z.string().trim().min(MIN_TOOL_SECRET_LENGTH),
 });
+
+/** Optional: blank means "not set up", and the bot says so instead of sending a link. */
+const OptionalText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value ? value : null));
 
 const CallsApiEnvSchema = ServerEnvSchema.extend({
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
@@ -37,6 +46,10 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .transform((value) => (value ? value : null)),
   /** Bearer secret for followup-worker: calls-api sends it when a call ends (M5). */
   WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
+  /** Signs and checks the dashboard's 24-hour links (M6 Decision 9). */
+  DASHBOARD_LINK_SECRET: z.string().trim().min(MIN_DASHBOARD_SECRET_LENGTH),
+  /** Sarvam core key: the dashboard's transcript English (M6). Blank → no translation. */
+  SARVAM_API_KEY: OptionalText,
 });
 
 /** WhatsApp Business numbers arrive from Meta as digits only, with the country code. */
@@ -63,10 +76,19 @@ const WhatsAppEnvSchema = ServerEnvSchema.extend({
   GEMINI_API_KEY: NonEmpty,
   /** Bearer secret for followup-worker: Remind starts simulated calls there (M5 5b). */
   WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
+  /** The dashboard link (M6): where the web app runs, and the secret that signs the link. Both
+   * optional: without them "insights" and "dashboard" just leave the link out. */
+  DASHBOARD_URL: OptionalText.pipe(z.url().nullable()),
+  DASHBOARD_LINK_SECRET: OptionalText.pipe(
+    z.string().min(MIN_DASHBOARD_SECRET_LENGTH).nullable(),
+  ),
 });
 
 /** followup-worker (M5): Sarvam transcripts + LLM, the owner's WhatsApp summary, its own secret. */
-const WorkerEnvSchema = CallsApiEnvSchema.omit({ CORS_ALLOWED_ORIGINS: true }).extend({
+const WorkerEnvSchema = CallsApiEnvSchema.omit({
+  CORS_ALLOWED_ORIGINS: true,
+  DASHBOARD_LINK_SECRET: true,
+}).extend({
   META_ACCESS_TOKEN: NonEmpty,
   META_PHONE_NUMBER_ID: MetaPhoneNumberId,
   /** Keys the stored hash of the owner's number (same as the webhook). */

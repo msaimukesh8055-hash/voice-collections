@@ -7,12 +7,17 @@
 // never the text. Errors go through describeFailure: database operation + code, or the error's
 // name only, never its message (CP2 L1).
 import type { BrainLlm } from '../_shared/brain/llm.ts';
-import type { BotContext } from '../_shared/cards/context.ts';
+import type { BotContext, WebDeps } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ReminderDeps } from '../_shared/reminders/deps.ts';
+import { DAILY_VOICE_CAP, hear, type HearDeps } from '../_shared/speech/hear.ts';
+import type { Speaker } from '../_shared/speech/tts.ts';
+import type { Upload } from '../_shared/whatsapp/media.ts';
+import { spokenText } from '../_shared/whatsapp/spoken.ts';
+import type { Language } from '../_shared/schemas/shopkeeper.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
 import type { WhatsAppClient } from '../_shared/whatsapp/client.ts';
 import {
@@ -37,6 +42,15 @@ export interface ProcessDeps {
   readonly log: Logger;
   /** Due alert, reminders and simulated calls (M5 5b). */
   readonly reminder: ReminderDeps;
+  /** Voice notes (M6): Meta download and Saaras; the daily count is added per delivery. */
+  readonly listen: Pick<HearDeps, 'download' | 'transcribe'>;
+  /** Insights chart upload and the dashboard link (M6). */
+  readonly web: WebDeps;
+  /** Voice replies (M6): Bulbul, then upload to Meta. */
+  readonly voice: {
+    readonly speak: Speaker;
+    readonly upload: (file: Upload) => Promise<string | null>;
+  };
   /** Asks the worker to sweep (follow-ups, queued simulated calls): the fallback if pg_cron is
    * not running (M5 risk table). Fire and forget. */
   readonly wakeWorker: () => void;
@@ -66,6 +80,38 @@ async function sendAll(
   }
 }
 
+/** Voice replies sent per India day (M6 Decision 10). */
+export const DAILY_VOICE_REPLY_CAP = 50;
+
+/** After a heard voice note, the same answer as a short voice note. Best effort: the text has
+ * already gone, so any failure here is logged and nothing else happens. */
+async function sendVoiceReply(
+  delivery: Delivery,
+  outcome: Outcome & { speakIn: Language },
+  deps: ProcessDeps,
+): Promise<void> {
+  const language = outcome.speakIn;
+  const sentToday = await deps.book.countMessages({
+    direction: 'out',
+    msgType: 'audio',
+    istDay: delivery.istDay,
+    max: DAILY_VOICE_REPLY_CAP,
+  });
+  if (sentToday >= DAILY_VOICE_REPLY_CAP) {
+    deps.log('info', 'voice_reply_cap', { sent: sentToday });
+    return;
+  }
+  // Nothing to say ('') gives no audio: the speaker returns null without calling Bulbul.
+  const mp3 = await deps.voice.speak(spokenText(outcome.replies, language), language);
+  if (!mp3) return;
+  const mediaId = await deps.voice.upload({
+    bytes: mp3,
+    mimeType: 'audio/mpeg',
+    fileName: 'reply.mp3',
+  });
+  if (mediaId) await sendAll(delivery, [{ kind: 'audio', mediaId }], deps);
+}
+
 async function replyToStranger(delivery: Delivery, deps: ProcessDeps): Promise<void> {
   const firstToday = await deps.book.claimStrangerReply(delivery.senderHash, delivery.istDay);
   deps.log('info', 'whatsapp_stranger', {
@@ -91,8 +137,20 @@ async function loadContext(deps: ProcessDeps): Promise<{ ctx: BotContext; demoNo
     newPhone: deps.newPhone,
     log: deps.log,
     reminder: deps.reminder,
+    web: deps.web,
   };
   return { ctx, demoNow };
+}
+
+/** Today's voice notes, this one included (it was recorded before it is handled). */
+function voiceNotesToday(delivery: Delivery, deps: ProcessDeps): () => Promise<number> {
+  return () =>
+    deps.book.countMessages({
+      direction: 'in',
+      msgType: 'voice',
+      istDay: delivery.istDay,
+      max: DAILY_VOICE_CAP + 1,
+    });
 }
 
 async function answerOwner(delivery: Delivery, deps: ProcessDeps): Promise<Outcome> {
@@ -102,6 +160,8 @@ async function answerOwner(delivery: Delivery, deps: ProcessDeps): Promise<Outco
     return await routeMessage(delivery.message, loaded.ctx, {
       llm: deps.llm,
       demoNow: loaded.demoNow,
+      hear: (mediaId) =>
+        hear(mediaId, { ...deps.listen, countToday: voiceNotesToday(delivery, deps) }),
     });
   } catch (error) {
     deps.log('error', 'whatsapp_route_failed', { error: describeFailure(error) });
@@ -128,6 +188,12 @@ async function handleOwner(delivery: Delivery, deps: ProcessDeps): Promise<void>
   }
   const outcome = await answerOwner(delivery, deps);
   await sendAll(delivery, outcome.replies, deps);
+  if (outcome.speakIn) {
+    const voiced = { ...outcome, speakIn: outcome.speakIn };
+    await sendVoiceReply(delivery, voiced, deps).catch((error: unknown) =>
+      deps.log('warn', 'voice_reply_failed', { error: describeFailure(error) })
+    );
+  }
   await deps.book.markInboundHandled(message.id, { path: outcome.path, command: outcome.command });
   deps.wakeWorker();
   deps.log('info', 'whatsapp_message', {

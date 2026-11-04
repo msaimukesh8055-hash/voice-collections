@@ -1,7 +1,7 @@
 // supabase/functions/_shared/ledger/views.ts
 // The owner's read-only ledger replies (SPEC §6.1): "pending" (biggest first, top 10, days
 // overdue, score band), "closed" (credits paid off this month) and one shopkeeper (balance, last 5
-// entries, last promise, score, open claims with [Confirm received] [Not received]). All figures
+// entries, last promise, score, open claims, last call note, with [Confirm received] [Not received]). All figures
 // come from dues.ts / cleared.ts with the demo-clock "today" passed in; scores are worked out by
 // the caller (score.ts, the same as "why is X N?") and passed in, so this file stays pure.
 import type { BookEntry, BookShopkeeper, LastPromise } from '../db/book-repository.ts';
@@ -10,7 +10,7 @@ import { claimButtonId, lookupRowId } from '../cards/ids.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { type Phrases, phrasesFor } from '../whatsapp/phrases.ts';
-import { MAX_BUTTONS, MAX_LIST_ROWS, type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, MAX_BUTTONS, MAX_LIST_ROWS, type Reply, textReply } from '../whatsapp/replies.ts';
 import { clearedCredits } from './cleared.ts';
 import { computeDues, type Dues } from './dues.ts';
 import type { Score } from './score.ts';
@@ -98,7 +98,7 @@ export function pendingReply(view: PendingView): Reply {
   const total = owing.reduce((sum, item) => sum + item.dues.outstanding, 0);
   const lines = owing.map((item, index) => `${index + 1}. ${pendingLine(item, view, phrases)}`);
   const title = phrases.pendingTitle(owing.length, formatInr(total));
-  return textReply([title, ...withMore(lines, owing.length, phrases)].join('\n'));
+  return textReply(blocks(title, withMore(lines, owing.length, phrases)));
 }
 
 export function closedReply(view: BookView): Reply {
@@ -117,7 +117,7 @@ export function closedReply(view: BookView): Reply {
       phrases.clearedOn(formatShortDay(credit.clearedOn))
     }`
   );
-  return textReply([phrases.closedTitle, ...withMore(lines, closed.length, phrases)].join('\n'));
+  return textReply(blocks(phrases.closedTitle, withMore(lines, closed.length, phrases)));
 }
 
 function balanceLine(dues: Dues, phrases: Phrases): string {
@@ -163,6 +163,9 @@ export interface ShopkeeperView {
   readonly shopkeeper: BookShopkeeper;
   readonly entries: readonly BookEntry[];
   readonly lastPromise: LastPromise | null;
+  /** The follow-up agent's note from the last call (SPEC §6.1, §8.4), for the owner to read.
+   * Since CP2 (M2) it no longer goes to Asha, so the owner is the only reader. */
+  readonly lastNote: string | null;
   /** Null only if it could not be worked out; the line is then left out. */
   readonly score: ScoreTag | null;
   readonly today: string;
@@ -190,18 +193,23 @@ export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
   const { shopkeeper } = view;
   const claims = view.entries.filter((entry) => entry.status === 'claimed');
   const recent = [...view.entries].sort(newestFirst).slice(0, LAST_ENTRIES);
-  const lines = [
-    `*${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,
-    balanceLine(computeDues(view.entries, view.today), phrases),
-    ...(recent.length > 0
+  const text = blocks(
+    [
+      `*${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,
+      balanceLine(computeDues(view.entries, view.today), phrases),
+    ],
+    recent.length > 0
       ? [`${phrases.lastEntries}:`, ...recent.map((e) => entryLine(e, phrases))]
-      : []),
-    promiseLine(view.lastPromise, phrases),
-    ...(view.score ? [scoreLine(view.score, view.language)] : []),
-    ...(claims.length > 0 ? [phrases.openClaims(claims.length)] : []),
-  ];
+      : null,
+    [
+      promiseLine(view.lastPromise, phrases),
+      ...(view.score ? [scoreLine(view.score, view.language)] : []),
+      ...(claims.length > 0 ? [phrases.openClaims(claims.length)] : []),
+    ],
+    view.lastNote ? `${phrases.lastNote}: ${view.lastNote}` : null,
+  );
   const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
-  return [textReply(lines.join('\n')), ...cards];
+  return [textReply(text), ...cards];
 }
 
 /** "Which Praveen?" for a read-only lookup: each row opens that shopkeeper. */

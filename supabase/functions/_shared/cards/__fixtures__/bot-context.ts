@@ -10,7 +10,7 @@ import type { BookRepository } from '../../db/book-repository.ts';
 import type { LogFields, Logger } from '../../log.ts';
 import type { Language } from '../../schemas/shopkeeper.ts';
 import { type ReminderSetup, reminderSetup } from '../../reminders/__fixtures__/reminder-deps.ts';
-import type { BotContext } from '../context.ts';
+import type { BotContext, WebDeps } from '../context.ts';
 
 /** Noon IST on FAKE_TODAY (real time, used for card expiry). */
 export const FAKE_NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -30,7 +30,15 @@ export interface BotSetupOptions {
   readonly language?: Language;
   readonly now?: Date;
   readonly reminder?: ReminderSetup;
+  readonly web?: WebDeps;
 }
+
+export const FAKE_DASHBOARD_LINK = 'https://dashboard.example/#t=TOKEN';
+/** Upload always works; the dashboard link is a fixed fake. */
+export const FAKE_WEB: WebDeps = {
+  uploadImage: () => Promise.resolve('IMG1'),
+  dashboardLink: () => Promise.resolve(FAKE_DASHBOARD_LINK),
+};
 
 export function botSetup(options: BotSetupOptions = {}): BotSetup {
   const fake = createFakeBookRepository(options.state);
@@ -47,6 +55,7 @@ export function botSetup(options: BotSetupOptions = {}): BotSetup {
     newPhone: () => FAKE_NEW_PHONE,
     log,
     reminder: reminder.deps,
+    web: options.web ?? FAKE_WEB,
   };
   return { ctx, state: fake.state, logs, reminder };
 }

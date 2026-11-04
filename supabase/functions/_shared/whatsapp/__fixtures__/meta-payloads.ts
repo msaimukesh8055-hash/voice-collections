@@ -12,6 +12,8 @@ export interface PayloadOptions {
   readonly buttonId?: string;
   readonly listRowId?: string;
   readonly type?: string;
+  /** A voice note's media id (M6): Meta's shape for a recorded voice note. */
+  readonly audioId?: string;
 }
 
 function messageOf(options: PayloadOptions): Record<string, unknown> {
@@ -30,6 +32,15 @@ function messageOf(options: PayloadOptions): Record<string, unknown> {
   if (options.listRowId !== undefined) {
     const interactive = { type: 'list_reply', list_reply: { id: options.listRowId, title: 'x' } };
     return { ...base, type: 'interactive', interactive };
+  }
+  if (options.audioId !== undefined) {
+    const audio = {
+      mime_type: 'audio/ogg; codecs=opus',
+      sha256: 'x',
+      id: options.audioId,
+      voice: true,
+    };
+    return { ...base, type: 'audio', audio };
   }
   if (options.type !== undefined) return { ...base, type: options.type };
   return { ...base, type: 'text', text: { body: options.text ?? 'hi' } };

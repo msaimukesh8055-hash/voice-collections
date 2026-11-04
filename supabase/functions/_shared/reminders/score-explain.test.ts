@@ -25,6 +25,7 @@ Deno.test('score explain › title and four lines with their counts', () => {
   const lines = explainScore('Ramesh', SCORE, 'en').split('\n');
   assertEquals(lines, [
     '📊 *Ramesh: 42/100* (Risky)',
+    '',
     'Paid on time: 20/40 (3 of 6 credits paid by the due date)',
     'Promises kept: 15/30 (1 of 2 promises kept)',
     'Current overdue: 2/20 (54 days overdue now)',
@@ -58,6 +59,6 @@ Deno.test('score explain › every language keeps the figures', () => {
     const text = explainScore('Ramesh', SCORE, language);
     assertStringIncludes(text, '42/100');
     assertStringIncludes(text, '20/40');
-    assertEquals(text.split('\n').length, 5);
+    assertEquals(text.split('\n').length, 6);
   }
 });

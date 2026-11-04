@@ -31,6 +31,8 @@ import { runNextSimulation, type SimulatorDeps } from '../_shared/simulator/run.
 import { logToConsole } from '../_shared/log.ts';
 import { createTranscriptClient } from '../_shared/sarvam-analytics.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
+import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
+import { createTranslator } from '../_shared/speech/translate.ts';
 import { handleWorkerRequest, type WorkerDeps } from './handler.ts';
 
 /** Supabase Edge Runtime global: keeps the worker alive until background work finishes. */
@@ -55,10 +57,11 @@ const llmConfig: JsonLlmConfig = {
   log: logToConsole,
 };
 
+const book = createSupabaseBookRepository(query);
 const followupDeps: FollowupDeps = {
   repo: createSupabaseRepository(query),
   followups: createSupabaseFollowupRepository(query),
-  book: createSupabaseBookRepository(query),
+  book,
   llm: createJsonLlm(llmConfig),
   transcripts: createTranscriptClient({
     apiKey: env.SARVAM_AGENTS_API_KEY,
@@ -68,12 +71,24 @@ const followupDeps: FollowupDeps = {
     fetchImpl: fetch,
     log: logToConsole,
   }),
-  whatsapp: createWhatsAppClient({
-    accessToken: env.META_ACCESS_TOKEN,
-    phoneNumberId: env.META_PHONE_NUMBER_ID,
-    fetchImpl: fetch,
-    log: logToConsole,
-  }),
+  // M6: Telugu summaries and alerts get their English underneath when the demo setting is on.
+  whatsapp: withEnglishTwin(
+    createWhatsAppClient({
+      accessToken: env.META_ACCESS_TOKEN,
+      phoneNumberId: env.META_PHONE_NUMBER_ID,
+      fetchImpl: fetch,
+      log: logToConsole,
+    }),
+    {
+      translate: createTranslator({
+        apiKey: env.SARVAM_API_KEY,
+        fetchImpl: fetch,
+        log: logToConsole,
+      }),
+      loadSettings: ownerTwinSettings(book),
+      clock: () => new Date(),
+    },
+  ),
   owner: { ownerNumber: env.OWNER_WHATSAPP_NUMBER, hashKey: env.META_APP_SECRET },
   clock: () => new Date(),
   log: logToConsole,
