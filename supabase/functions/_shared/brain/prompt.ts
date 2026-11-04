@@ -1,10 +1,10 @@
 // supabase/functions/_shared/brain/prompt.ts
-// Brain prompt v1, approved by Saim 2026-11-03. The WhatsApp brain's instructions (M4 Decision 3). Used for
+// Brain prompt v2, approved by Saim 2026-11-04. The WhatsApp brain's instructions (M4 Decision 3). Used for
 // both Sarvam (sarvam-105b) and the Gemini fallback. The model only suggests; every change still
 // needs the owner's Save tap, and the answer is checked by SuggestionSchema.
 import { istDayLabel } from '../clock.ts';
 
-export const BRAIN_PROMPT_VERSION = 'v1';
+export const BRAIN_PROMPT_VERSION = 'v2';
 
 /** `today` is the demo-clock-aware "now", so "15th" or "Monday" resolve on the demo's calendar. */
 export function buildBrainPrompt(now: Date): string {
@@ -17,6 +17,10 @@ Choose one:
 {"intent":"ledger_query","query":"pending"}  — who owes him money
 {"intent":"ledger_query","query":"closed"}  — credits paid off this month
 {"intent":"ledger_query","query":"shopkeeper","name":"<name>"}  — one shopkeeper's account
+{"intent":"ledger_query","query":"due_alert"}  — who is due today or overdue
+{"intent":"ledger_query","query":"insights"}  — a report: how collections are going this month
+{"intent":"ledger_query","query":"dashboard"}  — he wants the web dashboard link
+{"intent":"ledger_query","query":"score","name":"<name>"}  — why a shopkeeper's score is what it is
 {"intent":"add_credit","name":"<name>","amount":<rupees>,"due_date":"YYYY-MM-DD" or null,"note":"<few words>" or null}  — he gave goods on credit
 {"intent":"mark_paid","name":"<name>","amount":<rupees>}  — a shopkeeper paid him
 {"intent":"help"}  — a greeting, or he asks what you can do

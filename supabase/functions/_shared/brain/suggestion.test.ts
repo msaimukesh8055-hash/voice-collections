@@ -78,3 +78,31 @@ Deno.test('suggestion › add_credit without a due_date key uses the default', (
     null,
   );
 });
+
+Deno.test('suggestion › v2 queries map to due_alert, insights, dashboard and score', () => {
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'due_alert' }), { kind: 'due_alert' });
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'insights', name: null }), {
+    kind: 'insights',
+  });
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'dashboard' }), { kind: 'dashboard' });
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'score', name: 'ramesh kumar' }), {
+    kind: 'score',
+    name: 'Ramesh Kumar',
+  });
+});
+
+Deno.test('suggestion › score without a name is "didn\'t get that"', () => {
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'score' }), null);
+  assertEquals(commandOf({ intent: 'ledger_query', query: 'score', name: null }), null);
+});
+
+Deno.test('suggestion › remind and remind_all are never accepted from the LLM', () => {
+  const invalid = [
+    { intent: 'ledger_query', query: 'remind', name: 'Ramesh' },
+    { intent: 'ledger_query', query: 'remind' },
+    { intent: 'ledger_query', query: 'remind_all' },
+    { intent: 'remind', name: 'Ramesh' },
+    { intent: 'remind_all' },
+  ];
+  for (const json of invalid) assertEquals(commandOf(json), 'invalid', JSON.stringify(json));
+});
