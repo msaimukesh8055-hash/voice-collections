@@ -379,3 +379,60 @@ No artifact is missing. One thing is thin: the H1, M1, M2 and M3 fixes are recor
 5. Doc drift: Vapi is still named in `guidelines/testing.md`, `workflow.md` and `coding-standards.md`. ADR-0011 doesn't say that attempt limits count on the real clock.
 6. Small items: `smoke-tools.ts` keeps its own `requireEnv`/`report`; a failed score read fails the whole lookup; the phone page's daily-limit message relies on an assumed SDK error shape, never tested against the real SDK.
 7. No eval scenario for an injected note yet (the `evals/` format arrives in M6).
+
+### Re-score after deploy (2026-11-04)
+
+Re-scored on `review/CP2` at `ea2684d`, nothing uncommitted. New since the 8.4: `6af6eed` (prompt v4 committed on Sarvam as version 4) and `ea2684d` (deploy, smoke runs, and a fix to simulated calls made on Saim's laptop). Nothing needing `.env` or hosted services was run here.
+
+#### Evidence checked
+
+| What | Result |
+|---|---|
+| `npm run check` (re-run here) | **Exit 0.** Root Vitest **60/60**, web Vitest **42/42**, `deno test` **666 passed, 0 failed**. Same as the coordinator's run and the M5 "deployed and smoke-tested" section. The bundle secret scan again checked 0 secrets (no `.env` here), so locally it proves nothing. |
+| `deno coverage` (columns are Branch, Function, Line) | All files: **98.6% branches, 99.7% functions, 99.9% lines**. The new simulator files (`conversation.ts`, `moves.ts`, `run.ts`) are at 100/100/100. `llm/json-llm.ts` fell from 100% to **98.6% branches**: one branch at L189 (`message ? … : ''`) can never run, because the reply schema already demands at least one choice. M5.md says "98.6% lines, 99.7% branches": the labels are swapped again (98.6% is branches, 99.7% is functions). |
+| Prompt v4 live | `voice-agents/asha/sarvam-agent.json` says `committedVersion: 4`. CP2.md records the push via the Sarvam MCP connector and a check of the live prompt against `ASHA_PROMPT`. M5.md records `agent:record` for v4. |
+| Deploy and smokes | Recorded in M5.md › "CP2 fixes — deployed and smoke-tested": `db:push` (no new migrations), all four functions deployed, `smoke:tools` ✅ (16 checks), `smoke:whatsapp --send-to-owner` ✅ (11 checks), `smoke:reminders --send-to-owner` ❌ then ✅ 8/8 with 3 tool calls audited. These are written summaries of runs on Saim's laptop, not saved logs. I accept them as recorded evidence. The "local script against the real model" check is not in the repo, so I cannot check it. |
+| Probe of the repeat rule (scratch script outside the repo, nothing written to the repo) | Confirms issue S1 below: `get_dues` before identity → refused; `confirm_identity` → confirmed; `get_dues` again → **the old refusal comes back and the tool does not run**. |
+
+#### Simulator fix (`ea2684d`): verdict
+
+**Right idea; one Medium bug.** Declaring Asha's tools to Sarvam in its own format, and sending tool turns back that way, is the correct fix. It also makes simulated calls more like live calls, where Sarvam handles the tools natively. The code is small and typed. Every new function is well under 50 lines, with no more than 3 parameters. `unknown` appears only at JSON edges (tool arguments, the JSON Schema, the wire message), and each tool's own Zod schema still checks the arguments before anything runs. That is allowed by the "no `any`" rule. Path comments are present, and lint, format and typecheck are clean. The problem is the repeat rule: it remembers **every** reply for the whole call, not just an immediate repeat.
+
+**S1 (Medium): the repeat rule returns old or failed replies** (`simulator/conversation.ts`, `runAshaTool` / `toolReplies`)
+
+- What happens: any tool call with the same name and arguments as an earlier one in the call gets the earlier reply, at any time later and even if the earlier reply was a failure. The tools change state as the call goes on (identity, the promise), so the old reply can be wrong.
+- Proven case: Asha calls `get_dues` too early and is refused (`IDENTITY_NOT_CONFIRMED`). The shopkeeper then confirms who they are, and Asha calls `get_dues` again. She gets the old refusal, so she can never read the dues in that call. This may explain part of the open "calls end early" problem.
+- Identity: a second "unsure" answer is never counted, so the rule "after N unclear answers, treat as not them" (`MAX_UNSURE_ANSWERS`) cannot be reached in a simulated call. No amounts leak (identity stays unknown, so `get_dues` keeps refusing). But the simulator no longer behaves like a live call, which it claims to do (the file header says "the same registry, identity guard and audit row as a live call").
+- Money record: if a shopkeeper promises ₹2,000, changes it to ₹3,000, then goes back to ₹2,000, the third save does not run. The database keeps ₹3,000, while Asha is told ₹2,000 is saved. The owner's summary and the reliability score read the database.
+- A temporary error (`TEMPORARY_ERROR`) is never retried.
+- Why it matters: simulated calls write real promise rows (fake data), feed the owner's WhatsApp summary, and will be the base for the M7 evals.
+- Fix: only reuse a reply for an **immediate** repeat (the same call straight after its own reply, which is the loop the smoke found), and never reuse a failed reply. Add tests for refusal → confirm → `get_dues`, two "unsure" answers in a row, and promise A → B → A. The only test today covers the happy path.
+
+**S2 (Low): native tool calls, extra calls dropped.** `json-llm.ts` `sarvamText` reads only the first of `tool_calls`, and drops any others without a log line. A native call also never ends the call (`end_call: false`). L189's `''` branch can never run (see coverage above): remove it rather than test it, the same pattern M4 used.
+
+**S3 (Low): any brace-free text now counts as speech** (`simulator/moves.ts` `plainSpeech`). It was needed (the model drops the JSON after a tool reply). But a goodbye sent as plain text no longer ends the call, and any stray model text goes into the transcript as Asha's words. The M7 evals should cover this.
+
+**S4 (Low, docs).** M5.md coverage labels are swapped (see above). `architecture.md` L74 still says "Asha (v3 + text-mode section …)" and doesn't mention the native tool format. The fix changed how simulated calls work, but the version label `ASHA_SIMULATED_VERSION` is still `v4+text-v1`, so evals can't tell calls before the fix from calls after it.
+
+#### Scores (25% each)
+
+| Criterion | Before | After | Evidence |
+|---|---|---|---|
+| **Architecture fit** | 8.5 | **8.5** | Better: simulated calls now use tools the same way live Sarvam calls do, and the fix reuses the shared tool registry, audit row and `ChatProvider` path (no copy). Held back: the repeat rule (S1) breaks the "same identity guard as a live call" design for repeats; `architecture.md` L74 is stale (S4); the M2 note question (SPEC §7.3/§8, "a note Asha reads next call") is still undecided, with no ADR or SPEC change. |
+| **Completeness** | 7.5 | **8.0** | Closed since the 8.4: prompt v4 live on Sarvam and recorded (`committedVersion: 4`, `agent:record`); all four functions deployed; all three smoke scripts run on record and passing; the reminder smoke found a real bug, and it was fixed and re-run. Held back: the M2 note decision; Meta template approval; no live Telugu message (the LLM brain has still never run end to end through WhatsApp); M4 Save twice; M5 steps 5 and 8; the native-speaker check; M3/M4/M5 Plan status lines still say "building"; and the open simulator problems in M5.md (calls ending early as `asha_failed`, figures read back before the shopkeeper says them, unasked owner callbacks). |
+| **Tests** | 9.0 | **9.0** | **768** tests pass on re-run (666 Deno + 60 root + 42 web), matching the claims. The new code has 7 new tests and 5 updated ones, and every simulator file is at 100/100/100. For the first time there is deployed evidence for the CP2 fixes (three smokes), and the smoke did its job by catching the zero-tool-call bug. Held back: S1 got past the tests because the repeat test covers only the happy path; `json-llm.ts` dropped to 98.6% branches; M5.md coverage labels are swapped again; smoke results are summaries, not saved output. |
+| **Standards** | 8.5 | **8.5** | Better: the H1 compliance line (Hindi recording notice) is now on live calls, not just in the repo. The new code follows the size, typing, naming and path-comment rules, and lint/format/typecheck plus deno fmt/lint/check are clean. Held back: a new Medium (S1) in code that skipped the reviewer agent, touching the identity cap and promise rows; Vapi still named in testing.md, workflow.md and coding-standards.md; the dead prompt sentence and `getLastNote` path; the bundle secret scan can't be re-checked here. |
+
+#### Final (re-score after deploy)
+
+| Arch | Complete | Tests | Standards | **Final** | **Rating** |
+|---|---|---|---|---|---|
+| 8.5 | 8.0 | 9.0 | 8.5 | **8.5 / 10** (was 8.4, first 7.5) | **Green** (> 7). No Critical or High is open. H1 is now fixed on live calls too. S1 is a Medium. Fix it before the M7 evals rely on simulated calls. |
+
+#### Remaining gaps
+
+1. **S1, the repeat rule** (Medium): fix it and add the three tests above before M7 evals use simulated calls.
+2. **M2 note decision** (Saim): give Asha the code-built note, or change the SPEC and record why. Then remove or keep the prompt sentence and `getLastNote` to match.
+3. **Live steps still to do:** Meta approval of `daily_due_alert`; one live Telugu message; M4 Save twice; M5 steps 5 (claim card from a call) and 8 (demo clock past Monday); the native-speaker check of the HI/TE lines.
+4. **Open simulator problems** (M5.md, for M7): calls ending early when the model goes silent after a tool; figures read back before the shopkeeper says them; owner callbacks nobody asked for.
+5. **Small items:** S2, S3, S4; Plan status lines; Vapi in three guidelines; ADR-0011 real-clock rule; `smoke-tools.ts` helpers; a failed score read fails the whole lookup (all in the backlog).
