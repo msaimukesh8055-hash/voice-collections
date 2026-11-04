@@ -86,7 +86,7 @@ Deno.test('reminders › the alert runs the promise check first (an open promise
     demoNow: NOW,
     hear: NO_HEARING,
   });
-  assertStringIncludes(replyText(result.replies), 'Broke a promise* (1)');
+  assertStringIncludes(replyText(result.replies), 'Promises missed* (1)');
   assertEquals(changed, ['90000000-0000-4000-8000-0000000000f1:broken']);
 });
 

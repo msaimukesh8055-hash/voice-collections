@@ -7,7 +7,7 @@ import type { BookShopkeeper } from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { blocks, type Reply } from '../whatsapp/replies.ts';
+import { blocks, type Button, type Reply, withEnglish } from '../whatsapp/replies.ts';
 import { cardButtonId, pickRowId } from './ids.ts';
 import type { EntryPayload } from './schemas.ts';
 
@@ -25,24 +25,44 @@ export interface EntryCardInput {
   readonly outstanding: number;
 }
 
-function amountLine(input: EntryCardInput): string {
-  const { draft, language } = input.payload;
+function amountLine(input: EntryCardInput, language: Language): string {
+  const { draft } = input.payload;
   const phrases = phrasesFor(language);
   if (draft.type === 'payment' || draft.dueDate === null) return formatInr(draft.amount);
   const fallback = draft.dueDefaulted ? ` ${phrases.defaultDue}` : '';
   return `${formatInr(draft.amount)} · ${phrases.due} ${formatShortDay(draft.dueDate)}${fallback}`;
 }
 
+/** The card in the owner's language, with its English rendering for the twin (dry-run fix 4).
+ * Buttons stay in the card's language. A free-text note stays as written. */
 export function entryCard(input: EntryCardInput): Reply {
-  const { draft, language } = input.payload;
+  const { language } = input.payload;
+  const buttons = entryButtons(input.actionId, language);
+  return withEnglish(
+    language,
+    (each) => ({ kind: 'buttons', text: entryText(input, each), buttons }),
+  );
+}
+
+function entryButtons(actionId: string, language: Language): readonly Button[] {
+  const phrases = phrasesFor(language);
+  return [
+    { id: cardButtonId(actionId, 'save'), title: phrases.save },
+    { id: cardButtonId(actionId, 'edit'), title: phrases.edit },
+    { id: cardButtonId(actionId, 'cancel'), title: phrases.cancel },
+  ];
+}
+
+function entryText(input: EntryCardInput, language: Language): string {
+  const { draft } = input.payload;
   const phrases = phrasesFor(language);
   const isCredit = draft.type === 'credit';
   const after = Math.max(0, input.outstanding + (isCredit ? draft.amount : -draft.amount));
-  const text = blocks(
+  return blocks(
     isCredit ? phrases.addCreditTitle : phrases.paymentTitle,
     [
       shopkeeperLabel(input.shopkeeper),
-      amountLine(input),
+      amountLine(input, language),
       ...(draft.note ? [`${phrases.note}: ${draft.note}`] : []),
     ],
     [
@@ -52,15 +72,6 @@ export function entryCard(input: EntryCardInput): Reply {
         : []),
     ],
   );
-  return {
-    kind: 'buttons',
-    text,
-    buttons: [
-      { id: cardButtonId(input.actionId, 'save'), title: phrases.save },
-      { id: cardButtonId(input.actionId, 'edit'), title: phrases.edit },
-      { id: cardButtonId(input.actionId, 'cancel'), title: phrases.cancel },
-    ],
-  };
 }
 
 export function pickCard(

@@ -96,6 +96,12 @@ const WorkerEnvSchema = CallsApiEnvSchema.omit({
   OWNER_WHATSAPP_NUMBER: PhoneDigits,
   SARVAM_API_KEY: NonEmpty,
   GEMINI_API_KEY: NonEmpty,
+  /** Dry-run fix 8: the call summary's transcript link (same signed link as "dashboard"). Both
+   * optional: without them the summary leaves the link out. */
+  DASHBOARD_URL: OptionalText.pipe(z.url().nullable()),
+  DASHBOARD_LINK_SECRET: OptionalText.pipe(
+    z.string().min(MIN_DASHBOARD_SECRET_LENGTH).nullable(),
+  ),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

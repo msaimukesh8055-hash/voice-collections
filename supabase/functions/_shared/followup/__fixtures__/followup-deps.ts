@@ -45,6 +45,9 @@ export interface FollowupSetup {
   readonly logs: { level: LogLevel; event: string; fields: LogFields }[];
 }
 
+/** The fake transcript link: `<base><call id>#t=TOKEN` (fix 8). */
+export const FAKE_CALL_LINK_BASE = 'https://dashboard.example/calls?id=';
+
 export function followupSetup(options: FollowupSetupOptions = {}): FollowupSetup {
   const repo = createFakeRepository({ ...options.repo });
   const followups = createFakeFollowupRepository(options.followups);
@@ -74,6 +77,7 @@ export function followupSetup(options: FollowupSetupOptions = {}): FollowupSetup
     clock: () => options.now ?? WORKER_NOW,
     log: (level, event, fields = {}) => logs.push({ level, event, fields }),
     requeue: (callId) => requeued.push(callId),
+    callLink: (callId) => Promise.resolve(`${FAKE_CALL_LINK_BASE}${callId}#t=TOKEN`),
   };
   return { deps, repo, followups, book, llm, sent, requeued, logs };
 }

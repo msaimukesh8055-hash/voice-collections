@@ -1,6 +1,7 @@
 // supabase/functions/followup-worker/index.ts
 // Deployed with --no-verify-jwt: calls-api and pg_cron call it with WORKER_SECRET (checked in
 // the handler before anything else), not a Supabase JWT.
+import { callLink } from '../_shared/auth/dashboard-link.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
@@ -93,6 +94,11 @@ const followupDeps: FollowupDeps = {
   clock: () => new Date(),
   log: logToConsole,
   requeue: (callId) => kick(callId, RETRY_DELAY_MS),
+  // Dry-run fix 8: "🔗 Transcript" in the summary opens that call on the dashboard (24 h link).
+  callLink: (callId) =>
+    env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
+      ? callLink(env.DASHBOARD_URL, env.DASHBOARD_LINK_SECRET, { callId, now: new Date() })
+      : Promise.resolve(null),
 };
 
 const store = createSupabaseReminderRepository(query);

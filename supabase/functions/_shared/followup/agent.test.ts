@@ -81,3 +81,37 @@ Deno.test('agent output › reason is one line', () => {
   );
   assertEquals(step, { kind: 'owner_should_call', reason: 'Disputes the amount.' });
 });
+
+Deno.test("agent v2 › owner_reason is kept only in the owner's own script", () => {
+  const answer = (ownerReason: string): string =>
+    JSON.stringify({
+      decision: 'owner_should_call',
+      reason: 'Disputes the amount.',
+      owner_reason: ownerReason,
+    });
+  assertEquals(parseAgentDecision(answer('మొత్తం గురించి వివాదం.'), TODAY, 'te'), {
+    kind: 'owner_should_call',
+    reason: 'Disputes the amount.',
+    ownerReason: 'మొత్తం గురించి వివాదం.',
+  });
+  assertEquals(parseAgentDecision(answer('Disputes the amount.'), TODAY, 'te'), {
+    kind: 'owner_should_call',
+    reason: 'Disputes the amount.',
+  });
+  assertEquals(parseAgentDecision(answer('राशि पर विवाद।'), TODAY, 'hi'), {
+    kind: 'owner_should_call',
+    reason: 'Disputes the amount.',
+    ownerReason: 'राशि पर विवाद।',
+  });
+  assertEquals(parseAgentDecision(answer('x'), TODAY, 'en'), {
+    kind: 'owner_should_call',
+    reason: 'Disputes the amount.',
+  });
+});
+
+Deno.test("agent v2 › the prompt asks for owner_reason; the message names the owner's language", async () => {
+  assert(FOLLOWUP_AGENT_PROMPT.includes('"owner_reason"'));
+  const { llm, calls } = fakeLlm({ [AGENT_EVENT]: [REMIND] });
+  await runFollowupAgent(llm, facts(), 'hi');
+  assert(calls[0]?.message.includes("Owner's language: Hindi"));
+});

@@ -10,6 +10,7 @@ import type { BookRepository } from '../db/book-repository.ts';
 import { type FollowupCall, staleBefore } from '../db/followup-repository.ts';
 import type { JsonLlm } from '../llm/json-llm.ts';
 import type { Logger } from '../log.ts';
+import type { Language } from '../schemas/shopkeeper.ts';
 import type { TranscriptClient } from '../sarvam-analytics.ts';
 import { describeFailure } from '../tools/registry.ts';
 import type { SenderConfig } from '../whatsapp/sender.ts';
@@ -38,6 +39,18 @@ export interface FollowupDeps extends GatherDeps {
   readonly log: Logger;
   /** Asks the worker to run this call again after RETRY_DELAY_MS. */
   readonly requeue: (callId: string) => void;
+  /** Dry-run fix 8: the signed dashboard link to one call's page, or null when the dashboard is
+   * not set up (DASHBOARD_URL / DASHBOARD_LINK_SECRET). */
+  readonly callLink: (callId: string) => Promise<string | null>;
+}
+
+/** The owner bot's default language when the owner row cannot be read. */
+const FALLBACK_LANGUAGE: Language = 'en';
+
+/** The language the owner reads, for the LLM's owner-facing lines (fix 7). */
+async function ownerLanguage(deps: FollowupDeps): Promise<Language> {
+  const owner = await deps.book.getOwner().catch(() => null);
+  return owner?.language ?? FALLBACK_LANGUAGE;
 }
 
 export type FollowupOutcome = 'done' | 'waiting' | 'skipped' | 'duplicate' | 'failed' | 'not_found';
@@ -65,9 +78,10 @@ async function commit(
     await deps.followups.failFollowup(call.callId);
     return 'not_found';
   }
+  const language = await ownerLanguage(deps);
   const [decision, note] = await Promise.all([
-    decideFollowup(gathered.facts, deps.llm),
-    writeNote(deps.llm, gathered.facts),
+    decideFollowup(gathered.facts, deps.llm, language),
+    writeNote(deps.llm, gathered.facts, language),
   ]);
   const context = {
     facts: gathered.facts,
@@ -85,7 +99,8 @@ async function commit(
     });
     return 'duplicate';
   }
-  const summary = await finishAfterCommit({ gathered, context, note: note.note }, deps);
+  const committed = { gathered, context, note: note.note, said: note.said, language };
+  const summary = await finishAfterCommit(committed, deps);
   await deps.followups.finishFollowup(call.callId, {
     transcript: turns,
     summary,

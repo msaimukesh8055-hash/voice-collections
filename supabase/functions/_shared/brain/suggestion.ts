@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { extractJson } from '../llm/json-llm.ts';
 import { MAX_AMOUNT } from './amounts.ts';
 import type { Command } from './commands.ts';
+import { meaningfulNote } from './notes.ts';
 
 const MAX_NAME_LENGTH = 60;
 const MAX_NOTE_LENGTH = 60;
@@ -37,6 +38,9 @@ export const SuggestionSchema = z.discriminatedUnion('intent', [
     note: z.string().trim().max(MAX_NOTE_LENGTH).nullish(),
   }),
   z.object({ intent: z.literal('mark_paid'), name: Name, amount: Amount }),
+  // Dry-run fix 5 (Saim, 2026-11-04): "call Ramesh" in natural words. It never calls: the owner
+  // gets a [Call] [Cancel] card, and only the Call tap starts the call.
+  z.object({ intent: z.literal('call'), name: Name }),
   z.object({ intent: z.literal('help') }),
   z.object({ intent: z.literal('unknown') }),
 ]);
@@ -64,6 +68,7 @@ const TO_COMMAND: { readonly [I in Intent]: ToCommand<I> } = {
   help: () => ({ kind: 'help' }),
   unknown: () => null,
   mark_paid: (s) => ({ kind: 'mark_paid', name: titleCase(s.name), amount: s.amount }),
+  call: (s) => ({ kind: 'call_request', name: titleCase(s.name) }),
   add_credit: (s, today) => {
     const due = s.due_date ?? null;
     return {
@@ -71,7 +76,7 @@ const TO_COMMAND: { readonly [I in Intent]: ToCommand<I> } = {
       name: titleCase(s.name),
       amount: s.amount,
       dueDate: due !== null && due >= today ? due : null,
-      note: s.note || null,
+      note: meaningfulNote(s.note),
     };
   },
   ledger_query: (s) => {

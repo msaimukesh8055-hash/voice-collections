@@ -10,7 +10,7 @@ import { AgentConfigSchema, MAX_CALL_SECONDS } from '../schema.ts';
 import { ashaAgent } from './agent.config.ts';
 import { findBannedWords } from './banned-words.ts';
 import { GREETINGS, RECORDING_NOTICES, renderGreeting } from './greetings.ts';
-import { ASHA_PROMPT, PROMPT_VERSION } from './prompt.ts';
+import { ASHA_PROMPT, CLOSING_QUESTIONS, PROMPT_VERSION } from './prompt.ts';
 import { ASHA_TOOLS, RESPONSE_TEMPLATE } from './tools.ts';
 
 function variablesIn(text: string): string[] {
@@ -116,9 +116,49 @@ const NEVER_LIST = `# Never
 - Share any amount before confirm_identity says confirmed.
 - Offer discounts, waivers or anything {{owner_name}} garu has not offered.`;
 
-describe('Asha prompt v4', () => {
-  it('is version v4 (v3 + the Hindi recording notice, CP2 H1)', () => {
-    expect(PROMPT_VERSION).toBe('v4');
+describe('Asha prompt v5', () => {
+  it('is version v5 (v4 + asks before ending every call, dry-run fix 6)', () => {
+    expect(PROMPT_VERSION).toBe('v5');
+  });
+
+  it.each(SUPPORTED_LANGUAGES)(
+    '%s: "Ending the call" asks the approved closing question word for word',
+    (language) => {
+      const section = ASHA_PROMPT.slice(
+        ASHA_PROMPT.indexOf('# Ending the call'),
+        ASHA_PROMPT.indexOf('# Memory and tone'),
+      );
+      expect(section).toContain(
+        `In ${SARVAM_LANGUAGE_NAMES[language]}: "${CLOSING_QUESTIONS[language]}"`,
+      );
+    },
+  );
+
+  it('ends only after they agree; handles something new, asks again; one goodbye after two asks', () => {
+    const section = ASHA_PROMPT.slice(
+      ASHA_PROMPT.indexOf('# Ending the call'),
+      ASHA_PROMPT.indexOf('# Memory and tone'),
+    );
+    expect(section).toContain('Never end the call on your own.');
+    expect(section).toContain(
+      'ask whether they need anything else and whether you may end the call',
+    );
+    expect(section).toContain('End the call only after they agree.');
+    expect(section).toContain('If they raise something new, handle it as above, then ask again.');
+    expect(section).toContain('If there is no answer after you have asked twice, say one goodbye');
+  });
+
+  it('step 7 and the wrong-person branch both go through "Ending the call"', () => {
+    expect(ASHA_PROMPT).toContain('7. When everything is settled, follow "Ending the call" below.');
+    expect(ASHA_PROMPT).toContain('only if they want it), then follow "Ending the call" below.');
+    expect(ASHA_PROMPT).not.toContain('say one goodbye, and end the call.');
+    expect(ASHA_PROMPT).not.toContain('thank them and end the call.');
+  });
+
+  it('keeps the closing question ahead of Memory and tone, after the call flow', () => {
+    const ending = ASHA_PROMPT.indexOf('# Ending the call');
+    expect(ending).toBeGreaterThan(ASHA_PROMPT.indexOf('\n7. '));
+    expect(ending).toBeLessThan(ASHA_PROMPT.indexOf('# Memory and tone'));
   });
 
   it.each(SUPPORTED_LANGUAGES)(

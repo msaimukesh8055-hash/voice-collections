@@ -7,6 +7,7 @@ import { FAKE_RAMESH, FAKE_RAMESH_PROMISES } from '../db/fake-repository.ts';
 import { replyText } from '../whatsapp/replies.ts';
 import { CLAIM, PROMISE } from './__fixtures__/facts.ts';
 import {
+  FAKE_CALL_LINK_BASE,
   FAKE_OWNER_NUMBER,
   type FollowupSetup,
   followupSetup,
@@ -52,11 +53,13 @@ Deno.test('worker › a promise call: rule run, note, follow-up row, score, summ
   assertEquals(sent.length, 1);
   assertEquals(sent[0]?.to, FAKE_OWNER_NUMBER);
   const text = replyText([sent[0]!.reply]);
-  assert(text.includes('Promise: ₹2,000 by Mon 9 Nov') && text.includes('level 2'));
+  assert(text.includes('Result: Promised ₹2,000 by Mon 9 Nov') && !text.includes('level 2'));
+  // Dry-run fix 8: the summary links to this call's dashboard page.
+  assert(text.includes(`🔗 Transcript: ${FAKE_CALL_LINK_BASE}${CALL_ID}#t=TOKEN`));
   assertEquals(book.state.outbound[0]?.waMessageId, 'wamid.fake1');
   assertEquals(state.calls[0]?.followupStatus, 'done');
   assertEquals(state.finished[0]?.result.transcript, TRANSCRIPT.turns);
-  assert(state.finished[0]?.result.summary?.includes('Promise'));
+  assert(state.finished[0]?.result.summary?.includes('Promised'));
 });
 
 Deno.test('worker › idempotent: a second run of the same call does nothing', async () => {
@@ -209,7 +212,7 @@ Deno.test('worker › a summary that cannot be built leaves the call done withou
   const { deps, followups } = promiseSetup();
   const failing = {
     ...deps,
-    book: { ...deps.book, getOwner: () => Promise.reject(new TypeError('down')) },
+    whatsapp: { send: () => Promise.reject(new TypeError('down')) },
   };
   assertEquals(await processFollowup(CALL_ID, failing), 'done');
   assertEquals(followups.state.finished[0]?.result.summary, null);
@@ -282,5 +285,25 @@ Deno.test("worker › Asha's own callback request adds no second follow-up row",
   });
   assertEquals(await processFollowup(CALL_ID, deps), 'done');
   assertEquals(followups.state.followups, []);
-  assert(replyText([sent[0]!.reply]).includes('Please call Ramesh: Wants to talk about a bill.'));
+  assert(replyText([sent[0]!.reply]).includes('Please call Ramesh. Wants to talk about a bill.'));
+});
+
+Deno.test('worker › Telugu owner: the LLM is asked for Telugu lines; the summary has them, no English', async () => {
+  const note = JSON.stringify({
+    note: 'Promised 2,000 for Monday; calm.',
+    summary_en: ['Will pay ₹2,000 next Monday.'],
+    summary: ['వచ్చే సోమవారం ₹2,000 కడతానన్నారు.'],
+  });
+  const { deps, sent, llm } = promiseSetup({
+    book: { owner: FAKE_OWNER },
+    llmAnswers: { [NOTE_EVENT]: [note] },
+  });
+  await processFollowup(CALL_ID, deps);
+  assert(llm.calls[0]?.message.includes("Owner's language: Telugu"));
+  const reply = sent[0]!.reply;
+  assert(reply.kind === 'text');
+  assert(reply.text.includes('• వచ్చే సోమవారం ₹2,000 కడతానన్నారు.'));
+  assert(!reply.text.includes('Will pay'));
+  assert(reply.english?.includes('• Will pay ₹2,000 next Monday.'));
+  assert(reply.text.includes(`🔗 సంభాషణ: ${FAKE_CALL_LINK_BASE}${CALL_ID}#t=TOKEN`));
 });

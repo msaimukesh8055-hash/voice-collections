@@ -123,9 +123,29 @@ Deno.test('commands › "ichchaanu" (I gave) spelt either way reads as credit, n
   }
 });
 
-Deno.test('commands › Telugu or Hindi script goes to the LLM', () => {
+Deno.test('commands › Telugu or Hindi script goes to the LLM, except Hindi "X ने N दिए"', () => {
   assertEquals(parse('రమేష్ 2000 కట్టాడు'), null);
-  assertEquals(parse('रमेश ने 2000 दिए'), null);
+  assertEquals(parse('रमेश को 2000 का माल दिया'), null);
+  assertEquals(parse('रमेश ने 2000 कल देने को कहा'), null);
+  // Dry-run fix 3: the one clear Hindi payment shape is read in code (name checked by interpret).
+  assertEquals(parse('रमेश ने 2000 दिए'), { kind: 'mark_paid', name: 'Ramesh', amount: 2000 });
+});
+
+Deno.test('commands › "call X" in plain words is a call request, never a direct remind', () => {
+  assertEquals(parse('call Ramesh'), { kind: 'call_request', name: 'Ramesh' });
+  assertEquals(parse('Call Ramesh now'), { kind: 'call_request', name: 'Ramesh' });
+  assertEquals(parse('Please call Ramesh and remind him.'), {
+    kind: 'call_request',
+    name: 'Ramesh',
+  });
+  assertEquals(parse('remind Ramesh'), { kind: 'remind', name: 'Ramesh' });
+});
+
+Deno.test('commands › a typed note that only says "given today" is dropped', () => {
+  const credit = parse('Ramesh 5000 given today');
+  assertEquals(credit?.kind === 'add_credit' ? credit.note : 'x', null);
+  const rice = parse('Ramesh 5000 rice bags');
+  assertEquals(rice?.kind === 'add_credit' ? rice.note : 'x', 'rice bags');
 });
 
 Deno.test('commands › questions and long names go to the LLM', () => {

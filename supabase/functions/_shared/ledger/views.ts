@@ -10,7 +10,14 @@ import { claimButtonId, lookupRowId } from '../cards/ids.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { type Phrases, phrasesFor } from '../whatsapp/phrases.ts';
-import { blocks, MAX_BUTTONS, MAX_LIST_ROWS, type Reply, textReply } from '../whatsapp/replies.ts';
+import {
+  blocks,
+  MAX_BUTTONS,
+  MAX_LIST_ROWS,
+  type Reply,
+  textReply,
+  withEnglish,
+} from '../whatsapp/replies.ts';
 import { clearedCredits } from './cleared.ts';
 import { computeDues, type Dues } from './dues.ts';
 import type { Score } from './score.ts';
@@ -91,7 +98,12 @@ export function shownPending(
   return owingOf(view).slice(0, VIEW_ROWS);
 }
 
+/** "pending", with the same list rendered in English for the twin (dry-run fix 4). */
 export function pendingReply(view: PendingView): Reply {
+  return withEnglish(view.language, (language) => pendingIn({ ...view, language }));
+}
+
+function pendingIn(view: PendingView): Reply {
   const phrases = phrasesFor(view.language);
   const owing = owingOf(view);
   if (owing.length === 0) return textReply(phrases.nothingPending);
@@ -101,7 +113,12 @@ export function pendingReply(view: PendingView): Reply {
   return textReply(blocks(title, withMore(lines, owing.length, phrases)));
 }
 
+/** "closed", with the same list rendered in English for the twin (dry-run fix 4). */
 export function closedReply(view: BookView): Reply {
+  return withEnglish(view.language, (language) => closedIn({ ...view, language }));
+}
+
+function closedIn(view: BookView): Reply {
   const phrases = phrasesFor(view.language);
   const groups = entriesBy(view.entries);
   const month = view.today.slice(0, 7);
@@ -187,13 +204,25 @@ function claimCard(view: ShopkeeperView, claim: BookEntry, phrases: Phrases): Re
   };
 }
 
-/** Summary text, then one [Confirm received] [Not received] card per open claim (up to 3). */
+/** Summary text (with its English rendering), then one [Confirm received] [Not received] card
+ * per open claim (up to 3). */
 export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
+  const phrases = phrasesFor(view.language);
+  const claims = view.entries.filter((entry) => entry.status === 'claimed');
+  const text = withEnglish(
+    view.language,
+    (language) => textReply(lookupText({ ...view, language })),
+  );
+  const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
+  return [text, ...cards];
+}
+
+function lookupText(view: ShopkeeperView): string {
   const phrases = phrasesFor(view.language);
   const { shopkeeper } = view;
   const claims = view.entries.filter((entry) => entry.status === 'claimed');
   const recent = [...view.entries].sort(newestFirst).slice(0, LAST_ENTRIES);
-  const text = blocks(
+  return blocks(
     [
       `*${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,
       balanceLine(computeDues(view.entries, view.today), phrases),
@@ -208,8 +237,6 @@ export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
     ],
     view.lastNote ? `${phrases.lastNote}: ${view.lastNote}` : null,
   );
-  const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
-  return [textReply(text), ...cards];
 }
 
 /** "Which Praveen?" for a read-only lookup: each row opens that shopkeeper. */

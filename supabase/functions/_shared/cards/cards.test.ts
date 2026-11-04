@@ -322,3 +322,26 @@ Deno.test('card › Save still answers when the shopkeeper list is stale', async
   const saved = await tap(cardButtonId(actionId, 'save'), { ...setup.ctx, shopkeepers: [] });
   assertStringIncludes(replyText(saved), 'now owes ₹13,500');
 });
+
+Deno.test('card › a Telugu card carries its English rendering; buttons stay Telugu (fix 4)', async () => {
+  const setup = botSetup();
+  const draft = { ...CREDIT, note: 'బియ్యం బస్తాలు' };
+  const [card] = await startEntry({ name: 'Ramesh', draft, language: 'te' }, setup.ctx);
+  assertEquals(
+    card?.kind === 'buttons' ? card.english : null,
+    [
+      '*Add credit*',
+      '',
+      'Ramesh (Ramesh Kirana)',
+      '₹5,000 · due Sun 15 Nov',
+      'Note: బియ్యం బస్తాలు',
+      '',
+      'Balance after: ₹13,500',
+    ].join('\n'),
+  );
+  assertEquals(card?.kind === 'buttons' ? card.buttons.map((b) => b.title) : [], [
+    'Save',
+    'మార్చు',
+    'రద్దు',
+  ]);
+});

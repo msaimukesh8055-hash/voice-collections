@@ -4,6 +4,7 @@
 // someone has to act later, a followups row.
 import type { FollowupKind, NewFollowup, NewFollowupRun } from '../db/followup-repository.ts';
 import type { JsonLlm } from '../llm/json-llm.ts';
+import type { Language } from '../schemas/shopkeeper.ts';
 import { type AgentPath, runFollowupAgent } from './agent.ts';
 import type { CallFacts } from './facts.ts';
 import type { NoteSource } from './note.ts';
@@ -31,12 +32,16 @@ const RULE_REASONS: Readonly<Record<NextStep['kind'], string>> = {
   pause_reminders: 'Agent decision.',
 };
 
-export async function decideFollowup(facts: CallFacts, llm: JsonLlm): Promise<FollowupDecision> {
+export async function decideFollowup(
+  facts: CallFacts,
+  llm: JsonLlm,
+  language: Language = 'en',
+): Promise<FollowupDecision> {
   const rules = decideByRules(facts);
   if (rules.kind === 'rule') {
     return { path: 'rule', step: rules.step, signals: [], agentPath: null };
   }
-  const agent = await runFollowupAgent(llm, facts);
+  const agent = await runFollowupAgent(llm, facts, language);
   return { path: 'agent', step: agent.step, signals: rules.signals, agentPath: agent.llmPath };
 }
 

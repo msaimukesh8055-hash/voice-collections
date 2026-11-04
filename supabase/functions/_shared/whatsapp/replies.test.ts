@@ -1,6 +1,6 @@
 // supabase/functions/_shared/whatsapp/replies.test.ts
 import { assertEquals } from '@std/assert';
-import { blocks, replyText, textReply } from './replies.ts';
+import { blocks, type Reply, replyText, textIn, textReply, withEnglish } from './replies.ts';
 
 Deno.test('replies › replyText joins texts, button titles and list rows', () => {
   const text = replyText([
@@ -40,4 +40,21 @@ Deno.test('replies › replyText shows a voice reply as a marker and an image by
     { kind: 'image', mediaId: 'i', text: 'Pie' },
   ]);
   assertEquals(text, '[voice note]\n---\nPie');
+});
+
+Deno.test('replies › withEnglish renders the same template in English for other languages', () => {
+  const render = (language: string): Reply => textReply(`hello in ${language}`);
+  assertEquals(withEnglish('te', render), {
+    kind: 'text',
+    text: 'hello in te',
+    english: 'hello in en',
+  });
+  assertEquals(withEnglish('en', render), { kind: 'text', text: 'hello in en' });
+  assertEquals(textIn('hi', (language) => `hi ${language}`), {
+    kind: 'text',
+    text: 'hi hi',
+    english: 'hi en',
+  });
+  const audio: Reply = { kind: 'audio', mediaId: 'm' };
+  assertEquals(withEnglish('te', () => audio), audio);
 });

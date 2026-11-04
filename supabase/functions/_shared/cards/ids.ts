@@ -6,6 +6,7 @@
 //   lk:<shopkeeper id>:<lang>                     show one shopkeeper (read only)
 //   rm:<shopkeeper id>:<lang>                     remind one shopkeeper (M5 due alert)
 //   ra:<lang>                                     remind everyone due (a Yes/No card comes first)
+//   nc:<lang>                                     [Cancel] on a "Call Ramesh now?" card: no call
 import type { Language } from '../schemas/shopkeeper.ts';
 import { LanguageSchema } from '../schemas/shopkeeper.ts';
 
@@ -23,7 +24,8 @@ export type Tap =
   }
   | { readonly kind: 'lookup'; readonly shopkeeperId: string; readonly language: Language }
   | { readonly kind: 'remind'; readonly shopkeeperId: string; readonly language: Language }
-  | { readonly kind: 'remind_all'; readonly language: Language };
+  | { readonly kind: 'remind_all'; readonly language: Language }
+  | { readonly kind: 'no_call'; readonly language: Language };
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const CARD = new RegExp(`^c:(${UUID}):(save|edit|cancel|yes|no|p\\d)$`);
@@ -31,6 +33,7 @@ const CLAIM = new RegExp(`^cl:(${UUID}):(ok|no):([a-z]{2})$`);
 const LOOKUP = new RegExp(`^lk:(${UUID}):([a-z]{2})$`);
 const REMIND = new RegExp(`^rm:(${UUID}):([a-z]{2})$`);
 const REMIND_ALL = /^ra:([a-z]{2})$/;
+const NO_CALL = /^nc:([a-z]{2})$/;
 const PICK_PREFIX = 'p';
 
 export function cardButtonId(actionId: string, verb: CardVerb): string {
@@ -83,14 +86,22 @@ function shopkeeperTap(buttonId: string): Tap | null {
   return null;
 }
 
-function remindAllTap(buttonId: string): Tap | null {
-  const language = LanguageSchema.safeParse(REMIND_ALL.exec(buttonId)?.[1]);
-  return language.success ? { kind: 'remind_all', language: language.data } : null;
+export function noCallButtonId(language: Language): string {
+  return `nc:${language}`;
+}
+
+/** ra: and nc: taps carry only a language. */
+function languageTap(buttonId: string): Tap | null {
+  for (const [pattern, kind] of [[REMIND_ALL, 'remind_all'], [NO_CALL, 'no_call']] as const) {
+    const language = LanguageSchema.safeParse(pattern.exec(buttonId)?.[1]);
+    if (language.success) return { kind, language: language.data };
+  }
+  return null;
 }
 
 /** The tap, or null for an id we never sent (or a language we do not support). */
 export function parseTap(buttonId: string): Tap | null {
   const card = CARD.exec(buttonId);
   if (card?.[1] && card[2]) return cardTap(card[1], card[2]);
-  return claimTap(buttonId) ?? shopkeeperTap(buttonId) ?? remindAllTap(buttonId);
+  return claimTap(buttonId) ?? shopkeeperTap(buttonId) ?? languageTap(buttonId);
 }

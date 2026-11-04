@@ -7,6 +7,9 @@
 import { findAmount } from './amounts.ts';
 import { findDueDate } from './dates.ts';
 import { hasIndicScript } from './language.ts';
+import { meaningfulNote } from './notes.ts';
+import { asciiDigits } from './devanagari.ts';
+import { devanagariPayment } from './hindi-payment.ts';
 
 export type Command =
   | { readonly kind: 'help' }
@@ -25,6 +28,8 @@ export type Command =
   // M5 5b: the due alert, reminders and the score explained.
   | { readonly kind: 'due_alert' }
   | { readonly kind: 'remind'; readonly name: string }
+  /** Dry-run fix 5: "call Ramesh" in any words; only ever shows a [Call] [Cancel] card. */
+  | { readonly kind: 'call_request'; readonly name: string }
   | { readonly kind: 'remind_all' }
   | { readonly kind: 'score'; readonly name: string }
   // M6: insights (pie chart, % collected, top 5) and the web dashboard link.
@@ -122,6 +127,11 @@ const REMIND_ALL = new Set([
   'andariki remind',
 ]);
 const REMIND_PREFIX = /^remind ([a-z ]+)$/;
+/** "call Ramesh", "call Ramesh now", "please call Ramesh and remind him" (dry-run fix 5). They
+ * only ever get a confirm card: the exact "remind Ramesh" stays the one direct command. */
+const CALL_PATTERNS = [
+  /^(?:please |pls |plz )?(?:call|phone|ring) ([a-z ]+?)(?: now| right now| and remind (?:him|her|them))?(?: please)?$/,
+];
 /** "why is Ramesh 42", "why is ramesh's score 42", "Ramesh score", "score of Ramesh". */
 const SCORE_PATTERNS = [
   /^why (?:is|does) ([a-z ]+?) (?:score |have |has |a |only |at )*\d{1,3}$/,
@@ -340,7 +350,7 @@ function entryOf(text: string, today: string): Command | null {
     name: titleCase(name),
     amount: amount.amount,
     dueDate: due?.date ?? null,
-    note: note === null ? null : note.slice(0, MAX_NOTE_LENGTH),
+    note: meaningfulNote(note === null ? null : note.slice(0, MAX_NOTE_LENGTH)),
   };
 }
 
@@ -359,6 +369,14 @@ function reminderOf(text: string): Command | null {
   return name ? { kind: 'remind', name } : null;
 }
 
+function callOf(text: string): Command | null {
+  for (const pattern of CALL_PATTERNS) {
+    const name = nameOf(pattern.exec(text)?.[1]);
+    if (name) return { kind: 'call_request', name };
+  }
+  return null;
+}
+
 function scoreOf(text: string): Command | null {
   // "Ramesh's score" → "ramesh score".
   const plain = text.replace(/['’]s\b/g, '');
@@ -371,12 +389,14 @@ function scoreOf(text: string): Command | null {
 
 /** A fixed command, or null when only the LLM can read the message. */
 export function parseCommand(text: string, today: string): Command | null {
-  const clean = normalise(text);
+  // Devanagari figures first, so that a comma between them is kept ("1,000").
+  const clean = normalise(asciiDigits(text));
   if (HELP.has(clean)) return { kind: 'help' };
   if (INSIGHTS.has(clean)) return { kind: 'insights' };
   if (DASHBOARD.has(clean)) return { kind: 'dashboard' };
-  if (hasIndicScript(clean)) return null;
+  if (hasIndicScript(clean)) return devanagariPayment(clean);
   if (PENDING.has(clean)) return { kind: 'pending' };
   if (CLOSED.has(clean)) return { kind: 'closed' };
-  return reminderOf(clean) ?? scoreOf(clean) ?? entryOf(clean, today) ?? lookupOf(clean);
+  return reminderOf(clean) ?? callOf(clean) ?? scoreOf(clean) ?? entryOf(clean, today) ??
+    lookupOf(clean);
 }

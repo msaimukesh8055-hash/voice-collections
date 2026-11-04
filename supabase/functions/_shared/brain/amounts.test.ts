@@ -1,6 +1,6 @@
 // supabase/functions/_shared/brain/amounts.test.ts
 import { assertEquals } from '@std/assert';
-import { findAmount, MAX_AMOUNT } from './amounts.ts';
+import { amountsIn, findAmount, MAX_AMOUNT } from './amounts.ts';
 
 function amountOf(text: string): number | null {
   return findAmount(text)?.amount ?? null;
@@ -33,4 +33,10 @@ Deno.test('amounts › no amount, zero or absurd amounts give null', () => {
   assertEquals(amountOf('ramesh'), null);
   assertEquals(amountOf('ramesh 0'), null);
   assertEquals(amountOf(`ramesh ${MAX_AMOUNT + 1}`), null);
+});
+
+Deno.test('amounts › amountsIn lists every written amount; "1,000" is 1000, never 10000', () => {
+  assertEquals(amountsIn('Salim ne 1,000 rupaye diye'), [1000]);
+  assertEquals(amountsIn('Ramesh 5000 due 15th, 2k more'), [5000, 15, 2000]);
+  assertEquals(amountsIn('ek hazaar'), []);
 });

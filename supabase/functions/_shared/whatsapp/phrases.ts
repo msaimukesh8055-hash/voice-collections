@@ -76,11 +76,9 @@ export const NOT_REGISTERED =
 
 const EN: Phrases = {
   help: 'Namaste! I keep your credit book.\n\n' +
-    '• *pending* — who owes you\n• *closed* — paid off this month\n• *Ramesh* — one account\n' +
-    '• *Ramesh 5000 due 15th* — add credit\n• *Ramesh paid 2000* — record a payment\n' +
-    '• *due* — who is due or overdue\n• *remind Ramesh* — Asha calls him\n' +
-    '• *remind all* — Asha calls everyone due\n• *Ramesh score* — his score explained\n' +
-    '• *insights* — pie chart, % collected, top 5\n• *dashboard* — link to the web dashboard\n' +
+    '• *pending* — who owes you\n• *due* — who is due or overdue\n' +
+    '• *closed* — paid off this month\n• *insights* — pie chart, % collected, top 5\n' +
+    '• *dashboard* — link to the web dashboard\n\n' +
     '🎤 Voice notes work too.\n\n' +
     'Nothing is saved until you tap Save.',
   sorry: "Sorry, I didn't get that.",
@@ -152,11 +150,9 @@ const EN: Phrases = {
 
 const HI: Phrases = {
   help: 'नमस्ते! मैं आपका उधार खाता रखता हूँ।\n\n' +
-    '• *pending* — किसका कितना बाकी है\n• *closed* — इस महीने चुकता\n• *Ramesh* — एक खाता\n' +
-    '• *Ramesh 5000 due 15th* — उधार जोड़ें\n• *Ramesh paid 2000* — भुगतान दर्ज करें\n' +
-    '• *due* — किसका देय या बकाया है\n• *remind Ramesh* — Asha उन्हें कॉल करेंगी\n' +
-    '• *remind all* — Asha सभी देय लोगों को कॉल करेंगी\n• *Ramesh score* — उनका स्कोर समझें\n' +
-    '• *insights* — पाई चार्ट, % वसूली, टॉप 5\n• *dashboard* — वेब डैशबोर्ड का लिंक\n' +
+    '• *pending* — किसका कितना बाकी है\n• *due* — किसका देय या बकाया है\n' +
+    '• *closed* — इस महीने चुकता\n• *insights* — पाई चार्ट, % वसूली, टॉप 5\n' +
+    '• *dashboard* — वेब डैशबोर्ड का लिंक\n\n' +
     '🎤 वॉइस नोट भी भेज सकते हैं।\n\n' +
     'Save दबाने तक कुछ सेव नहीं होता।',
   sorry: 'माफ़ कीजिए, मैं समझ नहीं पाया।',
@@ -227,11 +223,9 @@ const HI: Phrases = {
 
 const TE: Phrases = {
   help: 'నమస్కారం! నేను మీ అప్పు పుస్తకం చూసుకుంటాను.\n\n' +
-    '• *pending* — ఎవరు ఎంత ఇవ్వాలి\n• *closed* — ఈ నెల తీరినవి\n• *Ramesh* — ఒక ఖాతా\n' +
-    '• *Ramesh 5000 due 15th* — అప్పు జోడించండి\n• *Ramesh paid 2000* — చెల్లింపు నమోదు\n' +
-    '• *due* — ఎవరి గడువు వచ్చింది, ఎవరు ఆలస్యం\n• *remind Ramesh* — Asha ఆయనకు కాల్ చేస్తుంది\n' +
-    '• *remind all* — గడువు వచ్చిన అందరికీ Asha కాల్ చేస్తుంది\n• *Ramesh score* — ఆయన స్కోరు వివరణ\n' +
-    '• *insights* — పై చార్ట్, % వసూలు, టాప్ 5\n• *dashboard* — వెబ్ డ్యాష్‌బోర్డ్ లింక్\n' +
+    '• *pending* — ఎవరు ఎంత ఇవ్వాలి\n• *due* — ఎవరి గడువు వచ్చింది, ఎవరు ఆలస్యం\n' +
+    '• *closed* — ఈ నెల తీరినవి\n• *insights* — పై చార్ట్, % వసూలు, టాప్ 5\n' +
+    '• *dashboard* — వెబ్ డ్యాష్‌బోర్డ్ లింక్\n\n' +
     '🎤 వాయిస్ నోట్‌లు కూడా పంపవచ్చు.\n\n' +
     'Save నొక్కే వరకు ఏదీ సేవ్ కాదు.',
   sorry: 'క్షమించండి, నాకు అర్థం కాలేదు.',

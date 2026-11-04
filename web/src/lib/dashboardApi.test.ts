@@ -1,6 +1,12 @@
 // web/src/lib/dashboardApi.test.ts
 // The dashboard client (M6): the link token's journey, the headers sent, and the replies.
-import { createDashboardApi, fetchDevToken, NeedsLinkError, readToken } from './dashboardApi.ts';
+import {
+  addressWithoutToken,
+  createDashboardApi,
+  fetchDevToken,
+  NeedsLinkError,
+  readToken,
+} from './dashboardApi.ts';
 import { OVERVIEW } from '../test/dashboardFakes.ts';
 import { AppApiError } from './appApi.ts';
 
@@ -42,6 +48,28 @@ describe('readToken', () => {
     expect(readToken({ hash: '#t=x.y', storage: broken, clearHash: vi.fn() })).toBe('x.y');
     expect(readToken({ hash: '', storage: broken, clearHash: vi.fn() })).toBeNull();
     expect(readToken({ hash: '', storage: null, clearHash: vi.fn() })).toBeNull();
+  });
+});
+
+describe('a call link from the WhatsApp summary (dry-run fix 8)', () => {
+  const CALL = 'ca000000-0000-4000-8000-000000000001';
+
+  it('keeps the token from /calls?id=…#t=… and stays on that call once the token is cleared', () => {
+    const storage = memoryStorage();
+    const replaced: string[] = [];
+    const location = { pathname: '/calls', search: `?id=${CALL}`, hash: '#t=1793872800.sig' };
+    function clearHash(): void {
+      replaced.push(addressWithoutToken(location));
+    }
+    expect(readToken({ hash: location.hash, storage, clearHash })).toBe('1793872800.sig');
+    expect(storage.data.get('dashboardToken')).toBe('1793872800.sig');
+    expect(replaced).toEqual([`/calls?id=${CALL}`]);
+  });
+
+  it('a later page in the same tab still has the token', () => {
+    const storage = memoryStorage();
+    readToken({ hash: '#t=tok.en', storage, clearHash: vi.fn() });
+    expect(readToken({ hash: '', storage, clearHash: vi.fn() })).toBe('tok.en');
   });
 });
 

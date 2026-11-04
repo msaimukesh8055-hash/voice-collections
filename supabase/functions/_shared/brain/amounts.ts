@@ -41,3 +41,14 @@ export function findAmount(text: string): FoundAmount | null {
   if (amount <= 0 || amount > MAX_AMOUNT) return null;
   return { amount, start: match.index, end: match.index + match[0].length };
 }
+
+/** Every amount written in the text, in order ("Salim ne 1,000 diye" → [1000]). */
+export function amountsIn(text: string): readonly number[] {
+  const found: number[] = [];
+  let rest = text;
+  for (let next = findAmount(rest); next !== null; next = findAmount(rest)) {
+    found.push(next.amount);
+    rest = rest.slice(next.end);
+  }
+  return found;
+}

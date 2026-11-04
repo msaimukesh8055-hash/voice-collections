@@ -44,6 +44,10 @@ export interface ReminderPhrases {
   readonly remindAllButton: string;
   readonly ringing: (name: string) => string;
   readonly alreadyCalling: (name: string) => string;
+  /** Dry-run fix 5: "call Ramesh" in natural words gets this card; only [Call] calls. */
+  readonly callConfirm: (name: string) => string;
+  readonly callButton: string;
+  readonly callCancelled: string;
   readonly blocked: (code: RemindBlock, name: string) => string;
   readonly confirmAll: (count: number) => string;
   readonly skipped: (skips: SkipCounts) => readonly string[];
@@ -62,7 +66,7 @@ export interface ReminderPhrases {
 
 const EN: ReminderPhrases = {
   alertTitle: (day) => `🔔 *Due alert* · ${day}`,
-  sectionBroken: (count) => `*Broke a promise* (${count})`,
+  sectionBroken: (count) => `*Promises missed* (${count})`,
   sectionOverdue: (count) => `*Overdue* (${count})`,
   sectionDueToday: (count) => `*Due today* (${count})`,
   brokenLine: ({ label, promised, day, owed }) =>
@@ -81,6 +85,9 @@ const EN: ReminderPhrases = {
   ringing: (name) =>
     `📞 Calling ${name} now. It rings on the phone page (after any call already on it): answer as ${name}.`,
   alreadyCalling: (name) => `${name} is already being called.`,
+  callConfirm: (name) => `📞 Call ${name} now?`,
+  callButton: 'Call',
+  callCancelled: 'OK, no call made.',
   blocked: (code, name) =>
     ({
       DO_NOT_CALL: `${name} asked not to be called. No call made.`,
@@ -136,6 +143,9 @@ const HI: ReminderPhrases = {
   ringing: (name) =>
     `📞 ${name} को अभी कॉल हो रही है। फ़ोन पेज पर घंटी बजेगी (कोई कॉल चल रही हो तो उसके बाद): ${name} बनकर जवाब दें।`,
   alreadyCalling: (name) => `${name} को पहले से कॉल हो रही है।`,
+  callConfirm: (name) => `📞 ${name} को अभी कॉल करें?`,
+  callButton: 'कॉल करें',
+  callCancelled: 'ठीक है, कॉल नहीं की गई।',
   blocked: (code, name) =>
     ({
       DO_NOT_CALL: `${name} ने कॉल न करने को कहा है। कॉल नहीं की गई।`,
@@ -186,6 +196,9 @@ const TE: ReminderPhrases = {
   ringing: (name) =>
     `📞 ఇప్పుడు ${name}కి కాల్ చేస్తున్నాం. ఫోన్ పేజీలో మోగుతుంది (ఇప్పటికే కాల్ నడుస్తుంటే దాని తర్వాత): ${name}గా జవాబు ఇవ్వండి.`,
   alreadyCalling: (name) => `${name}కి ఇప్పటికే కాల్ వెళ్తోంది.`,
+  callConfirm: (name) => `📞 ${name}కి ఇప్పుడు కాల్ చేయాలా?`,
+  callButton: 'కాల్ చేయి',
+  callCancelled: 'సరే, కాల్ చేయలేదు.',
   blocked: (code, name) =>
     ({
       DO_NOT_CALL: `${name} కాల్ చేయవద్దని చెప్పారు. కాల్ చేయలేదు.`,

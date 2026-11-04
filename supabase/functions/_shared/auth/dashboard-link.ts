@@ -17,6 +17,18 @@ export async function dashboardLink(baseUrl: string, secret: string, now: Date):
   return `${baseUrl.replace(/\/+$/, '')}/#t=${token}`;
 }
 
+/** Dry-run fix 8: a link that opens one call's page (transcript, tool events, follow-up):
+ * `<DASHBOARD_URL>/calls?id=<call id>#t=<token>`, the same 24-hour token as the dashboard link. */
+export async function callLink(
+  baseUrl: string,
+  secret: string,
+  call: { readonly callId: string; readonly now: Date },
+): Promise<string> {
+  const token = await signDashboardToken(secret, call.now);
+  const id = encodeURIComponent(call.callId);
+  return `${baseUrl.replace(/\/+$/, '')}/calls?id=${id}#t=${token}`;
+}
+
 /** True only for a token we signed that has not expired. Constant-time signature compare. */
 export async function isValidDashboardToken(
   token: string | null,

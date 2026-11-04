@@ -29,10 +29,16 @@ import { computeInsights } from '../_shared/ledger/insights.ts';
 import { dashboardReply, insightsReplies } from '../_shared/ledger/insights-reply.ts';
 import type { Hearing } from '../_shared/speech/hear.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
-import { dueAlertCommand, offerRemindAll, remindOne } from '../_shared/reminders/remind.ts';
+import {
+  dueAlertCommand,
+  offerCall,
+  offerRemindAll,
+  remindOne,
+} from '../_shared/reminders/remind.ts';
+import { reminderPhrasesFor } from '../_shared/reminders/phrases.ts';
 import { scoreReplies, scoresFor, scoreWithEntries } from '../_shared/reminders/score-explain.ts';
 import { phrasesFor } from '../_shared/whatsapp/phrases.ts';
-import { blocks, hasText, type Reply, textReply } from '../_shared/whatsapp/replies.ts';
+import { blocks, hasText, type Reply, textIn, textReply } from '../_shared/whatsapp/replies.ts';
 
 export interface Outcome {
   readonly replies: readonly Reply[];
@@ -92,10 +98,12 @@ function withOneShopkeeper(
 ): Promise<readonly Reply[]> {
   const match = matchShopkeepers(name, ctx.shopkeepers);
   if (match.kind === 'one') return run(match.shopkeeper);
-  const phrases = phrasesFor(ctx.language);
-  if (match.kind === 'none') return Promise.resolve([textReply(phrases.notFound(name))]);
+  if (match.kind === 'none') {
+    return Promise.resolve([textIn(ctx.language, (each) => phrasesFor(each).notFound(name))]);
+  }
   const shops = match.shopkeepers.map((shopkeeper) => `• ${shopkeeper.shopName}`);
-  return Promise.resolve([textReply(blocks(phrases.pickPrompt(name), shops))]);
+  const pick = textIn(ctx.language, (each) => blocks(phrasesFor(each).pickPrompt(name), shops));
+  return Promise.resolve([pick]);
 }
 
 /** Figures, then the chart (uploaded to Meta) and the link, in parallel (M6, SPEC §6.6). */
@@ -116,7 +124,7 @@ async function showInsights(ctx: BotContext): Promise<readonly Reply[]> {
 }
 
 const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
-  help: (_command, ctx) => Promise.resolve([textReply(phrasesFor(ctx.language).help)]),
+  help: (_command, ctx) => Promise.resolve([textIn(ctx.language, (each) => phrasesFor(each).help)]),
   pending: async (_command, ctx) => [await pendingWithScores(ctx)],
   closed: async (_command, ctx) => [closedReply(await bookView(ctx))],
   lookup: (command, ctx) => {
@@ -125,7 +133,8 @@ const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
     if (match.kind === 'several') {
       return Promise.resolve([lookupPickReply(command.name, match.shopkeepers, ctx.language)]);
     }
-    return Promise.resolve([textReply(phrasesFor(ctx.language).notFound(command.name))]);
+    const notFound = textIn(ctx.language, (each) => phrasesFor(each).notFound(command.name));
+    return Promise.resolve([notFound]);
   },
   add_credit: (command, ctx) =>
     startEntry({
@@ -147,6 +156,12 @@ const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
   due_alert: (_command, ctx) => dueAlertCommand(ctx, ctx.language),
   remind: (command, ctx) =>
     withOneShopkeeper(command.name, ctx, (found) => remindOne(found.id, ctx, ctx.language)),
+  call_request: (command, ctx) =>
+    withOneShopkeeper(
+      command.name,
+      ctx,
+      (found) => Promise.resolve(offerCall(found, ctx.language)),
+    ),
   remind_all: (_command, ctx) => offerRemindAll(ctx, ctx.language),
   score: (command, ctx) =>
     withOneShopkeeper(command.name, ctx, (found) => scoreReplies(found, ctx, ctx.language)),
@@ -160,14 +175,23 @@ export function runCommand(command: Command, ctx: BotContext): Promise<readonly 
 }
 
 function didNotGet(language: Language): readonly Reply[] {
-  const phrases = phrasesFor(language);
-  return [textReply(`${phrases.sorry}\n\n${phrases.help}`)];
+  return [textIn(language, (each) => `${phrasesFor(each).sorry}\n\n${phrasesFor(each).help}`)];
 }
 
 interface Said {
   readonly text: string;
   /** A voice note's language from Saaras wins over guessing from the words. */
   readonly spoken?: Language;
+}
+
+/**
+ * A voice note's language from Saaras wins, except that Saaras' translit mode can report "en"
+ * for Latin-letter Hindi or Telugu ("Salim ne 1,000 rupaye diye", dry-run fix 3): then the words
+ * decide, so the card comes back in Hindi rather than English.
+ */
+export function replyLanguage(spoken: Language | undefined, fromWords: Language): Language {
+  if (spoken === undefined) return fromWords;
+  return spoken === 'en' && fromWords !== 'en' ? fromWords : spoken;
 }
 
 async function routeText(
@@ -183,7 +207,7 @@ async function routeText(
     llm: deps.llm,
     isKnownName,
   });
-  const language = spoken ?? understood.language;
+  const language = replyLanguage(spoken, understood.language);
   const withLanguage = { ...ctx, language };
   if (!understood.command) {
     return { replies: didNotGet(language), path: understood.path, command: 'unknown' };
@@ -205,6 +229,10 @@ async function routeTap(buttonId: string, ctx: BotContext): Promise<Outcome> {
   }
   if (tap.kind === 'remind') {
     return button(await remindOne(tap.shopkeeperId, ctx, tap.language), 'remind');
+  }
+  if (tap.kind === 'no_call') {
+    const cancelled = textIn(tap.language, (each) => reminderPhrasesFor(each).callCancelled);
+    return button([cancelled], 'no_call');
   }
   if (tap.kind === 'remind_all') {
     return button(await offerRemindAll(ctx, tap.language), 'remind_all');
@@ -228,11 +256,26 @@ function heardLine(text: string, language: Language): string {
   return `${phrasesFor(language).heard}: “${shown}”`;
 }
 
+/** The Heard line in the reply's language and, for the twin, in English (what was heard stays
+ * as heard; the twin translates it as free text). */
+export interface HeardLine {
+  readonly line: string;
+  readonly english: string;
+}
+
 /** Puts the "Heard" line on top of the first reply that has a body. */
-export function withHeard(replies: readonly Reply[], line: string): readonly Reply[] {
+export function withHeard(replies: readonly Reply[], heard: HeardLine): readonly Reply[] {
   const [first, ...rest] = replies;
-  if (!first || !hasText(first) || first.kind === 'template') return [textReply(line), ...replies];
-  return [{ ...first, text: blocks(line, first.text) }, ...rest];
+  if (!first || !hasText(first) || first.kind === 'template') {
+    const alone: Reply = heard.line === heard.english
+      ? textReply(heard.line)
+      : { kind: 'text', text: heard.line, english: heard.english };
+    return [alone, ...replies];
+  }
+  const english = first.english === undefined ? {} : {
+    english: blocks(heard.english, first.english),
+  };
+  return [{ ...first, text: blocks(heard.line, first.text), ...english }, ...rest];
 }
 
 async function routeVoice(mediaId: string, ctx: BotContext, deps: RouteDeps): Promise<Outcome> {
@@ -242,7 +285,11 @@ async function routeVoice(mediaId: string, ctx: BotContext, deps: RouteDeps): Pr
     return { replies, path: 'command', command: `voice_${heard.kind}` };
   }
   const outcome = await routeText({ text: heard.text, spoken: heard.language }, ctx, deps);
-  const replies = withHeard(outcome.replies, heardLine(heard.text, heard.language));
+  const line = {
+    line: heardLine(heard.text, heard.language),
+    english: heardLine(heard.text, 'en'),
+  };
+  const replies = withHeard(outcome.replies, line);
   return { ...outcome, replies, speakIn: heard.language };
 }
 

@@ -7,9 +7,12 @@ import { z } from 'zod';
 import { cleanNote, toNoteLine } from '../calls/memory.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import { extractJson, type JsonLlm } from '../llm/json-llm.ts';
+import type { Language } from '../schemas/shopkeeper.ts';
+import { inOwnerScript } from './agent.ts';
 import type { CallFacts } from './facts.ts';
 import { describeCallForLlm, NOTE_PROMPT } from './prompts.ts';
 import { outcomeOf } from './rules.ts';
+import type { SaidSummary } from './summary.ts';
 
 export const NOTE_EVENT = 'followup_note';
 const MAX_LLM_NOTE_LENGTH = 400;
@@ -19,12 +22,54 @@ export type NoteSource = 'sarvam' | 'gemini' | 'code';
 export interface WrittenNote {
   readonly note: string;
   readonly source: NoteSource;
+  /** The owner's WhatsApp summary lines (prompt v2); null when written in code. */
+  readonly said: SaidSummary | null;
 }
 
-const NoteSchema = z.object({ note: z.string().trim().min(1).max(MAX_LLM_NOTE_LENGTH) });
+/** Up to 3 summary lines are kept (2–3 asked for), each cut to a short line. */
+export const MAX_SUMMARY_LINES = 3;
+const MAX_SUMMARY_LINE_LENGTH = 160;
+
+const SummaryLines = z.array(z.string()).optional().catch(undefined);
+
+const NoteSchema = z.object({
+  note: z.string().trim().min(1).max(MAX_LLM_NOTE_LENGTH),
+  summary_en: SummaryLines,
+  summary: SummaryLines,
+});
 
 export function parseNote(content: string): string | null {
   return cleanNote(extractJson(content, NoteSchema)?.note ?? null);
+}
+
+function shortLines(lines: readonly string[] | undefined): string[] {
+  return (lines ?? [])
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => line !== '')
+    .slice(0, MAX_SUMMARY_LINES)
+    .map((line) =>
+      line.length > MAX_SUMMARY_LINE_LENGTH
+        ? `${line.slice(0, MAX_SUMMARY_LINE_LENGTH - 1)}…`
+        : line
+    );
+}
+
+/** The summary lines in English and in the owner's language. Owner lines not written in that
+ * language's own script are dropped (the English twin still shows the English ones). */
+export function parseSaid(content: string, language: Language): SaidSummary | null {
+  const answer = extractJson(content, NoteSchema);
+  const en = shortLines(answer?.summary_en);
+  if (en.length === 0) return null;
+  if (language === 'en') return { en, owner: en };
+  const owner = shortLines(answer?.summary).filter((line) =>
+    inOwnerScript(line, language) !== null
+  );
+  return { en, owner };
+}
+
+interface ParsedNote {
+  readonly note: string;
+  readonly said: SaidSummary | null;
 }
 
 function recordedParts(facts: CallFacts): string[] {
@@ -57,14 +102,22 @@ export function codeNote(facts: CallFacts): string {
   return toNoteLine(facts.transcriptMissing ? `${recorded} (No transcript.)` : recorded);
 }
 
-export async function writeNote(llm: JsonLlm, facts: CallFacts): Promise<WrittenNote> {
-  const fallback: WrittenNote = { note: codeNote(facts), source: 'code' };
+export async function writeNote(
+  llm: JsonLlm,
+  facts: CallFacts,
+  language: Language = 'en',
+): Promise<WrittenNote> {
+  const fallback: WrittenNote = { note: codeNote(facts), source: 'code', said: null };
   if (facts.transcript === null || !facts.connected) return fallback;
   const answer = await llm({
     event: NOTE_EVENT,
     system: NOTE_PROMPT,
-    message: describeCallForLlm(facts),
-    parse: parseNote,
+    message: describeCallForLlm(facts, language),
+    parse: function parseAnswer(content): ParsedNote | null {
+      const note = parseNote(content);
+      return note === null ? null : { note, said: parseSaid(content, language) };
+    },
   });
-  return answer.path === 'failed' ? fallback : { note: answer.value, source: answer.path };
+  if (answer.path === 'failed') return fallback;
+  return { note: answer.value.note, source: answer.path, said: answer.value.said };
 }

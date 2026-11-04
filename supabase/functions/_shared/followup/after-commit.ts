@@ -6,21 +6,23 @@
 import { istDate } from '../clock.ts';
 import { computeScore, type Score } from '../ledger/score.ts';
 import type { Logger } from '../log.ts';
+import type { Language } from '../schemas/shopkeeper.ts';
 import { describeFailure } from '../tools/registry.ts';
 import { replyText } from '../whatsapp/replies.ts';
 import { identifySender } from '../whatsapp/sender.ts';
 import { followupRowFor, type RunContext } from './decide.ts';
 import type { Gathered } from './gather.ts';
 import type { FollowupDeps } from './process.ts';
-import { buildSummary } from './summary.ts';
-
-/** The owner bot's default language when the owner row cannot be read. */
-const FALLBACK_LANGUAGE = 'en';
+import { buildSummary, type SaidSummary } from './summary.ts';
 
 export interface Committed {
   readonly gathered: Gathered;
   readonly context: RunContext;
   readonly note: string;
+  /** The LLM's summary lines for the owner (null when the note was written in code). */
+  readonly said: SaidSummary | null;
+  /** The owner's language, read once before the LLM wrote its owner-facing lines. */
+  readonly language: Language;
 }
 
 async function attempt<T>(
@@ -57,12 +59,18 @@ async function sendSummary(
   score: Score | null,
   deps: FollowupDeps,
 ): Promise<string> {
-  const owner = await deps.book.getOwner();
+  const { facts } = committed.gathered;
+  const transcriptLink = await deps.callLink(facts.callId).catch((error: unknown) => {
+    deps.log('warn', 'call_link_failed', { callId: facts.callId, error: describeFailure(error) });
+    return null;
+  });
   const reply = buildSummary({
-    facts: committed.gathered.facts,
+    facts,
     step: committed.context.decision.step,
     score,
-    language: owner?.language ?? FALLBACK_LANGUAGE,
+    language: committed.language,
+    said: committed.said,
+    transcriptLink,
   });
   const [messageId, sender] = await Promise.all([
     deps.whatsapp.send(deps.owner.ownerNumber, reply),

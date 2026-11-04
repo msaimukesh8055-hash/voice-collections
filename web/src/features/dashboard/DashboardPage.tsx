@@ -3,6 +3,10 @@
 // outstanding, overdue), this month's ring chart, the top 5 overdue with their score, recent
 // calls, and the demo controls (the "English under Telugu" switch and "Ring"). The same figures
 // as "insights" on WhatsApp, from the same code.
+// Dry-run fix 9: the WhatsApp link lands straight on the full dashboard. The Ring box used to sit
+// outside the loading state, so it showed alone first and the figures popped in after. Now a
+// loading card shows until the overview arrives, and the Ring box comes with the dashboard (or,
+// without a valid link, under the "open from WhatsApp" card, so the demo can still ring).
 import { useState } from 'react';
 import type { AppApi } from '../../lib/appApi.ts';
 import type { DashboardApi, Overview } from '../../lib/dashboardApi.ts';
@@ -11,6 +15,7 @@ import { CallsTable } from './CallsTable.tsx';
 import { Donut, PART_COLOURS } from './Donut.tsx';
 import { BAND_LABELS, bandClass, formatInr } from './format.ts';
 import { Card, Layout, LoadState } from './Layout.tsx';
+import type { Loaded } from './useLoad.ts';
 import { useLoad } from './useLoad.ts';
 
 interface DashboardPageProps {
@@ -184,26 +189,48 @@ function EnglishSwitch({
   );
 }
 
+function DashboardLoading(): React.JSX.Element {
+  return (
+    <Card>
+      <p role="status" className="text-sm text-ink-muted">
+        Loading your dashboard…
+      </p>
+    </Card>
+  );
+}
+
+/** The demo controls show with the loaded dashboard, or alone when the link is missing; never
+ * while the dashboard is still loading. */
+function showsDemoAlone(state: Loaded<Overview>): boolean {
+  return state.kind === 'needsLink' || state.kind === 'failed';
+}
+
 export function DashboardPage({ api, dashboard }: DashboardPageProps): React.JSX.Element {
   const state = useLoad(dashboard.overview, 'overview');
+  function renderDashboard(overview: Overview): React.JSX.Element {
+    return (
+      <>
+        <Kpis overview={overview} />
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <MonthChart overview={overview} />
+          <TopFive overview={overview} />
+        </div>
+        <Card title="Recent calls">
+          <CallsTable calls={overview.calls} />
+        </Card>
+        <DemoControls api={api} />
+        <EnglishSwitch dashboard={dashboard} initial={overview.settings.englishUnderTelugu} />
+      </>
+    );
+  }
   return (
     <Layout current="/" dashboard={dashboard}>
-      <LoadState state={state}>
-        {(overview: Overview) => (
-          <>
-            <Kpis overview={overview} />
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <MonthChart overview={overview} />
-              <TopFive overview={overview} />
-            </div>
-            <Card title="Recent calls">
-              <CallsTable calls={overview.calls} />
-            </Card>
-            <EnglishSwitch dashboard={dashboard} initial={overview.settings.englishUnderTelugu} />
-          </>
-        )}
-      </LoadState>
-      <DemoControls api={api} />
+      {state.kind === 'loading' ? (
+        <DashboardLoading />
+      ) : (
+        <LoadState state={state}>{renderDashboard}</LoadState>
+      )}
+      {showsDemoAlone(state) ? <DemoControls api={api} /> : null}
     </Layout>
   );
 }

@@ -56,13 +56,15 @@ function helpExamples(help: string): string[] {
   return [...help.matchAll(/\*([^*]+)\*/g)].map((found) => found[1] ?? '');
 }
 
-Deno.test('phrases › help lists the M5 commands, the same in every language', () => {
+Deno.test('phrases › help is short: five commands, the same in every language, no sample names', () => {
   const english = helpExamples(phrasesFor('en').help);
-  for (const example of ['due', 'remind Ramesh', 'remind all', 'Ramesh score']) {
-    assert(english.includes(example), example);
-  }
+  assertEquals(english, ['pending', 'due', 'closed', 'insights', 'dashboard']);
   for (const language of SUPPORTED_LANGUAGES) {
-    assertEquals(helpExamples(phrasesFor(language).help), english, language);
+    const help = phrasesFor(language).help;
+    assertEquals(helpExamples(help), english, language);
+    assert(!help.includes('Ramesh'), language);
+    assert(help.includes('🎤'), language);
+    assert(help.includes('Save'), language);
   }
 });
 
@@ -70,17 +72,5 @@ Deno.test('phrases › every help example really is a command the bot understand
   const kinds = helpExamples(phrasesFor('en').help).map((example) =>
     parseCommand(example, '2026-11-02')?.kind ?? `not understood: ${example}`
   );
-  assertEquals(kinds, [
-    'pending',
-    'closed',
-    'lookup',
-    'add_credit',
-    'mark_paid',
-    'due_alert',
-    'remind',
-    'remind_all',
-    'score',
-    'insights',
-    'dashboard',
-  ]);
+  assertEquals(kinds, ['pending', 'due_alert', 'closed', 'insights', 'dashboard']);
 });

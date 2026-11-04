@@ -2,6 +2,7 @@
 // The dashboard link token (M6 Decision 9, security: 100% tested).
 import { assert, assertEquals, assertMatch } from '@std/assert';
 import {
+  callLink,
   DASHBOARD_LINK_TTL_MS,
   dashboardLink,
   isValidDashboardToken,
@@ -52,4 +53,12 @@ const GOLDEN_TOKEN = '1793872800.xendSZT2ifUmjmKjR5dFwfp051pftvMWrvX60eQfWR8';
 Deno.test('dashboard link › fixed vector: same secret and time give this exact token', async () => {
   assertEquals(await signDashboardToken(SECRET, NOW), GOLDEN_TOKEN);
   assert(await isValidDashboardToken(GOLDEN_TOKEN, SECRET, NOW));
+});
+
+Deno.test('call link › opens that exact call: /calls?id=<call id>, the same 24 h token in #t=', async () => {
+  const callId = 'ca000000-0000-4000-8000-000000000001';
+  const link = await callLink('https://voice.example/', SECRET, { callId, now: NOW });
+  assertEquals(link, `https://voice.example/calls?id=${callId}#t=${GOLDEN_TOKEN}`);
+  assert(await isValidDashboardToken(link.split('#t=')[1] ?? null, SECRET, NOW));
+  assert(!(await isValidDashboardToken(GOLDEN_TOKEN, SECRET, later(DASHBOARD_LINK_TTL_MS))));
 });

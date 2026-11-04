@@ -5,7 +5,12 @@ import './index.css';
 import { App } from './App.tsx';
 import { loadAppConfig } from './config.ts';
 import { createAppApi } from './lib/appApi.ts';
-import { createDashboardApi, fetchDevToken, readToken } from './lib/dashboardApi.ts';
+import {
+  addressWithoutToken,
+  createDashboardApi,
+  fetchDevToken,
+  readToken,
+} from './lib/dashboardApi.ts';
 import { createBrowserAgent } from './lib/sarvamBrowser.ts';
 import { createSarvamClient } from './lib/sarvamClient.ts';
 
@@ -31,7 +36,7 @@ function sessionStore(): Storage | null {
 }
 
 function clearHash(): void {
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  window.history.replaceState(null, '', addressWithoutToken(window.location));
 }
 
 // The dashboard link's token (#t=…) moves into this tab's storage and out of the address bar.

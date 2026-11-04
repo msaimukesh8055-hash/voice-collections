@@ -173,6 +173,12 @@ export interface TokenPlace {
   readonly clearHash: () => void;
 }
 
+/** The address with the token's "#t=…" taken off and everything else kept: a call link
+ * `/calls?id=<call id>#t=…` (dry-run fix 8) stays on that call. */
+export function addressWithoutToken(location: Pick<Location, 'pathname' | 'search'>): string {
+  return location.pathname + location.search;
+}
+
 /** Takes the token from the link (`#t=…`) or this tab's storage; storage may be unavailable. */
 export function readToken(place: TokenPlace): string | null {
   const fromLink = HASH_TOKEN.exec(place.hash)?.[1] ?? null;

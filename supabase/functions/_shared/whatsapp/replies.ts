@@ -1,6 +1,7 @@
 // supabase/functions/_shared/whatsapp/replies.ts
 // What the bot says, as plain data. Bot logic returns Reply values; only the Meta client turns
 // them into HTTP requests, so the logic is tested without any network.
+import type { Language } from '../schemas/shopkeeper.ts';
 
 /** Meta limits: 3 reply buttons, 10 list rows. */
 export const MAX_BUTTONS = 3;
@@ -17,15 +18,25 @@ export interface ListRow {
   readonly description?: string;
 }
 
+/** Dry-run fix 4: the same message rendered from its template in English, for the "English
+ * under Telugu" twin (so fixed wording is never machine-translated). Not sent on its own. */
+interface EnglishRendering {
+  readonly english?: string;
+}
+
 export type Reply =
-  | { readonly kind: 'text'; readonly text: string }
-  | { readonly kind: 'buttons'; readonly text: string; readonly buttons: readonly Button[] }
+  | { readonly kind: 'text'; readonly text: string } & EnglishRendering
+  | {
+    readonly kind: 'buttons';
+    readonly text: string;
+    readonly buttons: readonly Button[];
+  } & EnglishRendering
   | {
     readonly kind: 'list';
     readonly text: string;
     readonly buttonLabel: string;
     readonly rows: readonly ListRow[];
-  }
+  } & EnglishRendering
   | {
     /** An approved Meta template: the only message allowed outside WhatsApp's 24-hour window
      * (M5 Decision 7). `text` is our copy of what the owner will read, for logs and tests. */
@@ -38,7 +49,30 @@ export type Reply =
   /** A file already uploaded to Meta (M6): a Bulbul voice reply (MP3). */
   | { readonly kind: 'audio'; readonly mediaId: string }
   /** A file already uploaded to Meta (M6): the insights pie chart, with a caption. */
-  | { readonly kind: 'image'; readonly mediaId: string; readonly text: string };
+  | { readonly kind: 'image'; readonly mediaId: string; readonly text: string } & EnglishRendering;
+
+/** Replies that can carry an English rendering: text, buttons, list and an image's caption. */
+export type BodiedReply = Exclude<Reply, { kind: 'template' | 'audio' }>;
+
+export function isBodied(reply: Reply): reply is BodiedReply {
+  return reply.kind !== 'template' && reply.kind !== 'audio';
+}
+
+/**
+ * A message built from a template, in the owner's language, carrying the same template rendered
+ * in English (same data) for the twin. `render` must be pure: it is called once per language.
+ */
+export function withEnglish(language: Language, render: (language: Language) => Reply): Reply {
+  const reply = render(language);
+  if (language === 'en' || !isBodied(reply)) return reply;
+  const english = render('en');
+  return isBodied(english) ? { ...reply, english: english.text } : reply;
+}
+
+/** `withEnglish` for a plain text line. */
+export function textIn(language: Language, line: (language: Language) => string): Reply {
+  return withEnglish(language, (each) => textReply(line(each)));
+}
 
 /** Replies with a text body (everything except a voice reply). */
 export type TextualReply = Exclude<Reply, { kind: 'audio' }>;

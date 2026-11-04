@@ -4,6 +4,7 @@ import {
   cardButtonId,
   claimButtonId,
   lookupRowId,
+  noCallButtonId,
   parseTap,
   pickRowId,
   remindAllButtonId,
@@ -57,4 +58,9 @@ Deno.test('ids › ids we never sent are rejected', () => {
   ) {
     assertEquals(parseTap(id), null, id);
   }
+});
+
+Deno.test('ids › the "no call" Cancel id round-trips; a bad language is rejected', () => {
+  assertEquals(parseTap(noCallButtonId('te')), { kind: 'no_call', language: 'te' });
+  assertEquals(parseTap('nc:fr'), null);
 });

@@ -2,7 +2,7 @@
 import { assertEquals } from '@std/assert';
 import { LATHA, PRAVEEN_1, PRAVEEN_2, RAMESH, SURESH } from '../db/fake-book-repository.ts';
 import type { BookShopkeeper } from '../db/book-repository.ts';
-import { editDistance, matchShopkeepers } from './match.ts';
+import { editDistance, matchShopkeepers, soundsLike } from './match.ts';
 
 const ALL = [RAMESH, LATHA, PRAVEEN_1, PRAVEEN_2, SURESH];
 
@@ -65,4 +65,20 @@ Deno.test('match › edit distance on longer and empty words', () => {
     3,
     0,
   ]);
+});
+
+Deno.test('match › a spelling that sounds the same finds the one shopkeeper (dry-run fix 3)', () => {
+  const salim: BookShopkeeper = {
+    ...SURESH,
+    id: 'b0000000-0000-4000-8000-000000000045',
+    name: 'Salim',
+    shopName: 'Salim Fancy Store',
+  };
+  const list = [...ALL, salim];
+  assertEquals(idsOf('Saleem', list), [salim.id]);
+  assertEquals(idsOf('Salim', list), [salim.id]);
+  assertEquals(idsOf('Saalim', list), [salim.id]);
+  assertEquals(idsOf('Selim', list), [salim.id]);
+  assertEquals(idsOf('Kareem', list), 'none');
+  assertEquals(soundsLike('farooq'), 'faruq');
 });

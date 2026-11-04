@@ -14,9 +14,18 @@ export type NextStep =
   | { readonly kind: 'owner_callback'; readonly reason: string }
   | { readonly kind: 'try_again' }
   | { readonly kind: 'nothing_shared' }
-  | { readonly kind: 'remind_again'; readonly date: string; readonly reason: string }
-  | { readonly kind: 'owner_should_call'; readonly reason: string }
-  | { readonly kind: 'pause_reminders'; readonly reason: string };
+  | (
+    & { readonly kind: 'remind_again'; readonly date: string; readonly reason: string }
+    & AgentReason
+  )
+  | ({ readonly kind: 'owner_should_call'; readonly reason: string } & AgentReason)
+  | ({ readonly kind: 'pause_reminders'; readonly reason: string } & AgentReason);
+
+/** Dry-run fix 7: the agent's reason in the owner's language (Hindi or Telugu), for the
+ * WhatsApp summary; `reason` stays English for the audit row and the dashboard. */
+export interface AgentReason {
+  readonly ownerReason?: string;
+}
 
 export type MixedSignal = 'no_promise' | 'hardship' | 'dispute_with_promise' | 'angry';
 

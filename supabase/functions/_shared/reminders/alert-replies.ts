@@ -10,7 +10,14 @@ import { formatInr, formatShortDay } from '../format.ts';
 import type { DueAlert, DuePerson } from '../ledger/due-alert.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { MAX_BUTTONS, MAX_LIST_ROWS, type Reply, textReply } from '../whatsapp/replies.ts';
+import {
+  type BodiedReply,
+  MAX_BUTTONS,
+  MAX_LIST_ROWS,
+  type Reply,
+  textIn,
+  withEnglish,
+} from '../whatsapp/replies.ts';
 import { type ReminderPhrases, reminderPhrasesFor } from './phrases.ts';
 
 export const SECTION_ROWS = 10;
@@ -90,8 +97,14 @@ function rowDescription(person: DuePerson, phrases: ReminderPhrases): string {
   return phrases.rowDueToday(formatInr(dues.nextDueAmount));
 }
 
-/** Buttons for up to 3 people, else a list of the first 10. Nobody is called from here. */
+/** Buttons for up to 3 people, else a list of the first 10. Nobody is called from here. Button
+ * ids and labels stay in the alert's language; only the text gets an English rendering. */
 function picker(people: readonly DuePerson[], language: Language): Reply {
+  const reply = pickerIn(people, language);
+  return withEnglish(language, (each) => ({ ...reply, text: reminderPhrasesFor(each).pickerText }));
+}
+
+function pickerIn(people: readonly DuePerson[], language: Language): BodiedReply {
   const phrases = reminderPhrasesFor(language);
   if (people.length <= MAX_BUTTONS) {
     const buttons = people.map((person) => ({
@@ -109,17 +122,27 @@ function picker(people: readonly DuePerson[], language: Language): Reply {
 }
 
 function remindAllOffer(count: number, language: Language): Reply {
-  const phrases = reminderPhrasesFor(language);
-  return {
-    kind: 'buttons',
-    text: phrases.remindAllText(count),
-    buttons: [{ id: remindAllButtonId(language), title: phrases.remindAllButton }],
+  const button = {
+    id: remindAllButtonId(language),
+    title: reminderPhrasesFor(language).remindAllButton,
   };
+  return withEnglish(language, (each) => ({
+    kind: 'buttons',
+    text: reminderPhrasesFor(each).remindAllText(count),
+    buttons: [button],
+  }));
 }
 
+/** The alert in the owner's language, with the same alert rendered in English for the twin
+ * (dry-run fix 4): headings, one person per line, a blank line between sections. */
 export function dueAlertReplies(alert: DueAlert, today: string, language: Language): Reply[] {
-  if (alert.people.length === 0) return [textReply(reminderPhrasesFor(language).nobodyDue)];
-  const replies = [textReply(alertText(alert, today, language)), picker(alert.people, language)];
+  if (alert.people.length === 0) {
+    return [textIn(language, (each) => reminderPhrasesFor(each).nobodyDue)];
+  }
+  const replies = [
+    textIn(language, (each) => alertText(alert, today, each)),
+    picker(alert.people, language),
+  ];
   return alert.people.length > 1
     ? [...replies, remindAllOffer(alert.people.length, language)]
     : replies;

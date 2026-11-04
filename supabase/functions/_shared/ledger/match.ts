@@ -60,10 +60,25 @@ export function editDistance(a: string, b: string): number {
   ).end;
 }
 
+/**
+ * Spelling that sounds the same (dry-run fix 3): speech-to-text and Devanagari give "Saleem" or
+ * "Faarooq" for the book's "Salim" and "Farooq". Long vowels and doubled letters are folded, so
+ * they cost nothing; any other difference still counts as a typo.
+ */
+export function soundsLike(name: string): string {
+  return name.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/aa/g, 'a').replace(
+    /([a-z])\1/g,
+    '$1',
+  );
+}
+
 function distanceTo(query: string, shopkeeper: BookShopkeeper): number {
+  const folded = soundsLike(query);
   return Math.min(
-    editDistance(query, normaliseName(shopkeeper.name)),
-    editDistance(query, normaliseName(shopkeeper.shopName)),
+    ...[shopkeeper.name, shopkeeper.shopName].flatMap(function distances(raw): number[] {
+      const name = normaliseName(raw);
+      return [editDistance(query, name), editDistance(folded, soundsLike(name))];
+    }),
   );
 }
 

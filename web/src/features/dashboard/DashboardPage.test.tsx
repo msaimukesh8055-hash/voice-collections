@@ -45,6 +45,28 @@ describe('DashboardPage', () => {
   });
 });
 
+describe('DashboardPage from the WhatsApp link (dry-run fix 9)', () => {
+  it('shows a loading card, not the Ring box alone, until the dashboard arrives', () => {
+    const fake = fakeDashboard();
+    function neverLoads(): Promise<never> {
+      return new Promise(function waitForever() {});
+    }
+    render(
+      <DashboardPage api={fakeApi().api} dashboard={{ ...fake.dashboard, overview: neverLoads }} />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Loading your dashboard…');
+    expect(screen.queryByRole('button', { name: 'Ring Ramesh' })).not.toBeInTheDocument();
+  });
+
+  it('then shows the full dashboard with the Ring box inside it', async () => {
+    render(<DashboardPage api={fakeApi().api} dashboard={fakeDashboard().dashboard} />);
+    expect(await screen.findByText('Collected this month')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Ring Ramesh' })).toBeInTheDocument();
+    expect(screen.getByText('Recent calls')).toBeInTheDocument();
+    expect(screen.queryByText('Loading your dashboard…')).not.toBeInTheDocument();
+  });
+});
+
 describe('DashboardPage on localhost with no WhatsApp link (npm run dev)', () => {
   /** The real client, with fetch answering the Vite dev endpoint and calls-api. */
   function localDashboard(devReply: Response): {

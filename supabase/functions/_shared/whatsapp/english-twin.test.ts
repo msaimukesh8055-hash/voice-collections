@@ -202,3 +202,39 @@ Deno.test('english twin › a label line plus free Telugu still goes to Translat
   assertEquals(h.asked[0]?.text, '🎤 Heard: “రమేష్ కి 5000”\nBalance after: ₹3,500');
   assertEquals(h.asked[0]?.keep, ['Ramesh', '🎤 Heard', 'Balance after']);
 });
+
+Deno.test('english twin › a template rendering is used as it is: no Translate, layout kept', async () => {
+  const h = harness();
+  const english = '*Pending:* 2 people owe you ₹10,500\n\n1. Ramesh · ₹8,500\n2. Latha · ₹2,000';
+  await h.send({ kind: 'text', text: TELUGU, english });
+  assertEquals(h.sent, [{ kind: 'text', text: `${TELUGU}\n\n${english}`, english }]);
+  assertEquals(h.asked.length, 0);
+});
+
+Deno.test('english twin › in a rendering, only a line still in Telugu (a note) is translated', async () => {
+  const h = harness();
+  const english = '*Add credit*\nRamesh\nNote: బియ్యం బస్తాలు\nBalance after: ₹5,000';
+  const card: Reply = {
+    kind: 'buttons',
+    text: 'అప్పు',
+    english,
+    buttons: [{ id: 'a', title: 'Save' }],
+  };
+  await h.send(card);
+  assertEquals(h.asked.map((r) => r.text), ['Note: బియ్యం బస్తాలు']);
+  const sent = h.sent[0];
+  assertEquals(
+    sent?.kind === 'buttons' ? sent.text : '',
+    'అప్పు\n\n*Add credit*\nRamesh\nEN(Note: బియ్యం బస్తాలు)\nBalance after: ₹5,000',
+  );
+});
+
+Deno.test('english twin › a free-text line Translate fails on stays as written', async () => {
+  const h = harness({ translate: () => null });
+  await h.send({ kind: 'text', text: 'తెలుగు', english: 'Heard: “తెలుగు”\n\nPending' });
+  assertEquals(h.sent, [{
+    kind: 'text',
+    text: 'తెలుగు\n\nHeard: “తెలుగు”\n\nPending',
+    english: 'Heard: “తెలుగు”\n\nPending',
+  }]);
+});

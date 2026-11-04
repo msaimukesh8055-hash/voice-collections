@@ -9,7 +9,7 @@ import type { BookShopkeeper } from '../db/book-repository.ts';
 import { formatInr } from '../format.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
-import { blocks, type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, type Reply, textIn, textReply, withEnglish } from '../whatsapp/replies.ts';
 import type { Insights } from './insights.ts';
 import { type InsightsPhrases, insightsPhrasesFor, monthName } from './insights-phrases.ts';
 import type { ScoreTag } from './views.ts';
@@ -67,7 +67,17 @@ function collectedLine(view: InsightsView, phrases: InsightsPhrases): string {
   return `${phrases.collectedLine(percentCollected)}${change}`;
 }
 
+/** The chart and the text, each with its English rendering for the twin (dry-run fix 4). */
 export function insightsReplies(view: InsightsView): readonly Reply[] {
+  const replies = insightsIn(view);
+  if (view.language === 'en') return replies;
+  const english = insightsIn({ ...view, language: 'en' });
+  return replies.map((reply, index) =>
+    withEnglish(view.language, (language) => language === 'en' ? english[index] ?? reply : reply)
+  );
+}
+
+function insightsIn(view: InsightsView): readonly Reply[] {
   const phrases = insightsPhrasesFor(view.language);
   const { insights } = view;
   const slices = sliceLines(view, phrases);
@@ -88,6 +98,8 @@ export function insightsReplies(view: InsightsView): readonly Reply[] {
 
 /** The "dashboard" command's reply. */
 export function dashboardReply(link: string | null, language: Language): Reply {
-  const phrases = insightsPhrasesFor(language);
-  return textReply(link ? phrases.dashboardLink(link) : phrases.noDashboard);
+  return textIn(language, function dashboardLine(each): string {
+    const phrases = insightsPhrasesFor(each);
+    return link ? phrases.dashboardLink(link) : phrases.noDashboard;
+  });
 }

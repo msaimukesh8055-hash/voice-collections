@@ -106,3 +106,19 @@ Deno.test('suggestion › remind and remind_all are never accepted from the LLM'
   ];
   for (const json of invalid) assertEquals(commandOf(json), 'invalid', JSON.stringify(json));
 });
+
+Deno.test('suggestion › an empty-content note ("Given today") is dropped; a real one kept', () => {
+  const base = { intent: 'add_credit', name: 'Salim', amount: 1000, due_date: null };
+  const empty = commandOf({ ...base, note: 'Given today' });
+  assertEquals(empty !== 'invalid' && empty?.kind === 'add_credit' ? empty.note : 'x', null);
+  const real = commandOf({ ...base, note: 'rice bags' });
+  assertEquals(real !== 'invalid' && real?.kind === 'add_credit' ? real.note : 'x', 'rice bags');
+});
+
+Deno.test('suggestion › "call" becomes a call request (a confirm card), never a remind', () => {
+  assertEquals(commandOf({ intent: 'call', name: 'ramesh' }), {
+    kind: 'call_request',
+    name: 'Ramesh',
+  });
+  assertEquals(commandOf({ intent: 'call' }), 'invalid');
+});

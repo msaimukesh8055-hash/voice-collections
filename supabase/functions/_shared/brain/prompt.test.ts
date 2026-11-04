@@ -12,8 +12,8 @@ const V2_LINES = [
   '{"intent":"ledger_query","query":"score","name":"<name>"}  — why a shopkeeper\'s score is what it is',
 ];
 
-Deno.test('prompt › version is v2', () => {
-  assertEquals(BRAIN_PROMPT_VERSION, 'v2');
+Deno.test('prompt › version is v3 (dry-run fixes)', () => {
+  assertEquals(BRAIN_PROMPT_VERSION, 'v3');
 });
 
 Deno.test('prompt › has the four approved v2 lines right after the shopkeeper line', () => {
@@ -23,6 +23,15 @@ Deno.test('prompt › has the four approved v2 lines right after the shopkeeper 
   assertEquals(lines.slice(shopkeeper + 1, shopkeeper + 5), V2_LINES);
 });
 
-Deno.test('prompt › never offers remind or remind_all to the LLM', () => {
-  assert(!buildBrainPrompt(NOW).includes('remind'));
+Deno.test('prompt › never offers remind or remind_all; only "call", which shows a confirm card', () => {
+  const prompt = buildBrainPrompt(NOW);
+  assert(!prompt.includes('remind'));
+  assert(prompt.includes('{"intent":"call","name":"<name>"}'));
+});
+
+Deno.test('prompt › v3 rules: real notes only, Hindi "ne … diye" is a payment, copy the amount', () => {
+  const prompt = buildBrainPrompt(NOW);
+  assert(prompt.includes('Never "given", "credit", "today" or "udhaar"'));
+  assert(prompt.includes('"X ne N diye" / "X ne N rupaye diye" means X paid him N (mark_paid)'));
+  assert(prompt.includes('1,000 → 1000'));
 });

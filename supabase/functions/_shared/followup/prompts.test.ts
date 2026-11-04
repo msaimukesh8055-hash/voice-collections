@@ -10,7 +10,7 @@ import {
 } from './prompts.ts';
 
 Deno.test('prompts › are drafts that ask for one JSON object', () => {
-  assertEquals(FOLLOWUP_PROMPT_VERSION, 'v1');
+  assertEquals(FOLLOWUP_PROMPT_VERSION, 'v2');
   for (const prompt of [FOLLOWUP_AGENT_PROMPT, NOTE_PROMPT]) {
     assert(prompt.includes('Reply with one JSON object only'));
     assert(

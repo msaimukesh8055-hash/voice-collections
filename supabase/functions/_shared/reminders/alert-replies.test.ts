@@ -56,7 +56,7 @@ Deno.test('alert replies › one person: the alert and one Remind button, no rem
   const replies = dueAlertReplies(alertOf([person('broken_promise')]), TODAY, 'en');
   assertEquals(replies.length, 2);
   const text = replyText(replies);
-  assertStringIncludes(text, 'Broke a promise* (1)');
+  assertStringIncludes(text, 'Promises missed* (1)');
   assertStringIncludes(
     text,
     'Ramesh (Ramesh Kirana) · promised ₹3,000 by Fri 30 Oct · owes ₹8,500',
@@ -150,4 +150,31 @@ Deno.test('alert replies › the template carries the count and its text', () =>
     text: templateText(7),
   });
   assertStringIncludes(templateText(7), '7 shopkeepers are due today. Reply DUE');
+});
+
+Deno.test('alert replies › a Telugu alert carries its English rendering: headings, a line each', () => {
+  const people = [
+    person('broken_promise', shopkeeper(1)),
+    ...Array.from({ length: SECTION_ROWS + 1 }, (_, n) => person('overdue', shopkeeper(n + 2))),
+    person('due_today', shopkeeper(20)),
+  ];
+  const [alert, picker] = dueAlertReplies(alertOf(people), TODAY, 'te');
+  const english = alert?.kind === 'text' ? alert.english ?? '' : '';
+  const sections = english.split('\n\n');
+  assertEquals(sections.length, 4);
+  assertEquals(sections[1]?.split('\n')[0], '*Promises missed* (1)');
+  assertEquals(sections[2]?.split('\n')[0], `*Overdue* (${SECTION_ROWS + 1})`);
+  assertEquals(sections[2]?.split('\n').length, SECTION_ROWS + 2);
+  assertStringIncludes(sections[2] ?? '', '\n…and 1 more');
+  assertEquals(sections[3], '*Due today* (1)\n• Person20 (Shop20) · ₹1,500 due today');
+  assert(!english.includes('Mistakenly') && !/[ఀ-౿]/.test(english));
+  assertEquals(
+    picker?.kind === 'list' ? picker.english : null,
+    'Tap a name to remind them. Nobody is called until you pick them.',
+  );
+});
+
+Deno.test('alert replies › an English alert has no separate English rendering', () => {
+  const [alert] = dueAlertReplies(alertOf([person('overdue')]), TODAY, 'en');
+  assertEquals(alert?.kind === 'text' ? alert.english : 'x', undefined);
 });

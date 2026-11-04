@@ -8,12 +8,16 @@
 // Translate fails, the Telugu message goes out alone: the twin never blocks a reply.
 // The bot's own Telugu labels get their fixed English from phrases.ts first (fixed-english.ts);
 // a paragraph with no Telugu left is used as it is, with no Translate call.
+// Dry-run fix 4: a message built from a template (due alert, pending, closed, insights, cards,
+// call summary…) carries its own English rendering (`reply.english`, same template and data in
+// English), used as it is. Translate then only sees what is still Telugu in it: free text such as
+// a note or what Saaras heard, one line at a time so the layout is kept.
 import { TELUGU_SCRIPT } from '../brain/language.ts';
 import type { BookRepository } from '../db/book-repository.ts';
 import type { Translator } from '../speech/translate.ts';
 import type { WhatsAppClient } from './client.ts';
 import { withFixedEnglish } from './fixed-english.ts';
-import { blocks, type Reply, textReply } from './replies.ts';
+import { blocks, type BodiedReply, isBodied, type Reply, textReply } from './replies.ts';
 
 /** Meta's limits: plain text 4,096 characters; the body of a message with buttons or a list
  * 1,024. */
@@ -34,11 +38,37 @@ export interface EnglishTwinDeps {
   readonly clock: () => Date;
 }
 
-/** Messages that can carry the English: text, buttons, list, and an image's caption. */
-type Bodied = Exclude<Reply, { kind: 'template' | 'audio' }>;
+type Bodied = BodiedReply;
 
 function hasTelugu(reply: Reply): reply is Bodied {
-  return reply.kind !== 'template' && reply.kind !== 'audio' && TELUGU_SCRIPT.test(reply.text);
+  return isBodied(reply) && TELUGU_SCRIPT.test(reply.text);
+}
+
+/** A template's English rendering: only lines still in Telugu (free text) go to Translate. A
+ * line Translate cannot do stays as it is; the rest of the English is already right. */
+async function finishRendered(
+  english: string,
+  deps: EnglishTwinDeps,
+  names: readonly string[],
+): Promise<string> {
+  const lines = await Promise.all(
+    english.split('\n').map(async function lineInEnglish(line): Promise<string> {
+      if (!TELUGU_SCRIPT.test(line)) return line;
+      const translated = await deps.translate({ text: line, from: 'te', to: 'en', keep: names });
+      return translated ?? line;
+    }),
+  );
+  return lines.join('\n');
+}
+
+function twinOf(
+  reply: Bodied,
+  deps: EnglishTwinDeps,
+  names: readonly string[],
+): Promise<string | null> {
+  return reply.english === undefined
+    ? englishOf(reply.text, deps, names)
+    : finishRendered(reply.english, deps, names);
 }
 
 /** Each block (paragraph) on its own, so a long list stays under Translate's 1,000 characters
@@ -84,7 +114,7 @@ export function withEnglishTwin(client: WhatsAppClient, deps: EnglishTwinDeps): 
       if (!hasTelugu(reply)) return await client.send(to, reply);
       const current = await settings().catch(() => ({ on: false, names: [] }));
       if (!current.on) return await client.send(to, reply);
-      const english = await englishOf(reply.text, deps, current.names);
+      const english = await twinOf(reply, deps, current.names);
       if (english === null) return await client.send(to, reply);
       const { first, extra } = paired(reply, english);
       const id = await client.send(to, first);

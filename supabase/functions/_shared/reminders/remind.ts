@@ -1,6 +1,9 @@
 // supabase/functions/_shared/reminders/remind.ts
 // The owner's reminder actions on WhatsApp (SPEC §6.4, §6.5, M5 Decision 8):
 //   "who is due?" / "due"  → the due alert (promise check first), Remind per person
+//   "call Ramesh" / "Ramesh ko yaad dilao" (any words, dry-run fix 5) → "Call Ramesh now?"
+//                            [Call] [Cancel]; [Call] is the same Remind tap, so nothing is called
+//                            before it
 //   [Remind Ramesh] / "remind Ramesh" → one live call through queueCall (the M3 pre-call check):
 //                            it rings the phone page for anyone (Live remind, pre-M6), one at a
 //                            time; a second one waits as 'queued' and rings after the first
@@ -11,7 +14,7 @@
 import { z } from 'zod';
 import { MAX_SIMULATED_AT_ONCE, queueReminders } from '../calls/queue.ts';
 import { queueCall } from '../calls/queue-call.ts';
-import { cardButtonId } from '../cards/ids.ts';
+import { cardButtonId, noCallButtonId, remindButtonId } from '../cards/ids.ts';
 import { type BotContext, findShopkeeper } from '../cards/context.ts';
 import { CARD_TTL_MS } from '../cards/schemas.ts';
 import type { BookShopkeeper } from '../db/book-repository.ts';
@@ -19,7 +22,7 @@ import type { DueAlert } from '../ledger/due-alert.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { LanguageSchema } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { blocks, type Reply, textReply } from '../whatsapp/replies.ts';
+import { blocks, type Reply, textIn, textReply, withEnglish } from '../whatsapp/replies.ts';
 import { dueAlertReplies } from './alert-replies.ts';
 import { loadDueAlert } from './load-alert.ts';
 import { reminderPhrasesFor } from './phrases.ts';
@@ -46,13 +49,14 @@ async function remindShopkeeper(
   ctx: BotContext,
   language: Language,
 ): Promise<readonly Reply[]> {
-  const phrases = reminderPhrasesFor(language);
+  const say = (line: (phrases: ReturnType<typeof reminderPhrasesFor>) => string): Reply =>
+    textIn(language, (each) => line(reminderPhrasesFor(each)));
   const { repo, clock } = ctx.reminder;
   const result = await queueCall({ repo, clock }, { shopkeeperId: shopkeeper.id, mode: 'live' });
-  if (!result.ok) return [textReply(phrases.blocked(result.code, shopkeeper.name))];
+  if (!result.ok) return [say((phrases) => phrases.blocked(result.code, shopkeeper.name))];
   ctx.log('info', 'reminder_queued', { callId: result.callId, again: result.alreadyQueued });
-  if (result.alreadyQueued) return [textReply(phrases.alreadyCalling(shopkeeper.name))];
-  return [textReply(phrases.ringing(shopkeeper.name))];
+  if (result.alreadyQueued) return [say((phrases) => phrases.alreadyCalling(shopkeeper.name))];
+  return [say((phrases) => phrases.ringing(shopkeeper.name))];
 }
 
 /** A Remind tap (by id) or "remind X" (already matched to one shopkeeper). */
@@ -64,6 +68,20 @@ export function remindOne(
   const shopkeeper = findShopkeeper(ctx, shopkeeperId);
   if (!shopkeeper) return Promise.resolve([textReply(phrasesFor(language).expired)]);
   return remindShopkeeper(shopkeeper, ctx, language);
+}
+
+/** "Call Ramesh now?" [Call] [Cancel] (dry-run fix 5). Nothing is queued here: [Call] is the
+ * ordinary Remind tap (rm:), which runs remindOne → queueCall with all its checks. */
+export function offerCall(shopkeeper: BookShopkeeper, language: Language): readonly Reply[] {
+  const buttons = [
+    { id: remindButtonId(shopkeeper.id, language), title: reminderPhrasesFor(language).callButton },
+    { id: noCallButtonId(language), title: phrasesFor(language).cancel },
+  ];
+  return [withEnglish(language, (each) => ({
+    kind: 'buttons',
+    text: reminderPhrasesFor(each).callConfirm(shopkeeper.name),
+    buttons,
+  }))];
 }
 
 async function planFor(ctx: BotContext): Promise<RemindPlan> {
