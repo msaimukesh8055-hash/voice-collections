@@ -6,7 +6,7 @@
 // web host and it stays out of server logs. One owner in the prototype, so the token names no one.
 import { timingSafeEqual } from '@std/crypto/timing-safe-equal';
 
-export const DASHBOARD_TOKEN_HEADER = 'x-dashboard-token';
+export { DASHBOARD_TOKEN_HEADER } from './dashboard-header.ts';
 export const DASHBOARD_LINK_TTL_MS = 24 * 60 * 60 * 1000;
 const VERSION = 'v1';
 const TOKEN = /^(\d{1,12})\.([A-Za-z0-9_-]{43})$/;

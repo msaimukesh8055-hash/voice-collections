@@ -35,6 +35,8 @@ export interface DashboardFollowupRun {
 
 export interface DashboardCallDetail extends DashboardCall {
   readonly transcript: readonly Turn[] | null;
+  /** English of each turn, made once and kept (M6); null until made. */
+  readonly transcriptEnglish: readonly (string | null)[] | null;
   readonly toolEvents: readonly DashboardToolEvent[];
   readonly followup: DashboardFollowupRun | null;
 }
@@ -58,4 +60,5 @@ export interface DashboardRepository {
   listPromises(shopkeeperId: string): Promise<readonly DashboardPromise[]>;
   listNotes(shopkeeperId: string, limit: number): Promise<readonly DashboardNote[]>;
   setEnglishUnderTelugu(ownerId: string, on: boolean): Promise<void>;
+  saveEnglishTranscript(callId: string, lines: readonly (string | null)[]): Promise<void>;
 }

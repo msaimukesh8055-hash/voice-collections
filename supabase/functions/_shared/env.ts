@@ -20,6 +20,13 @@ const ToolsEnvSchema = ServerEnvSchema.extend({
   SARVAM_TOOL_SECRET: z.string().trim().min(MIN_TOOL_SECRET_LENGTH),
 });
 
+/** Optional: blank means "not set up", and the bot says so instead of sending a link. */
+const OptionalText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value ? value : null));
+
 const CallsApiEnvSchema = ServerEnvSchema.extend({
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
   CORS_ALLOWED_ORIGINS: z
@@ -41,14 +48,9 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
   WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
   /** Signs and checks the dashboard's 24-hour links (M6 Decision 9). */
   DASHBOARD_LINK_SECRET: z.string().trim().min(MIN_DASHBOARD_SECRET_LENGTH),
+  /** Sarvam core key: the dashboard's transcript English (M6). Blank → no translation. */
+  SARVAM_API_KEY: OptionalText,
 });
-
-/** Optional: blank means "not set up", and the bot says so instead of sending a link. */
-const OptionalText = z
-  .string()
-  .trim()
-  .optional()
-  .transform((value) => (value ? value : null));
 
 /** WhatsApp Business numbers arrive from Meta as digits only, with the country code. */
 const PhoneDigits = z

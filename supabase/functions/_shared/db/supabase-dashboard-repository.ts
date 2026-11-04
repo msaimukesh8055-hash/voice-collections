@@ -49,6 +49,7 @@ const JsonObject = z.record(z.string(), z.unknown()).catch({});
 
 const DetailRow = z.object({
   transcript: z.array(TurnSchema).nullable().catch(null),
+  transcript_en: z.array(z.string().nullable()).nullable().catch(null),
 });
 const ToolRow = z.object({
   tool: z.string(),
@@ -87,7 +88,10 @@ async function readCall(
   callId: string,
 ): Promise<DashboardCallDetail | null> {
   const [callRows, toolRows, runRows] = await Promise.all([
-    query('getDashboardCall', `calls?select=${CALL_COLUMNS},transcript&id=eq.${id(callId)}`),
+    query(
+      'getDashboardCall',
+      `calls?select=${CALL_COLUMNS},transcript,transcript_en&id=eq.${id(callId)}`,
+    ),
     query(
       'listDashboardToolEvents',
       `tool_events?select=tool,args,result,duration_ms,created_at&call_id=eq.${id(callId)}` +
@@ -101,9 +105,11 @@ async function readCall(
   const call = firstRow(CallRow, callRows.rows);
   if (!call) return null;
   const tools = z.array(ToolRow).parse(toolRows.rows);
+  const detail = firstRow(DetailRow, callRows.rows);
   return {
     ...call,
-    transcript: firstRow(DetailRow, callRows.rows)?.transcript ?? null,
+    transcript: detail?.transcript ?? null,
+    transcriptEnglish: detail?.transcript_en ?? null,
     toolEvents: tools.map((row) => ({
       tool: row.tool,
       args: withoutToken(row.args),
@@ -132,6 +138,13 @@ export function createSupabaseDashboardRepository(query: PostgrestClient): Dashb
       const path = `shopkeeper_notes?select=note,created_at&shopkeeper_id=eq.${id(shopkeeperId)}` +
         `&order=created_at.desc&limit=${limit}`;
       return z.array(NoteRow).parse((await query('listDashboardNotes', path)).rows);
+    },
+    async saveEnglishTranscript(callId, lines): Promise<void> {
+      await query('saveEnglishTranscript', `calls?id=eq.${id(callId)}`, {
+        method: 'PATCH',
+        body: { transcript_en: lines },
+        prefer: 'return=minimal',
+      });
     },
     async setEnglishUnderTelugu(ownerId, on): Promise<void> {
       await query('setEnglishUnderTelugu', `owners?id=eq.${id(ownerId)}`, {

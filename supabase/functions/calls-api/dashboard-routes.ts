@@ -8,7 +8,9 @@ import { DASHBOARD_TOKEN_HEADER, isValidDashboardToken } from '../_shared/auth/d
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookShopkeeper } from '../_shared/db/book-repository.ts';
-import type { DashboardCall } from '../_shared/db/dashboard-repository.ts';
+import type { DashboardCall, DashboardCallDetail } from '../_shared/db/dashboard-repository.ts';
+import { englishLines, needsEnglish } from '../_shared/speech/transcript-english.ts';
+import { describeFailure } from '../_shared/tools/registry.ts';
 import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import { computeDues } from '../_shared/ledger/dues.ts';
 import { computeInsights } from '../_shared/ledger/insights.ts';
@@ -164,12 +166,34 @@ async function callList(_req: Request, ctx: RouteContext): Promise<Response> {
   return jsonResponse({ calls: calls.map((call) => callRow(call, names)) }, 200, ctx.cors);
 }
 
+/** The transcript's English, made once on first view and kept on the call (M6 Decision 4).
+ * Best effort: if it can't be made or saved, the page shows the transcript alone. */
+async function withEnglish(
+  call: DashboardCallDetail,
+  ctx: RouteContext,
+  names: readonly string[],
+): Promise<DashboardCallDetail> {
+  const { translate, reads } = ctx.deps.dashboard;
+  const turns = call.transcript;
+  if (!translate || !turns || call.transcriptEnglish || !needsEnglish(turns)) return call;
+  const lines = await englishLines(turns, translate, names);
+  await reads.saveEnglishTranscript(call.id, lines).catch((error: unknown) =>
+    ctx.deps.log('warn', 'transcript_english_not_saved', { error: describeFailure(error) })
+  );
+  return { ...call, transcriptEnglish: lines };
+}
+
 async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
   const { book, reads } = ctx.deps.dashboard;
-  const call = await reads.getCall(String(ctx.params[0]));
-  if (!call) return errorResponse('NOT_FOUND', ctx.cors);
+  const found = await reads.getCall(String(ctx.params[0]));
+  if (!found) return errorResponse('NOT_FOUND', ctx.cors);
   const owner = await book.getOwner();
   const shopkeepers = owner ? await book.listShopkeepers(owner.id) : [];
+  const names = [
+    ...(owner ? [owner.name, owner.businessName] : []),
+    ...shopkeepers.flatMap((shopkeeper) => [shopkeeper.name, shopkeeper.shopName]),
+  ];
+  const call = await withEnglish(found, ctx, names);
   return jsonResponse({ call: callRow(call, nameMap(shopkeepers)) }, 200, ctx.cors);
 }
 

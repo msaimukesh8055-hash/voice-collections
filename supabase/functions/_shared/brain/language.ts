@@ -4,7 +4,7 @@
 import type { Language } from '../schemas/shopkeeper.ts';
 
 export const TELUGU_SCRIPT = /[ఀ-౿]/;
-const DEVANAGARI_SCRIPT = /[ऀ-ॿ]/;
+export const DEVANAGARI_SCRIPT = /[ऀ-ॿ]/;
 
 /** Words that only appear in Latin-letter Telugu / Hindi owner messages (kept disjoint). */
 export const TELUGU_WORDS: ReadonlySet<string> = new Set([

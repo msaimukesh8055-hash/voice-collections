@@ -10,6 +10,7 @@ import { loadCallsApiEnv } from '../_shared/env.ts';
 import { createFollowupKicker, followupWorkerUrl } from '../_shared/followup/kick.ts';
 import { logToConsole } from '../_shared/log.ts';
 import { handleCallsApi } from './handler.ts';
+import { createTranslator } from '../_shared/speech/translate.ts';
 import type { CallsApiDeps } from './types.ts';
 
 /** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
@@ -43,6 +44,9 @@ const deps: CallsApiDeps = {
     linkSecret: env.DASHBOARD_LINK_SECRET,
     book: createSupabaseBookRepository(query),
     reads: createSupabaseDashboardRepository(query),
+    translate: env.SARVAM_API_KEY
+      ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole })
+      : null,
     score: {
       listPromises: repo.listPromises,
       listCallStatuses: createSupabaseFollowupRepository(query).listCallStatuses,

@@ -1,6 +1,6 @@
 # Architecture — Easy Recovery AI
 
-Status: M5 built and deployed (2026-11-03), CP2 reviewed: 5a — memory and tone in `get_dues`, promise checker, reliability score, follow-up worker with WhatsApp summaries; 5b — due alert, Remind / Remind all with queue and limits, text simulated calls, pg_cron scheduler. On top of M4 (WhatsApp owner bot) and M3 (Sarvam voice agent, credit-book schema, phone page). Next: M6 (dashboard). Updated by the `architect` agent when decisions change. Scope: `docs/SPEC.md` v2.0.
+Status: M6 built (2026-11-04, not yet deployed): voice notes in and out, English under Telugu (Sarvam Translate), insights with a ring chart, the web dashboard behind a signed link (ADR-0017). Before that, M5 built and deployed (2026-11-03), CP2 reviewed: 5a — memory and tone in `get_dues`, promise checker, reliability score, follow-up worker with WhatsApp summaries; 5b — due alert, Remind / Remind all with queue and limits, text simulated calls, pg_cron scheduler. On top of M4 (WhatsApp owner bot) and M3 (Sarvam voice agent, credit-book schema, phone page). Next: M7 (simulated-shopkeeper fix, evals + gate). Updated by the `architect` agent when decisions change. Scope: `docs/SPEC.md` v2.0.
 
 ## System context
 
@@ -41,7 +41,7 @@ Status: M5 built and deployed (2026-11-03), CP2 reviewed: 5a — memory and tone
 | Memory, tone, score | Promise checker (demo clock), last promise/note/rejected claim, tone level 1–3, reliability score with parts; all plain code | `_shared/ledger/{promise-check,score,history}.ts`, `_shared/calls/{memory,tone}.ts` |
 | Shared core | Env, errors, Zod schemas, dues maths, promise/claim rules, `queueCall`, database client (ADR-0010), JSON LLM client (Sarvam → Gemini), bearer check | `supabase/functions/_shared/` |
 | Database | Owner, shopkeepers, ledger, promises, calls, audit, notes, follow-ups, evals, publishes | `supabase/migrations/` |
-| Web | `/` demo controls (dashboard in M6) · `/phone` shopkeeper phone | `web/` |
+| Web | `/` dashboard (KPIs, ring chart, top 5, recent calls, demo controls) · `/shopkeepers` · `/calls` (behind the signed link) · `/phone` shopkeeper phone | `web/` |
 | Seed | Deterministic generator: 1 owner, 100 shopkeepers, ~6 months of credit | `scripts/seed/` → `supabase/seed.sql` |
 
 ## One call, end to end
@@ -83,9 +83,17 @@ In step 6, `get_dues` (after identity only) first runs the **promise checker** o
 5. **Answer.** Reads (pending, closed, one shopkeeper) come from the ledger on the demo-clock date. Changes become a card in `pending_actions` (30 minutes): [Save] [Edit] [Cancel], a pick list for unclear names, or "Add as a new shopkeeper?". Save writes one confirmed entry (compare-and-set on the card). Asha's payment claims are settled with [Confirm received] [Not received].
 6. **Reply** through the Cloud API in the language of the owner's message (phrase table; figures in digits). The path that answered (button, command, sarvam, gemini, failed) is stored for M7's evals.
 
+## Voice notes, translation and the dashboard (M6, ADR-0017)
+
+1. **Voice in.** Meta "audio" → `whatsapp/media.ts` downloads it (our token, 1 MB max) → `audio/ogg.ts` reads its length (30 s max) → daily cap (50, `wa_messages`) → Saaras `saaras:v3` codemix (`speech/stt.ts`) → the same brain as text, in the detected language → replies start with "🎤 Heard: …". Nothing about the audio is stored.
+2. **Voice out.** After a heard note: text first, then `whatsapp/spoken.ts` (short spoken version) → Bulbul v3 Kavitha MP3 (`speech/tts.ts`) → Meta upload → audio message. Best effort, 50 a day.
+3. **English under Telugu.** `whatsapp/english-twin.ts` wraps the WhatsApp sender in both functions: when `owners.english_under_telugu` is on, every Telugu message gets its English from Sarvam Translate (`speech/translate.ts`: names and figures masked, any lost marker → Telugu alone).
+4. **Insights.** "insights"/"report" → `ledger/insights.ts` (this month's split, % collected, week change, outstanding, top 5) → `charts/pie.ts` draws the ring PNG → Meta upload → image with caption + text + dashboard link.
+5. **Dashboard.** The bot signs a 24-hour link (`auth/dashboard-link.ts`). The page sends the token as `x-dashboard-token` to `calls-api/dashboard-routes.ts` (401 without it): overview, shopkeepers, one shopkeeper (score parts, entries, promises, notes, calls), calls, one call (transcript with English made once and kept in `calls.transcript_en`, tool calls, follow-up decision, cost), and the English-under-Telugu switch.
+
 ## Data model
 
-`supabase/migrations/20261103000001_easy_recovery_schema.sql` (SPEC §13): `owners`, `shopkeepers` (score columns filled by the promise check since M5), `ledger_entries` (credit/payment; confirmed/claimed/rejected), `promises` (open/kept/broken/replaced, one per call), `calls`, `tool_events`, `shopkeeper_notes`, `followup_runs`, `followups`, `eval_runs`, `eval_results`, `publishes`, `demo_settings`, view `balances`. M4 adds `wa_messages` (message ids, direction, type, path, command, sender hash) and `pending_actions` (cards), in `20261104000001_whatsapp.sql`. M5 adds the follow-up queue on `calls` (`followup_status`, `followup_attempts`, `followup_next_at`, `followup_claimed_at`), one run and one note per call (unique indexes), and the `pause_reminders` follow-up kind, in `20261105000001_followup.sql`. M5 5b adds `owner_alerts` (one daily alert per owner per demo day), the "call these people?" card kind, the simulated-call queue index, `claim_simulated_call` and the pg_cron jobs (`call_followup_worker`), in `20261106000001_reminders.sql`. Dues and days overdue are computed in code (`_shared/ledger/dues.ts`), oldest credit paid first, so the demo clock applies.
+`supabase/migrations/20261103000001_easy_recovery_schema.sql` (SPEC §13): `owners`, `shopkeepers` (score columns filled by the promise check since M5), `ledger_entries` (credit/payment; confirmed/claimed/rejected), `promises` (open/kept/broken/replaced, one per call), `calls`, `tool_events`, `shopkeeper_notes`, `followup_runs`, `followups`, `eval_runs`, `eval_results`, `publishes`, `demo_settings`, view `balances`. M4 adds `wa_messages` (message ids, direction, type, path, command, sender hash) and `pending_actions` (cards), in `20261104000001_whatsapp.sql`. M5 adds the follow-up queue on `calls` (`followup_status`, `followup_attempts`, `followup_next_at`, `followup_claimed_at`), one run and one note per call (unique indexes), and the `pause_reminders` follow-up kind, in `20261105000001_followup.sql`. M5 5b adds `owner_alerts` (one daily alert per owner per demo day), the "call these people?" card kind, the simulated-call queue index, `claim_simulated_call` and the pg_cron jobs (`call_followup_worker`), in `20261106000001_reminders.sql`. M6 adds `owners.english_under_telugu` and `calls.transcript_en` (`20261107000001`, `20261107000002`). Dues and days overdue are computed in code (`_shared/ledger/dues.ts`), oldest credit paid first, so the demo clock applies.
 
 ## Security boundaries
 
@@ -119,3 +127,4 @@ In step 6, `get_dues` (after identity only) first runs the **promise checker** o
 | [0014](adr/ADR-0014-sarvam-llm-code-first-commands.md) | Sarvam LLM as the brain; fixed commands parsed in code first |
 | [0015](adr/ADR-0015-whatsapp-webhook-and-cards.md) | WhatsApp webhook: signature, owner only, handle once, background work; Save cards for every change |
 | [0016](adr/ADR-0016-followup-agent.md) | Follow-up worker: rules first, agent for mixed signals, once per call, transcript wait |
+| [0017](adr/ADR-0017-voice-notes-translate-dashboard-link.md) | Voice notes through the text path; live Sarvam Translate with masked names/figures; chart drawn in code; dashboard behind a signed 24-hour link |

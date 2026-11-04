@@ -4,6 +4,7 @@ import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DashboardRepository } from '../_shared/db/dashboard-repository.ts';
 import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ScoreReads } from '../_shared/reminders/score-explain.ts';
+import type { Translator } from '../_shared/speech/translate.ts';
 import type { ProxyDeps } from './sarvam-proxy.ts';
 
 export interface CallsApiDeps extends ProxyDeps {
@@ -24,6 +25,8 @@ export interface DashboardDeps {
   >;
   readonly reads: DashboardRepository;
   readonly score: ScoreReads;
+  /** Sarvam Translate for the transcript's English (M6); null when no Sarvam key is set. */
+  readonly translate: Translator | null;
 }
 
 export interface RouteContext {

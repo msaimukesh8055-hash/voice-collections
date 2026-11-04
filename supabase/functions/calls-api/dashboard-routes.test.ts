@@ -25,6 +25,7 @@ const CALL: DashboardCallDetail = {
   durationSeconds: 170,
   summary: 'Promised Monday',
   transcript: [{ role: 'assistant', content: 'Namaste' }],
+  transcriptEnglish: null,
   toolEvents: [],
   followup: { path: 'rule', decision: 'check_promise', reasoning: 'Promise logged' },
 };
@@ -199,4 +200,59 @@ Deno.test('dashboard api › the English-under-Telugu switch: saved; bad body �
   assertEquals(setup.reads.englishUnderTelugu, { [FAKE_OWNER.id]: true });
   const bad = await call('/v1/dashboard/settings', all, { method: 'POST', body: { on: 'yes' } });
   assertEquals(bad.status, 400);
+});
+
+Deno.test('dashboard api › a Telugu transcript gets its English once, then it is kept', async () => {
+  const telugu: DashboardCallDetail = {
+    ...CALL,
+    transcript: [
+      { role: 'assistant', content: 'Namaste' },
+      { role: 'user', content: 'Ramesh సోమవారం ఇస్తాను' },
+    ],
+  };
+  const asked: string[] = [];
+  const setup = dashboardSetup({
+    reads: { calls: [telugu] },
+    translate: (request) => {
+      asked.push(request.text);
+      return Promise.resolve(request.keep.includes('Ramesh') ? 'Ramesh will pay Monday' : null);
+    },
+  });
+  const { all } = deps();
+  const withTranslate: CallsApiDeps = { ...all, dashboard: setup.dashboard };
+  const first = await call(`/v1/dashboard/calls/${CALL.id}`, withTranslate);
+  assertEquals((first.body.call as DashboardCallDetail).transcriptEnglish, [
+    null,
+    'Ramesh will pay Monday',
+  ]);
+  assertEquals(setup.reads.savedEnglish[CALL.id], [null, 'Ramesh will pay Monday']);
+  await call(`/v1/dashboard/calls/${CALL.id}`, withTranslate);
+  assertEquals(asked.length, 1);
+});
+
+Deno.test('dashboard api › English transcript not saved → still shown, and logged', async () => {
+  const telugu: DashboardCallDetail = {
+    ...CALL,
+    transcript: [{ role: 'user', content: 'సోమవారం' }],
+  };
+  const setup = dashboardSetup({
+    reads: { calls: [telugu] },
+    translate: () => Promise.resolve('Monday'),
+  });
+  const logs: string[] = [];
+  const { all } = deps();
+  const broken: CallsApiDeps = {
+    ...all,
+    log: (_level, event) => logs.push(event),
+    dashboard: {
+      ...setup.dashboard,
+      reads: {
+        ...setup.dashboard.reads,
+        saveEnglishTranscript: () => Promise.reject(new Error('db down')),
+      },
+    },
+  };
+  const result = await call(`/v1/dashboard/calls/${CALL.id}`, broken);
+  assertEquals((result.body.call as DashboardCallDetail).transcriptEnglish, ['Monday']);
+  assertEquals(logs.includes('transcript_english_not_saved'), true);
 });

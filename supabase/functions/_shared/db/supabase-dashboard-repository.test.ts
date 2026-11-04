@@ -72,7 +72,11 @@ Deno.test('dashboard repo › calls newest first, capped, optionally for one sho
 
 Deno.test('dashboard repo › one call: transcript, tool calls without the token, follow-up', async () => {
   const { repo } = setup(
-    [{ ...CALL, transcript: [{ role: 'assistant', content: 'Namaste' }] }],
+    [{
+      ...CALL,
+      transcript: [{ role: 'assistant', content: 'Namaste' }],
+      transcript_en: [null],
+    }],
     [{
       tool: 'get_dues',
       args: { call_token: CALL_ID, x: 1 },
@@ -84,6 +88,7 @@ Deno.test('dashboard repo › one call: transcript, tool calls without the token
   );
   const call = await repo.getCall(CALL_ID);
   assertEquals(call?.transcript, [{ role: 'assistant', content: 'Namaste' }]);
+  assertEquals(call?.transcriptEnglish, [null]);
   assertEquals(call?.toolEvents[0]?.args, { x: 1 });
   assert(!JSON.stringify(call).includes(`"call_token"`));
   assertEquals(call?.followup, {
@@ -117,4 +122,11 @@ Deno.test('dashboard repo › promises, notes and the English-under-Telugu switc
   await repo.setEnglishUnderTelugu(OWNER_ID, false);
   assertEquals([seen[2]?.method, seen[2]?.body], ['PATCH', { english_under_telugu: false }]);
   assertStringIncludes(seen[2]?.url ?? '', `owners?id=eq.${OWNER_ID}`);
+});
+
+Deno.test('dashboard repo › the transcript English is saved on the call', async () => {
+  const { repo, seen } = setup();
+  await repo.saveEnglishTranscript(CALL_ID, [null, 'Monday']);
+  assertEquals([seen[0]?.method, seen[0]?.body], ['PATCH', { transcript_en: [null, 'Monday'] }]);
+  assertStringIncludes(seen[0]?.url ?? '', `calls?id=eq.${CALL_ID}`);
 });

@@ -9,6 +9,7 @@ import {
   type FakeDashboardState,
 } from '../../_shared/db/fake-dashboard-repository.ts';
 import type { CallStatus } from '../../_shared/schemas/shopkeeper.ts';
+import type { Translator } from '../../_shared/speech/translate.ts';
 import type { DashboardDeps } from '../types.ts';
 
 export const LINK_SECRET = 'dashboard-test-secret-of-32-characters!';
@@ -20,7 +21,11 @@ export interface DashboardSetup {
 }
 
 export function dashboardSetup(
-  options: { book?: Partial<FakeBookState>; reads?: Partial<FakeDashboardState> } = {},
+  options: {
+    book?: Partial<FakeBookState>;
+    reads?: Partial<FakeDashboardState>;
+    translate?: Translator | null;
+  } = {},
 ): DashboardSetup {
   const fakeBook = createFakeBookRepository(options.book);
   const fakeReads = createFakeDashboardRepository(options.reads);
@@ -32,6 +37,7 @@ export function dashboardSetup(
       listPromises: () => Promise.resolve([]),
       listCallStatuses: (): Promise<readonly CallStatus[]> => Promise.resolve([]),
     },
+    translate: options.translate === undefined ? null : options.translate,
   };
   return { dashboard, book: fakeBook.state, reads: fakeReads.state };
 }

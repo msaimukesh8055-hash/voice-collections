@@ -2,16 +2,40 @@
 import { render, screen } from '@testing-library/react';
 import { App } from './App.tsx';
 import { fakeApi, fakeVoice } from './test/fakes.ts';
+import { fakeDashboard } from './test/dashboardFakes.ts';
+
+function renderAt(path: string, search = ''): void {
+  render(
+    <App
+      api={fakeApi().api}
+      dashboard={fakeDashboard().dashboard}
+      voice={fakeVoice().client}
+      path={path}
+      search={search}
+    />,
+  );
+}
 
 describe('App', () => {
-  it('renders the home page with the demo controls', async () => {
-    render(<App api={fakeApi().api} voice={fakeVoice().client} path="/" />);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Easy Recovery AI');
+  it('renders the dashboard with the demo controls on /', async () => {
+    renderAt('/');
+    expect(screen.getByText('Easy Recovery AI')).toBeInTheDocument();
+    expect(await screen.findByText('Collected this month')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Ring Ramesh' })).toBeInTheDocument();
   });
 
+  it('renders the shopkeepers list, and one shopkeeper with ?id=', async () => {
+    renderAt('/shopkeepers');
+    expect(await screen.findByText('Shopkeepers (2)')).toBeInTheDocument();
+  });
+
+  it('renders one call on /calls?id=', async () => {
+    renderAt('/calls', '?id=c1');
+    expect(await screen.findByRole('heading', { name: 'Call with Ramesh' })).toBeInTheDocument();
+  });
+
   it('renders the phone page on /phone', async () => {
-    render(<App api={fakeApi().api} voice={fakeVoice().client} path="/phone/" />);
+    renderAt('/phone/');
     expect(await screen.findByRole('heading', { name: 'Waiting for a call…' })).toBeInTheDocument();
   });
 });

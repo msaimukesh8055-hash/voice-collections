@@ -13,10 +13,11 @@ export interface FakeDashboardState {
   promises: Readonly<Record<string, readonly DashboardPromise[]>>;
   notes: Readonly<Record<string, readonly DashboardNote[]>>;
   englishUnderTelugu: Readonly<Record<string, boolean>>;
+  savedEnglish: Readonly<Record<string, readonly (string | null)[]>>;
 }
 
 function plain(call: DashboardCallDetail): DashboardCall {
-  const { transcript: _t, toolEvents: _e, followup: _f, ...rest } = call;
+  const { transcript: _t, transcriptEnglish: _en, toolEvents: _e, followup: _f, ...rest } = call;
   return rest;
 }
 
@@ -28,6 +29,7 @@ export function createFakeDashboardRepository(
     promises: {},
     notes: {},
     englishUnderTelugu: {},
+    savedEnglish: {},
     ...overrides,
   };
   const reads: DashboardRepository = {
@@ -42,6 +44,13 @@ export function createFakeDashboardRepository(
     listPromises: (shopkeeperId) => Promise.resolve(state.promises[shopkeeperId] ?? []),
     listNotes: (shopkeeperId, limit) =>
       Promise.resolve((state.notes[shopkeeperId] ?? []).slice(0, limit)),
+    saveEnglishTranscript: (callId, lines) => {
+      state.savedEnglish = { ...state.savedEnglish, [callId]: lines };
+      state.calls = state.calls.map((call) =>
+        call.id === callId ? { ...call, transcriptEnglish: lines } : call
+      );
+      return Promise.resolve();
+    },
     setEnglishUnderTelugu: (ownerId, on) => {
       state.englishUnderTelugu = { ...state.englishUnderTelugu, [ownerId]: on };
       return Promise.resolve();
