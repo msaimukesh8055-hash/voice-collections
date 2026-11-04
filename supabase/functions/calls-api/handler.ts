@@ -18,7 +18,7 @@ interface Route {
 }
 
 function proxyRoute(req: Request, ctx: RouteContext): Promise<Response> {
-  return proxyCallUrl(req, ctx.params, ctx.deps, ctx.cors);
+  return proxyCallUrl(req, ctx.deps, { params: ctx.params, cors: ctx.cors });
 }
 
 /** Typed lookup table (no switch ladder). Capture groups become `params`. */

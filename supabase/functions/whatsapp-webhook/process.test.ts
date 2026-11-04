@@ -11,6 +11,7 @@ import {
   RAMESH,
 } from '../_shared/db/fake-book-repository.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
+import { RepositoryError } from '../_shared/db/postgrest.ts';
 import type { LogFields, Logger } from '../_shared/log.ts';
 import {
   FAKE_OWNER_NUMBER,
@@ -244,12 +245,39 @@ Deno.test('process › Not received on a claim and a pick-list row', async () =>
   assertStringIncludes(replyText([s.sent[2]!.reply]), 'Praveen (Praveen Bakery)');
 });
 
+Deno.test('process › logs only the error name or the database operation + code (CP2 L1)', async () => {
+  const s = setup({
+    book: { listEntries: () => Promise.reject(new Error('Ramesh owes 3000 at +91 00000 99999')) },
+  });
+  await receive(s, { text: 'pending', id: 'wamid.L1' });
+  assertEquals(
+    s.logs.find((log) => log.event === 'whatsapp_route_failed')?.fields['error'],
+    'Error',
+  );
+  const t = setup({
+    book: { recordInbound: () => Promise.reject(new RepositoryError('recordInbound', '23505')) },
+  });
+  await receive(t, { text: 'hi', id: 'wamid.L2' });
+  assertEquals(
+    t.logs.find((log) => log.event === 'whatsapp_process_failed')?.fields['error'],
+    'recordInbound failed (23505)',
+  );
+  const u = setup({ book: { recordOutbound: () => Promise.reject(new TypeError('secret text')) } });
+  await receive(u, { text: 'hi', id: 'wamid.L3' });
+  assertEquals(
+    u.logs.find((log) => log.event === 'outbound_log_failed')?.fields['error'],
+    'TypeError',
+  );
+  assert(!JSON.stringify([s.logs, u.logs]).includes('3000'));
+  assert(!JSON.stringify(u.logs).includes('secret'));
+});
+
 Deno.test('process › a non-Error failure is still logged', async () => {
   const s = setup({ book: { recordInbound: () => Promise.reject('db down') } });
   await receive(s, { text: 'hi' });
   assertEquals(
     s.logs.find((log) => log.event === 'whatsapp_process_failed')?.fields['error'],
-    'unknown',
+    'unknown error',
   );
 });
 

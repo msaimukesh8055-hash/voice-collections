@@ -150,6 +150,17 @@ Deno.test('postgrest › a missing count is an error', async () => {
   );
 });
 
+Deno.test('postgrest › counts issued call URLs (all shopkeepers) since a time', async () => {
+  const { repo, requests } = setup({ headers: { 'content-range': '0-19/20' } }, {});
+  const since = new Date('2026-11-01T18:30:00Z');
+  assertEquals(await repo.countCallUrlsIssuedSince(since), 20);
+  assertEquals([requests[0]?.method, requests[0]?.headers['Prefer']], ['HEAD', 'count=exact']);
+  const url = requests[0]?.url ?? '';
+  assertStringIncludes(url, 'url_issued_at=gte.2026-11-01T18%3A30%3A00.000Z');
+  assertEquals(url.includes('shopkeeper_id'), false);
+  await assertRejects(() => repo.countCallUrlsIssuedSince(since), RepositoryError, 'no count');
+});
+
 Deno.test('postgrest › createCall returns the new id; an empty reply is an error', async () => {
   const { repo, requests } = setup({ body: [{ id: CALL_ID }] }, { body: [] });
   const call = { shopkeeperId: SHOPKEEPER_ID, language: 'te', mode: 'live' } as const;
@@ -169,6 +180,18 @@ Deno.test('postgrest › findRingingCall asks for the newest queued or ringing c
     requests[0]?.url ?? '',
     'status=in.(queued,ringing)&order=queued_at.desc&limit=1',
   );
+});
+
+Deno.test('postgrest › listOpenLiveCalls asks for open live calls, newest first', async () => {
+  const { repo, requests } = setup({ body: [{ ...SESSION_ROW, status: 'in_progress' }] }, {
+    body: [],
+  });
+  assertEquals((await repo.listOpenLiveCalls()).map((call) => call.status), ['in_progress']);
+  assertStringIncludes(
+    requests[0]?.url ?? '',
+    'mode=eq.live&status=in.(queued,ringing,accepted,in_progress)&order=queued_at.desc&limit=20',
+  );
+  assertEquals(await repo.listOpenLiveCalls(), []);
 });
 
 Deno.test('postgrest › transitionCall only updates from the expected status, sending set fields', async () => {

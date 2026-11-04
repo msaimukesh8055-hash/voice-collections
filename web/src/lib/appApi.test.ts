@@ -71,13 +71,20 @@ describe('createAppApi', () => {
     expect(sent[0]?.init.mode).toBe('no-cors');
   });
 
-  it('returns the ringing call, or null when nothing rings', async () => {
-    const ringing = setup(json({ call: { callToken: TOKEN, callerName: 'Sri Lakshmi Traders' } }));
-    await expect(ringing.api.incoming()).resolves.toEqual({
+  it('returns the ringing call with who it is for, or null when nothing rings', async () => {
+    const call = {
       callToken: TOKEN,
       callerName: 'Sri Lakshmi Traders',
-    });
+      shopkeeperName: 'Imran',
+      shopName: 'Imran General Store',
+    };
+    await expect(setup(json({ call })).api.incoming()).resolves.toEqual(call);
     await expect(setup(json({ call: null })).api.incoming()).resolves.toBeNull();
+  });
+
+  it('treats a ringing call without the shopkeeper as an unexpected reply', async () => {
+    const old = setup(json({ call: { callToken: TOKEN, callerName: 'Sri Lakshmi Traders' } }));
+    await expect(old.api.incoming()).rejects.toThrow(UNEXPECTED_ERROR);
   });
 
   it('accepts, declines and reports the end of a call by token', async () => {

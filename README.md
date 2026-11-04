@@ -52,6 +52,7 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 |---|---|
 | `npm run dev` | Web dev server (`/` demo controls, `/phone` shopkeeper phone) |
 | `npm run check` | Full quality gate: format, lint, typecheck, tests + coverage, build, bundle secret scan, Edge Function fmt/lint/check/tests |
+| `npm run lint` | ESLint, zero warnings. Also checks the size limits (function ≤ 50 lines, ≤ 3 parameters, file ≤ 800 lines, nesting ≤ 4) on `supabase/functions`; `deno lint` covers the rest there |
 | `npm run fn:coverage` | Edge Function coverage report |
 | `npm run db:push` | Apply migrations + seed |
 | `npm run db:check-seed` | Seed + RLS smoke test |
@@ -59,6 +60,7 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 | `npm run functions:deploy` | Upload function secrets, deploy `sarvam-tools`, `calls-api`, `whatsapp-webhook`, `followup-worker` |
 | `npm run smoke:tools` | End-to-end check on the deployed functions: ring → accept → 5 tools → ended (no voice credit) |
 | `npm run smoke:whatsapp` | Signed fake Meta messages to the deployed webhook: verify, bad signature, stranger. Add `-- --send-to-owner` for pending / lookup / card → Save / duplicate id (**sends real WhatsApp replies to the owner**); cleans up its rows |
+| `npm run smoke:reminders` | M5 reminder loop on the deployed functions: worker secret (401/202). Add `-- --send-to-owner` for "due" → Remind tap → one live call queued, then declined (no voice minutes) → follow-up; then one simulated call end to end → follow-up run + note (**sends real WhatsApp messages to the owner, about ₹1 of LLM**); cleans up its rows |
 | `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam |
 | `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes` |
 

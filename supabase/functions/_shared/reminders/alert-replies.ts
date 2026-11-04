@@ -44,9 +44,12 @@ function label(person: DuePerson): string {
 function lineOf(person: DuePerson, phrases: ReminderPhrases): string {
   const { dues, brokenPromise } = person;
   if (brokenPromise) {
-    const promised = formatInr(brokenPromise.amount);
-    const day = formatShortDay(brokenPromise.promiseDate);
-    return phrases.brokenLine(label(person), promised, day, formatInr(dues.outstanding));
+    return phrases.brokenLine({
+      label: label(person),
+      promised: formatInr(brokenPromise.amount),
+      day: formatShortDay(brokenPromise.promiseDate),
+      owed: formatInr(dues.outstanding),
+    });
   }
   if (person.reason === 'overdue') {
     return phrases.overdueLine(label(person), formatInr(dues.overdueAmount), dues.daysOverdue);

@@ -2,6 +2,7 @@
 import { assert, assertEquals } from '@std/assert';
 import {
   createFakeRepository,
+  FAKE_LATHA,
   FAKE_NOW,
   FAKE_RAMESH,
   type FakeCall,
@@ -152,7 +153,14 @@ Deno.test('calls-api › incoming: a queued call starts ringing, shown as the bu
   });
   const { deps, state } = setup({ calls: [queued] });
   const body = await json(await handleCallsApi(request('/v1/phone/incoming'), deps));
-  assertEquals(body, { call: { callToken: queued.callId, callerName: 'Sri Lakshmi Traders' } });
+  assertEquals(body, {
+    call: {
+      callToken: queued.callId,
+      callerName: 'Sri Lakshmi Traders',
+      shopkeeperName: 'Ramesh',
+      shopName: 'Ramesh Kirana',
+    },
+  });
   assertEquals([state.calls[0]?.status, state.calls[0]?.ringingAt], [
     'ringing',
     FAKE_NOW.toISOString(),
@@ -167,14 +175,53 @@ Deno.test('calls-api › incoming: a call ringing over 30 s is marked missed', a
   assertEquals(state.calls[0]?.status, 'missed');
 });
 
-Deno.test('calls-api › incoming: with no live shopkeeper there is never a call', async () => {
+Deno.test("calls-api › incoming: any shopkeeper's live call rings, showing who it is for", async () => {
   const settings = {
     demoClock: null,
     callingHoursEnabled: false,
     callLimitsEnabled: false,
     liveShopkeeperId: null,
   };
-  const { deps } = setup({ settings, calls: [ringingCall()] });
+  const latha = ringingCall({ shopkeeperId: FAKE_LATHA.id });
+  const { deps } = setup({ settings, calls: [latha] });
+  const body = await json(await handleCallsApi(request('/v1/phone/incoming'), deps));
+  assertEquals(body, {
+    call: {
+      callToken: latha.callId,
+      callerName: 'Sri Lakshmi Traders',
+      shopkeeperName: FAKE_LATHA.name,
+      shopName: FAKE_LATHA.shopName,
+    },
+  });
+});
+
+Deno.test('calls-api › incoming: one live call at a time; the next waits, then rings', async () => {
+  const onCall = fakeCall({ status: 'in_progress', acceptedAt: SECONDS_AGO(60) });
+  const waiting = fakeCall({
+    callId: 'ca000000-0000-4000-8000-0000000000bb',
+    shopkeeperId: FAKE_LATHA.id,
+    status: 'queued',
+    queuedAt: SECONDS_AGO(30),
+    ringingAt: null,
+    acceptedAt: null,
+  });
+  const { deps, state } = setup({ calls: [onCall, waiting] });
+  const busy = await json(await handleCallsApi(request('/v1/phone/incoming'), deps));
+  assertEquals([busy, state.calls[1]?.status], [{ call: null }, 'queued']);
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 60 }), deps);
+  const next = await json(await handleCallsApi(request('/v1/phone/incoming'), deps));
+  assertEquals((next['call'] as { callToken: string }).callToken, waiting.callId);
+});
+
+Deno.test('calls-api › incoming: simulated calls never ring the phone page', async () => {
+  const { deps } = setup({ calls: [ringingCall({ mode: 'simulated' })] });
+  assertEquals(await json(await handleCallsApi(request('/v1/phone/incoming'), deps)), {
+    call: null,
+  });
+});
+
+Deno.test('calls-api › incoming: a call for a missing shopkeeper is not shown', async () => {
+  const { deps } = setup({ shopkeepers: [], calls: [ringingCall()] });
   assertEquals(await json(await handleCallsApi(request('/v1/phone/incoming'), deps)), {
     call: null,
   });

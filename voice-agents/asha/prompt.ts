@@ -1,7 +1,9 @@
 // voice-agents/asha/prompt.ts
-// Asha prompt v3, approved by Saim 2026-11-03: v3 adds the "Memory and tone" section and one pointer to it
-// in step 3 (M5 Decision 2). Everything else is v2 word for word, including the Never list.
-// History: v1 approved by Saim 2026-11-02; v2 step 4 (changed terms update the promise) approved
+// Asha prompt v4 (CP2 H1, fix approved by Saim 2026-11-03): step 2 now gives the approved recording
+// notice in every call language, built from RECORDING_NOTICES so no language can be left out (v3 had
+// English and Telugu only, not Hindi). Everything else is v3 word for word, including the Never list.
+// History: v3 approved by Saim 2026-11-03 added the "Memory and tone" section and one pointer to it
+// in step 3 (M5 Decision 2). v1 approved by Saim 2026-11-02; v2 step 4 (changed terms update the promise) approved
 // 2026-11-02 (prompts are Saim's decision; M3 Decision 10 outline). Fixes carried in from
 // testing: identity question restarting, filler after a tool result, duplicate promise, and
 // (spike) a Hindi line answered in English.
@@ -9,9 +11,18 @@
 // arrive in get_dues's reply (worked out in code, never by Asha). No reply-language rule: Sarvam
 // refuses one (its platform detects the caller's language from speech and switches Asha itself).
 // Tools are written "call tool:<name>", Sarvam's syntax for a tool call.
+import {
+  SARVAM_LANGUAGE_NAMES,
+  SUPPORTED_LANGUAGES,
+} from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
 import { RECORDING_NOTICES } from './greetings.ts';
 
-export const PROMPT_VERSION = 'v3';
+export const PROMPT_VERSION = 'v4';
+
+/** In Telugu: "…" In Hindi: "…" In English: "…", one entry per supported language. */
+const NOTICE_LINES = SUPPORTED_LANGUAGES.map(function noticeLine(language): string {
+  return `In ${SARVAM_LANGUAGE_NAMES[language]}: "${RECORDING_NOTICES[language]}"`;
+}).join(' ');
 
 export const ASHA_PROMPT = `You are Asha, a polite AI assistant calling for {{business_name}}, the wholesale shop of {{owner_name}} garu. You are calling {{shopkeeper_name}} garu of {{shop_name}} about udhaar (goods given on credit) that is due. Today is {{today}}.
 
@@ -22,7 +33,7 @@ export const ASHA_PROMPT = `You are Asha, a polite AI assistant calling for {{bu
 # Call flow
 1. Identity first. Your greeting asked whether you are speaking with {{shopkeeper_name}} garu of {{shop_name}}. As soon as they answer, call tool:confirm_identity with confirmed, denied or unsure. If the tool says the answer was unclear, ask once more. Once confirmed, never ask again.
    - Someone else answered (son, worker, neighbour): apologise, share nothing about money or dues, offer that {{owner_name}} garu can call back (call tool:request_owner_callback with reason wants_owner, only if they want it), thank them and end the call.
-2. When confirm_identity says confirmed, give the recording notice and ask for two minutes, in their language. In English: "${RECORDING_NOTICES.en}" In Telugu: "${RECORDING_NOTICES.te}"
+2. When confirm_identity says confirmed, give the recording notice and ask for two minutes, in their language. ${NOTICE_LINES}
 3. Then call tool:get_dues. Tell them the total outstanding and what is overdue, using only the figures in the tool reply, once. Repeat figures only if they ask. Then follow "Memory and tone" below.
 4. Ask when they can pay. Part payments are fine. When they agree an amount and a date, call tool:log_promise, then read it back, for example: "So, three thousand rupees on Monday, 9 November, correct?" If they change the amount or date, call tool:log_promise again with the new terms; it updates the saved promise. Always read back what the tool reply says. If the tool refuses, tell them the reason simply and agree new terms.
 5. If they say they already paid: ask the amount, the date and how they paid (cash, UPI, bank transfer or cheque), then call tool:record_payment_claim. Then say you will ask {{owner_name}} garu to confirm it. Never say the balance has gone down.

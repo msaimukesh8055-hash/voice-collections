@@ -4,7 +4,8 @@
 //   owner    → record the message id (a retry stops here) → load the book → route → send →
 //              mark which path answered it.
 // Logs carry a short sender-hash prefix, the message type, path and timing: never the number,
-// never the text.
+// never the text. Errors go through describeFailure: database operation + code, or the error's
+// name only, never its message (CP2 L1).
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 import type { BotContext } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
@@ -12,6 +13,7 @@ import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ReminderDeps } from '../_shared/reminders/deps.ts';
+import { describeFailure } from '../_shared/tools/registry.ts';
 import type { WhatsAppClient } from '../_shared/whatsapp/client.ts';
 import {
   extractMessages,
@@ -46,10 +48,6 @@ interface Delivery {
   readonly istDay: string;
 }
 
-function errorName(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : 'unknown';
-}
-
 async function sendAll(
   delivery: Delivery,
   replies: readonly Reply[],
@@ -63,7 +61,7 @@ async function sendAll(
       msgType: reply.kind,
       istDay: delivery.istDay,
     }).catch((error: unknown) =>
-      deps.log('warn', 'outbound_log_failed', { error: errorName(error) })
+      deps.log('warn', 'outbound_log_failed', { error: describeFailure(error) })
     );
   }
 }
@@ -106,7 +104,7 @@ async function answerOwner(delivery: Delivery, deps: ProcessDeps): Promise<Outco
       demoNow: loaded.demoNow,
     });
   } catch (error) {
-    deps.log('error', 'whatsapp_route_failed', { error: errorName(error) });
+    deps.log('error', 'whatsapp_route_failed', { error: describeFailure(error) });
     return {
       replies: [textReply(phrasesFor(loaded.ctx.owner.language).somethingWrong)],
       path: 'failed',
@@ -150,7 +148,7 @@ export async function processMessage(message: InboundMessage, deps: ProcessDeps)
   } catch (error) {
     deps.log('error', 'whatsapp_process_failed', {
       sender: maskedHash(sender.senderHash),
-      error: errorName(error),
+      error: describeFailure(error),
     });
   }
 }

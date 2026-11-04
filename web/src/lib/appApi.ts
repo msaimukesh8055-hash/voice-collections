@@ -20,7 +20,16 @@ const DemoSchema = z.object({
 });
 const RingSchema = z.object({ status: z.literal('queued'), alreadyQueued: z.boolean() });
 const IncomingSchema = z.object({
-  call: z.object({ callToken: z.uuid(), callerName: z.string() }).nullable(),
+  call: z
+    .object({
+      callToken: z.uuid(),
+      /** The business calling (the owner's shop). */
+      callerName: z.string(),
+      /** Who Saim answers as: any shopkeeper can get a live call (Live remind, pre-M6). */
+      shopkeeperName: z.string(),
+      shopName: z.string(),
+    })
+    .nullable(),
 });
 const AcceptedSchema = z.object({
   callToken: z.uuid(),

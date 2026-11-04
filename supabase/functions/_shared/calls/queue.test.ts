@@ -1,6 +1,7 @@
 // supabase/functions/_shared/calls/queue.test.ts
-// The reminder queue (M5 test list, 100%): the live shopkeeper rings, others are simulated, the
-// pre-call check applies to every person, and the 4-at-once limit for simulated calls holds.
+// The reminder queue (M5 test list, 100%): "remind all" queues everyone as simulated (Live remind,
+// pre-M6: even the demo's live shopkeeper), the pre-call check applies to every person, and the
+// 4-at-once limit for simulated calls holds.
 import { assertEquals } from '@std/assert';
 import { createFakeReminderRepository } from '../db/fake-reminder-repository.ts';
 import type { DemoSettings } from '../db/repository.ts';
@@ -46,16 +47,16 @@ function deps(
   };
 }
 
-Deno.test('queue › the live shopkeeper rings; everyone else is queued as simulated', async () => {
+Deno.test('queue › everyone is queued as simulated, the demo live shopkeeper too', async () => {
   const { deps: d, fake } = deps();
   const batch = await queueReminders(d, [target(1), target(2), target(3)]);
-  assertEquals(batch.live?.shopkeeperId, LIVE);
-  assertEquals(batch.simulated.map((c) => c.shopkeeperId), [
-    target(2).shopkeeperId,
-    target(3).shopkeeperId,
-  ]);
+  assertEquals(target(1).shopkeeperId, LIVE);
+  assertEquals(
+    batch.simulated.map((c) => c.shopkeeperId),
+    [1, 2, 3].map((n) => target(n).shopkeeperId),
+  );
   assertEquals(fake.state.calls.map((c) => [c.mode, c.status]), [
-    ['live', 'queued'],
+    ['simulated', 'queued'],
     ['simulated', 'queued'],
     ['simulated', 'queued'],
   ]);
@@ -76,7 +77,7 @@ Deno.test('queue › calling hours, when switched on, block the whole batch at n
     'OUTSIDE_CALLING_HOURS',
     'OUTSIDE_CALLING_HOURS',
   ]);
-  assertEquals([batch.live, fake.state.calls.length], [null, 0]);
+  assertEquals([batch.simulated.length, fake.state.calls.length], [0, 0]);
 });
 
 Deno.test('queue › the demo clock decides calling hours', async () => {
@@ -101,10 +102,10 @@ Deno.test('queue › attempt limits, when switched on, count earlier calls today
   assertEquals(batch.simulated.length, 1);
 });
 
-Deno.test('queue › no live shopkeeper set → everyone is simulated', async () => {
+Deno.test('queue › no live shopkeeper set → still simulated (the setting is not read)', async () => {
   const { deps: d } = deps({ liveShopkeeperId: null });
   const batch = await queueReminders(d, [target(1)]);
-  assertEquals([batch.live, batch.simulated.length], [null, 1]);
+  assertEquals(batch.simulated.length, 1);
 });
 
 Deno.test('queue › at most 4 simulated calls run at once; the oldest queued starts first', async () => {
@@ -140,4 +141,32 @@ Deno.test('queue › a stale simulated call frees its slot and is ended for foll
   assertEquals(ended, [batch.simulated[0]?.callId ?? '']);
   const end = { transcript: [], endedAt: later, durationSeconds: 1 };
   assertEquals(await fake.reminders.finishSimulatedCall(ended[0] ?? '', end), false);
+});
+
+// CP2 M1: attempt windows count on the real clock; the demo clock only decides calling hours.
+function threeCallsBefore(clock: Date, id: string): { shopkeeperId: string; queuedAt: string }[] {
+  return [1, 2, 3].map((hours) => ({
+    shopkeeperId: id,
+    queuedAt: new Date(clock.getTime() - hours * 3600_000).toISOString(),
+  }));
+}
+
+Deno.test('queue › limits on, demo clock a day ahead: real calls today still count', async () => {
+  const ahead = new Date(NOW.getTime() + 24 * 3600_000).toISOString();
+  const { deps: d, fake } = deps({ callLimitsEnabled: true, demoClock: ahead });
+  const id = target(2).shopkeeperId;
+  fake.state.recentCalls = threeCallsBefore(NOW, id);
+  const batch = await queueReminders(d, [target(2)]);
+  assertEquals(batch.blocked, [{ shopkeeperId: id, code: 'ATTEMPT_LIMIT_REACHED' }]);
+  assertEquals(fake.state.calls.length, 0);
+});
+
+Deno.test('queue › limits on, demo clock a day behind: yesterday does not count as today', async () => {
+  const behind = new Date(NOW.getTime() - 24 * 3600_000).toISOString();
+  const { deps: d, fake } = deps({ callLimitsEnabled: true, demoClock: behind });
+  const id = target(2).shopkeeperId;
+  const yesterday = new Date(NOW.getTime() - 24 * 3600_000);
+  fake.state.recentCalls = threeCallsBefore(yesterday, id);
+  const batch = await queueReminders(d, [target(2)]);
+  assertEquals([batch.blocked, batch.simulated.length], [[], 1]);
 });

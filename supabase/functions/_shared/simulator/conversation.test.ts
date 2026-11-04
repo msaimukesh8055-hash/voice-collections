@@ -62,6 +62,14 @@ Deno.test('conversation › greeting first; tools stay out of the transcript; As
     'TOOL REPLY confirm_identity: {"outstanding":8500',
   );
   assertEquals(afterTool[0]?.role, 'user');
+  // Native tool format: Asha's call, then the reply tied to it by id.
+  const call = afterTool.at(-2);
+  assertEquals([call?.role, call?.toolCall?.name, afterTool.at(-1)?.role], [
+    'assistant',
+    'confirm_identity',
+    'tool',
+  ]);
+  assertEquals(afterTool.at(-1)?.toolCallId, call?.toolCall?.id);
   assertEquals(JSON.stringify(result.transcript).includes('TOOL REPLY'), false);
 });
 
@@ -87,7 +95,7 @@ Deno.test('conversation › stops after 10 shopkeeper turns', async () => {
 
 Deno.test('conversation › a failed or unusable model answer ends the call', async () => {
   const ashaFails = await converse(GREETING, {
-    asha: scripted(['not json']),
+    asha: scripted(['{"say": broken']),
     shopkeeper: scripted([shop('Yes.')]),
     runTool: tools([]),
   });
@@ -108,14 +116,30 @@ Deno.test('conversation › a failed or unusable model answer ends the call', as
 
 Deno.test('conversation › at most 3 tools in a row; then Asha must speak', async () => {
   const calls: string[] = [];
-  const tool = asha('', { tool: { name: 'get_dues', args: {} } });
+  const step = (n: number): string => asha('', { tool: { name: 'get_dues', args: { n } } });
   const result = await converse(GREETING, {
-    asha: scripted([tool, tool, tool, tool]),
+    asha: scripted([step(1), step(2), step(3), step(4)]),
     shopkeeper: scripted([shop('Yes.')]),
     runTool: tools(calls),
   });
   assertEquals(calls.length, MAX_TOOL_STEPS);
   assertEquals(result.end, 'asha_failed');
+});
+
+Deno.test('conversation › a repeated tool call gets the earlier reply and does not run again', async () => {
+  const calls: string[] = [];
+  const seen: ChatMessage[][] = [];
+  const save = asha('', { tool: { name: 'log_promise', args: { amount: 2000 } } });
+  const result = await converse(GREETING, {
+    asha: scripted([save, save, asha('Saved: 2,000 rupees. Goodbye.', { end_call: true })], seen),
+    shopkeeper: scripted([shop('2000 on Saturday.')]),
+    runTool: tools(calls),
+  });
+  assertEquals([calls, result.toolCalls, result.end], [['log_promise'], 1, 'asha_ended']);
+  const last = seen[2] ?? [];
+  assertEquals(last.at(-1)?.content, last.at(-3)?.content);
+  assertEquals(last.at(-1)?.toolCallId, last.at(-2)?.toolCall?.id);
+  assertEquals(last.at(-1)?.toolCallId === last.at(-3)?.toolCallId, false);
 });
 
 Deno.test('conversation › a tool sent with the goodbye still runs', async () => {

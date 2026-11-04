@@ -146,6 +146,9 @@ Deno.test('simulator › Asha speaks from the approved prompt with variables fil
   assertStringIncludes(system, 'Today is Monday, 2026-11-02');
   assertEquals(system.includes('{{'), false);
   assertStringIncludes(system, '- record_payment_claim:');
+  // Declared natively too: sarvam-105b calls tools that way (CP2 smoke finding).
+  const tools = s.ashaRequests[0]?.tools?.map((tool) => tool.name) ?? [];
+  assertEquals(tools.includes('confirm_identity') && tools.includes('log_promise'), true);
 });
 
 Deno.test('simulator › an unknown tool is audited under a fixed label', async () => {

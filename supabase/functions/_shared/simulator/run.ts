@@ -13,13 +13,13 @@ import type { ReminderRepository } from '../db/reminder-repository.ts';
 import type { CallSession, Repository, Shopkeeper } from '../db/repository.ts';
 import { formatInr } from '../format.ts';
 import { computeDues } from '../ledger/dues.ts';
-import type { ChatMessage, ChatRequest } from '../llm/json-llm.ts';
+import type { ChatRequest, ChatTool } from '../llm/json-llm.ts';
 import type { Logger } from '../log.ts';
 import type { Turn } from '../sarvam-analytics.ts';
 import { auditToolRun } from '../tools/audit.ts';
 import { describeFailure, isToolName, runTool } from '../tools/registry.ts';
 import type { ToolResult } from '../tools/types.ts';
-import { ASHA_SIMULATED_VERSION, ashaGreeting, ashaSystemPrompt } from './asha-text.ts';
+import { ASHA_SIMULATED_VERSION, ashaGreeting, ashaSystemPrompt, ashaTools } from './asha-text.ts';
 import { type ChatFn, type Conversation, converse } from './conversation.ts';
 import { buildPersonaPrompt, PERSONA_PROMPT_VERSION } from './persona-prompt.ts';
 
@@ -50,10 +50,10 @@ export type SimulationOutcome = 'done' | 'idle' | 'not_found' | 'failed';
 
 function chatFn(
   providers: readonly ChatProvider[],
-  prompt: { side: string; system: string; temperature: number },
+  prompt: { side: string; system: string; temperature: number; tools?: readonly ChatTool[] },
   log: Logger,
 ): ChatFn {
-  return async function ask(messages: readonly ChatMessage[]): Promise<string | null> {
+  return async function ask(messages): Promise<string | null> {
     const request = { ...prompt, messages, maxTokens: MAX_REPLY_TOKENS };
     for (const provider of providers) {
       try {
@@ -148,7 +148,7 @@ function talk(setup: CallSetup, deps: SimulatorDeps): Promise<Conversation> {
   return converse(ashaGreeting(session.language, variables), {
     asha: chatFn(
       [deps.asha],
-      { side: 'asha', system: ashaSystem, temperature: ASHA_TEMPERATURE },
+      { side: 'asha', system: ashaSystem, temperature: ASHA_TEMPERATURE, tools: ashaTools() },
       deps.log,
     ),
     shopkeeper: chatFn(deps.shopkeeper, {

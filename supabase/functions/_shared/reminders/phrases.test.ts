@@ -3,7 +3,14 @@
 // optional parts (skips, the live name, simulated count) appear only when they apply.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { SUPPORTED_LANGUAGES } from '../schemas/shopkeeper.ts';
-import { type RemindBlock, reminderPhrasesFor } from './phrases.ts';
+import { type BrokenPromiseLine, type RemindBlock, reminderPhrasesFor } from './phrases.ts';
+
+const BROKEN_LINE: BrokenPromiseLine = {
+  label: 'Ramesh',
+  promised: '₹3,000',
+  day: 'Fri 30 Oct',
+  owed: '₹8,500',
+};
 
 const BLOCKS: readonly RemindBlock[] = [
   'DO_NOT_CALL',
@@ -21,7 +28,7 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.sectionBroken(1),
       p.sectionOverdue(2),
       p.sectionDueToday(3),
-      p.brokenLine('Ramesh', '₹3,000', 'Fri 30 Oct', '₹8,500'),
+      p.brokenLine(BROKEN_LINE),
       p.overdueLine('Latha', '₹2,000', 8),
       p.dueTodayLine('Suresh', '₹900'),
       p.nobodyDue,
@@ -34,7 +41,6 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.remindAllText(7),
       p.remindAllButton,
       p.ringing('Ramesh'),
-      p.simulatedStarted('Latha'),
       p.alreadyCalling('Latha'),
       ...BLOCKS.map((code) => p.blocked(code, 'Latha')),
       p.confirmAll(7),
@@ -50,7 +56,7 @@ Deno.test('reminder phrases › every line in every language, figures kept', () 
       p.newBand,
     ];
     for (const line of lines) assert(line.trim().length > 0, `${language}: empty line`);
-    assertStringIncludes(p.brokenLine('Ramesh', '₹3,000', 'Fri 30 Oct', '₹8,500'), '₹3,000');
+    assertStringIncludes(p.brokenLine(BROKEN_LINE), '₹3,000');
     assertStringIncludes(p.scoreTitle('Ramesh', 42, 'Risky'), '42/100');
   }
 });
@@ -63,12 +69,19 @@ Deno.test('reminder phrases › skips list only what happened', () => {
   }
 });
 
-Deno.test('reminder phrases › started-all mentions the live name and simulated count when set', () => {
+Deno.test('reminder phrases › started-all gives the count and the 4-at-a-time limit', () => {
   for (const language of SUPPORTED_LANGUAGES) {
-    const p = reminderPhrasesFor(language);
-    assertStringIncludes(p.startedAll(5, 'Ramesh', 4), 'Ramesh');
-    assertStringIncludes(p.startedAll(5, 'Ramesh', 4), '4');
-    assertEquals(p.startedAll(1, null, 0).includes('Ramesh'), false);
+    assertStringIncludes(reminderPhrasesFor(language).startedAll(7), '7');
+    assertStringIncludes(reminderPhrasesFor(language).startedAll(7), '4');
   }
-  assertStringIncludes(reminderPhrasesFor('en').startedAll(1, 'Ramesh', 0), 'Calling 1 person.');
+  assertStringIncludes(reminderPhrasesFor('en').startedAll(1), 'Calling 1 person with simulated');
+  assertStringIncludes(reminderPhrasesFor('en').startedAll(2), 'Calling 2 people with simulated');
+});
+
+Deno.test('reminder phrases › one-person Remind says it rings on the phone page, as that person', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const line = reminderPhrasesFor(language).ringing('Imran');
+    assertEquals(line.split('Imran').length - 1, 2, `${language}: name twice`);
+  }
+  assertStringIncludes(reminderPhrasesFor('en').ringing('Imran'), 'rings on the phone page');
 });

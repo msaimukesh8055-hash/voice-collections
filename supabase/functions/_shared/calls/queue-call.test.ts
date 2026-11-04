@@ -101,3 +101,36 @@ Deno.test('queueCall › a stale ringing call does not block a new one', async (
   assertEquals(result.ok && result.alreadyQueued, false);
   assertEquals(state.calls.length, 2);
 });
+
+// CP2 M1: attempt windows count on the real clock; the demo clock only decides calling hours.
+function threeCallsToday(): ReturnType<typeof fakeCall>[] {
+  return ['08:00', '09:00', '10:00'].map((time) =>
+    fakeCall({
+      callId: crypto.randomUUID(),
+      status: 'completed',
+      queuedAt: new Date(`2026-11-02T${time}:00+05:30`).toISOString(),
+    })
+  );
+}
+
+Deno.test('queueCall › limits on, demo clock a day ahead: real calls today still count', async () => {
+  const settings = { ...SETTINGS, callLimitsEnabled: true, demoClock: '2026-11-03T12:00:00+05:30' };
+  const { run, state } = setup({ calls: threeCallsToday(), settings });
+  assertEquals(await run(FAKE_RAMESH.id), { ok: false, code: 'ATTEMPT_LIMIT_REACHED' });
+  assertEquals(state.calls.length, 3);
+});
+
+Deno.test('queueCall › limits on, demo clock a day behind: yesterday does not count as today', async () => {
+  const yesterday = ['08:00', '09:00', '10:00'].map((time) =>
+    fakeCall({
+      callId: crypto.randomUUID(),
+      status: 'completed',
+      queuedAt: new Date(`2026-11-01T${time}:00+05:30`).toISOString(),
+    })
+  );
+  const settings = { ...SETTINGS, callLimitsEnabled: true, demoClock: '2026-11-01T21:00:00+05:30' };
+  const { run, state } = setup({ calls: yesterday, settings });
+  const result = await run(FAKE_RAMESH.id);
+  assertEquals(result.ok && result.alreadyQueued, false);
+  assertEquals(state.calls.length, 4);
+});

@@ -3,13 +3,15 @@
 // promise or claim, tone level, next step, score, a "simulated" label, and "transcript not
 // available" when the summary had to be built from tool events alone. When Asha recorded a
 // payment claim, the summary carries M4's [Confirm received] [Not received] buttons (button ids
-// hold only the claimed entry's id).
-import { claimButtonId } from '../cards/ids.ts';
+// hold only the claimed entry's id). When the next step is "try again" (declined, no answer, or
+// ended before identity), it carries one [Try again] button: the same Remind tap as the due
+// alert, so the pre-call checks and the queue apply again (M5 Decision 4).
+import { claimButtonId, remindButtonId } from '../cards/ids.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import type { Score } from '../ledger/score.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { type Reply, textReply } from '../whatsapp/replies.ts';
+import { type Button, type Reply, textReply } from '../whatsapp/replies.ts';
 import type { CallFacts, ClaimRecord } from './facts.ts';
 import { type NextStep, outcomeOf } from './rules.ts';
 import { type SummaryPhrases, summaryPhrasesFor } from './summary-phrases.ts';
@@ -56,18 +58,22 @@ function summaryLines(input: SummaryInput, phrases: SummaryPhrases): string[] {
   ].filter((line): line is string => line !== null);
 }
 
+function summaryButtons(input: SummaryInput): readonly Button[] {
+  const { claim, shopkeeperId } = input.facts;
+  const phrases = phrasesFor(input.language);
+  if (claim) {
+    return [
+      { id: claimButtonId(claim.entryId, true, input.language), title: phrases.confirmReceived },
+      { id: claimButtonId(claim.entryId, false, input.language), title: phrases.notReceived },
+    ];
+  }
+  if (input.step.kind !== 'try_again') return [];
+  return [{ id: remindButtonId(shopkeeperId, input.language), title: phrases.tryAgain }];
+}
+
 export function buildSummary(input: SummaryInput): Reply {
   const phrases = summaryPhrasesFor(input.language);
   const text = summaryLines(input, phrases).join('\n');
-  const { claim } = input.facts;
-  if (!claim) return textReply(text);
-  const buttons = phrasesFor(input.language);
-  return {
-    kind: 'buttons',
-    text,
-    buttons: [
-      { id: claimButtonId(claim.entryId, true, input.language), title: buttons.confirmReceived },
-      { id: claimButtonId(claim.entryId, false, input.language), title: buttons.notReceived },
-    ],
-  };
+  const buttons = summaryButtons(input);
+  return buttons.length > 0 ? { kind: 'buttons', text, buttons } : textReply(text);
 }

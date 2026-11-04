@@ -1,7 +1,10 @@
 // voice-agents/asha/agent.test.ts
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { SUPPORTED_LANGUAGES } from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
+import {
+  SARVAM_LANGUAGE_NAMES,
+  SUPPORTED_LANGUAGES,
+} from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
 import { TOOL_NAMES, TOOL_SPECS } from '../../supabase/functions/_shared/tools/schemas.ts';
 import { AgentConfigSchema, MAX_CALL_SECONDS } from '../schema.ts';
 import { ashaAgent } from './agent.config.ts';
@@ -106,17 +109,27 @@ describe('Asha greetings', () => {
   });
 });
 
-/** The Never list, word for word as Saim approved it in v1 (it must not change in v3). */
+/** The Never list, word for word as Saim approved it in v1 (it must not change in v3 or v4). */
 const NEVER_LIST = `# Never
 - Threaten, shame, pressure, raise your voice or use harsh words.
 - Mention or contact family members, neighbours or anyone else about the dues.
 - Share any amount before confirm_identity says confirmed.
 - Offer discounts, waivers or anything {{owner_name}} garu has not offered.`;
 
-describe('Asha prompt v3 (draft)', () => {
-  it('is marked as a draft until Saim approves it', () => {
-    expect(PROMPT_VERSION).toBe('v3');
+describe('Asha prompt v4', () => {
+  it('is version v4 (v3 + the Hindi recording notice, CP2 H1)', () => {
+    expect(PROMPT_VERSION).toBe('v4');
   });
+
+  it.each(SUPPORTED_LANGUAGES)(
+    '%s: step 2 gives the approved recording notice word for word',
+    (language) => {
+      const step2 = ASHA_PROMPT.slice(ASHA_PROMPT.indexOf('\n2. '), ASHA_PROMPT.indexOf('\n3. '));
+      expect(step2).toContain(
+        `In ${SARVAM_LANGUAGE_NAMES[language]}: "${RECORDING_NOTICES[language]}"`,
+      );
+    },
+  );
 
   it('keeps the Never list word for word, at the end', () => {
     expect(ASHA_PROMPT.endsWith(NEVER_LIST)).toBe(true);

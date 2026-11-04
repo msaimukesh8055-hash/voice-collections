@@ -46,6 +46,8 @@ export interface Phrases {
   readonly confirmReceived: string;
   readonly notReceived: string;
   readonly choose: string;
+  /** Button on a "didn't answer" after-call summary (M5 Decision 4): reminds him again. */
+  readonly tryAgain: string;
   readonly saved: (name: string, balance: string) => string;
   readonly alreadySaved: string;
   readonly cancelled: string;
@@ -69,6 +71,8 @@ const EN: Phrases = {
   help: 'Namaste! I keep your credit book.\n' +
     '• *pending* — who owes you\n• *closed* — paid off this month\n• *Ramesh* — one account\n' +
     '• *Ramesh 5000 due 15th* — add credit\n• *Ramesh paid 2000* — record a payment\n' +
+    '• *due* — who is due or overdue\n• *remind Ramesh* — Asha calls him\n' +
+    '• *remind all* — Asha calls everyone due\n• *Ramesh score* — his score explained\n' +
     'Nothing is saved until you tap Save.',
   sorry: "Sorry, I didn't get that.",
   textOnly: 'I can read text messages for now. Voice notes are coming soon.',
@@ -110,6 +114,7 @@ const EN: Phrases = {
   confirmReceived: 'Confirm received',
   notReceived: 'Not received',
   choose: 'Choose',
+  tryAgain: 'Try again',
   saved: (name, balance) => `Saved. ${name} now owes ${balance}.`,
   alreadySaved: 'Already saved.',
   cancelled: 'Cancelled. Nothing saved.',
@@ -129,6 +134,8 @@ const HI: Phrases = {
   help: 'नमस्ते! मैं आपका उधार खाता रखता हूँ।\n' +
     '• *pending* — किसका कितना बाकी है\n• *closed* — इस महीने चुकता\n• *Ramesh* — एक खाता\n' +
     '• *Ramesh 5000 due 15th* — उधार जोड़ें\n• *Ramesh paid 2000* — भुगतान दर्ज करें\n' +
+    '• *due* — किसका देय या बकाया है\n• *remind Ramesh* — Asha उन्हें कॉल करेंगी\n' +
+    '• *remind all* — Asha सभी देय लोगों को कॉल करेंगी\n• *Ramesh score* — उनका स्कोर समझें\n' +
     'Save दबाने तक कुछ सेव नहीं होता।',
   sorry: 'माफ़ कीजिए, मैं समझ नहीं पाया।',
   textOnly: 'अभी मैं सिर्फ़ टेक्स्ट पढ़ सकता हूँ। वॉइस नोट जल्द आएँगे।',
@@ -170,6 +177,7 @@ const HI: Phrases = {
   confirmReceived: 'मिल गया',
   notReceived: 'नहीं मिला',
   choose: 'चुनें',
+  tryAgain: 'फिर से कोशिश',
   saved: (name, balance) => `सेव हो गया। ${name} पर अब ${balance} बाकी।`,
   alreadySaved: 'पहले ही सेव हो चुका है।',
   cancelled: 'रद्द। कुछ सेव नहीं हुआ।',
@@ -189,6 +197,8 @@ const TE: Phrases = {
   help: 'నమస్కారం! నేను మీ అప్పు పుస్తకం చూసుకుంటాను.\n' +
     '• *pending* — ఎవరు ఎంత ఇవ్వాలి\n• *closed* — ఈ నెల తీరినవి\n• *Ramesh* — ఒక ఖాతా\n' +
     '• *Ramesh 5000 due 15th* — అప్పు జోడించండి\n• *Ramesh paid 2000* — చెల్లింపు నమోదు\n' +
+    '• *due* — ఎవరి గడువు వచ్చింది, ఎవరు ఆలస్యం\n• *remind Ramesh* — Asha ఆయనకు కాల్ చేస్తుంది\n' +
+    '• *remind all* — గడువు వచ్చిన అందరికీ Asha కాల్ చేస్తుంది\n• *Ramesh score* — ఆయన స్కోరు వివరణ\n' +
     'Save నొక్కే వరకు ఏదీ సేవ్ కాదు.',
   sorry: 'క్షమించండి, నాకు అర్థం కాలేదు.',
   textOnly: 'ప్రస్తుతం నేను టెక్స్ట్ మాత్రమే చదవగలను. వాయిస్ నోట్స్ త్వరలో.',
@@ -229,6 +239,7 @@ const TE: Phrases = {
   confirmReceived: 'అందింది',
   notReceived: 'అందలేదు',
   choose: 'ఎంచుకోండి',
+  tryAgain: 'మళ్ళీ ప్రయత్నించు',
   saved: (name, balance) => `సేవ్ అయింది. ${name} ఇప్పుడు ${balance} ఇవ్వాలి.`,
   alreadySaved: 'ఇప్పటికే సేవ్ అయింది.',
   cancelled: 'రద్దు చేశాం. ఏదీ సేవ్ కాలేదు.',

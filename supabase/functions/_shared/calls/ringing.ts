@@ -4,8 +4,12 @@
 import type { CallSession } from '../db/repository.ts';
 
 export const RING_TIMEOUT_MS = 30_000;
-/** A queued call nobody's phone page picked up within this is dropped as missed. */
-export const QUEUE_TIMEOUT_MS = 120_000;
+/** Sarvam ends every call at 4 minutes (voice-agents/schema.ts); one more minute covers
+ * connecting. A live call accepted longer ago than this no longer holds the phone page. */
+export const LIVE_CALL_MAX_MS = 5 * 60_000;
+/** A queued call nobody's phone page picked up within this is dropped as missed. Long enough
+ * for a call queued behind a full-length live call to still ring after it (Live remind). */
+export const QUEUE_TIMEOUT_MS = LIVE_CALL_MAX_MS + 120_000;
 
 function elapsedSince(iso: string, realNow: Date): number {
   return realNow.getTime() - Date.parse(iso);

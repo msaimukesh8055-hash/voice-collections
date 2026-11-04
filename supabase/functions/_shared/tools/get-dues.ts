@@ -4,7 +4,8 @@
 // confirmed. Then one round of reads, the promise check on the demo clock (so a promise that
 // just broke counts), and one round of writes: any promise status change and the call's tone
 // level. Sarvam gives Asha only `say`, so memory and tone are written into it as plain facts;
-// how to use them is in her prompt.
+// how to use them is in her prompt. The LLM-written follow-up note is never read here (CP2 M2):
+// everything in the reply is built in code from the shop's own records.
 import { istDate } from '../clock.ts';
 import { buildMemory, describeMemory, memoryData } from '../calls/memory.ts';
 import {
@@ -109,17 +110,16 @@ export async function getDues(
 
   const { shopkeeperId } = ctx.session;
   const today = istDate(ctx.now);
-  const [entries, stored, lastNote, shopkeeper] = await Promise.all([
+  const [entries, stored, shopkeeper] = await Promise.all([
     ctx.repo.getLedger(shopkeeperId),
     ctx.repo.listPromises(shopkeeperId),
-    ctx.repo.getLastNote(shopkeeperId),
     ctx.repo.getShopkeeper(shopkeeperId),
   ]);
   const ownerText = shopkeeper?.consequenceText ?? null;
   const { dues, promises, changes, tone } = assess({ entries, stored, ownerText }, today);
   await saveChecks(ctx, changes, tone.level);
 
-  const memory = buildMemory({ promises, entries, lastNote, today });
+  const memory = buildMemory({ promises, entries, today });
   return ok(describeDues(dues, describeMemory(memory), tone), {
     outstanding: dues.outstanding,
     overdue_amount: dues.overdueAmount,

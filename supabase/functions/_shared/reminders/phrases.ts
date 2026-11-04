@@ -3,7 +3,8 @@
 // English, Hindi and Telugu (the reply follows the owner's message, as in M4 Decision 8). Figures
 // are digits and names stay in English letters. ⚠️ The Hindi and Telugu lines are drafts and need
 // a native-speaker check before the demo (same check as M4's phrases). A missing line in any
-// language is a type error.
+// language is a type error. Live remind (pre-M6) rewrote `ringing` and `startedAll` in all three
+// languages: those Hindi and Telugu lines are new drafts too.
 import type { PrecallBlockCode } from '../compliance/precall.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
@@ -16,12 +17,20 @@ export interface SkipCounts {
   readonly notIncluded: number;
 }
 
+/** The figures on a broke-a-promise line of the due alert, already formatted. */
+export interface BrokenPromiseLine {
+  readonly label: string;
+  readonly promised: string;
+  readonly day: string;
+  readonly owed: string;
+}
+
 export interface ReminderPhrases {
   readonly alertTitle: (day: string) => string;
   readonly sectionBroken: (count: number) => string;
   readonly sectionOverdue: (count: number) => string;
   readonly sectionDueToday: (count: number) => string;
-  readonly brokenLine: (label: string, promised: string, day: string, owed: string) => string;
+  readonly brokenLine: (line: BrokenPromiseLine) => string;
   readonly overdueLine: (label: string, amount: string, days: number) => string;
   readonly dueTodayLine: (label: string, amount: string) => string;
   readonly nobodyDue: string;
@@ -34,13 +43,13 @@ export interface ReminderPhrases {
   readonly remindAllText: (count: number) => string;
   readonly remindAllButton: string;
   readonly ringing: (name: string) => string;
-  readonly simulatedStarted: (name: string) => string;
   readonly alreadyCalling: (name: string) => string;
   readonly blocked: (code: RemindBlock, name: string) => string;
   readonly confirmAll: (count: number) => string;
   readonly skipped: (skips: SkipCounts) => readonly string[];
   readonly nobodyToCall: string;
-  readonly startedAll: (count: number, liveName: string | null, simulated: number) => string;
+  /** "Remind all": every call is simulated. */
+  readonly startedAll: (count: number) => string;
   readonly notCalled: (count: number) => string;
   readonly scoreTitle: (name: string, score: number, band: string) => string;
   readonly paidOnTime: (points: number, good: number, total: number) => string;
@@ -56,7 +65,7 @@ const EN: ReminderPhrases = {
   sectionBroken: (count) => `*Broke a promise* (${count})`,
   sectionOverdue: (count) => `*Overdue* (${count})`,
   sectionDueToday: (count) => `*Due today* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · promised ${promised} by ${day} · owes ${owed}`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} days overdue`,
   dueTodayLine: (label, amount) => `• ${label} · ${amount} due today`,
@@ -69,8 +78,8 @@ const EN: ReminderPhrases = {
   rowDueToday: (amount) => `${amount} due today`,
   remindAllText: (count) => `Or remind everyone due (${count} people).`,
   remindAllButton: 'Remind all due',
-  ringing: (name) => `📞 Calling ${name} now. The phone page is ringing.`,
-  simulatedStarted: (name) => `🧪 Simulated call to ${name} started. The summary will follow.`,
+  ringing: (name) =>
+    `📞 Calling ${name} now. It rings on the phone page (after any call already on it): answer as ${name}.`,
   alreadyCalling: (name) => `${name} is already being called.`,
   blocked: (code, name) =>
     ({
@@ -89,13 +98,10 @@ const EN: ReminderPhrases = {
   ],
   nobodyToCall:
     'Nobody to call: everyone due was called in the last hour, is paused or asked not to be called.',
-  startedAll: (count, liveName, simulated) =>
-    [
-      `📞 Calling ${count} ${count === 1 ? 'person' : 'people'}.`,
-      ...(liveName ? [`${liveName}'s phone page is ringing.`] : []),
-      ...(simulated > 0 ? [`🧪 ${simulated} simulated, at most 4 at a time.`] : []),
-      'Summaries will follow.',
-    ].join(' '),
+  startedAll: (count) =>
+    `🧪 Calling ${count} ${
+      count === 1 ? 'person' : 'people'
+    } with simulated calls, at most 4 at a time. Summaries will follow.`,
   notCalled: (count) => `${count} could not be called now (rules).`,
   scoreTitle: (name, score, band) => `📊 *${name}: ${score}/100* (${band})`,
   paidOnTime: (points, good, total) =>
@@ -114,7 +120,7 @@ const HI: ReminderPhrases = {
   sectionBroken: (count) => `*वादा टूटा* (${count})`,
   sectionOverdue: (count) => `*बकाया* (${count})`,
   sectionDueToday: (count) => `*आज देय* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · ${day} तक ${promised} का वादा · कुल ${owed} बाकी`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} दिन से बकाया`,
   dueTodayLine: (label, amount) => `• ${label} · आज ${amount} देय`,
@@ -127,8 +133,8 @@ const HI: ReminderPhrases = {
   rowDueToday: (amount) => `आज ${amount} देय`,
   remindAllText: (count) => `या सबको याद दिलाएँ (${count} लोग)।`,
   remindAllButton: 'सबको याद दिलाएँ',
-  ringing: (name) => `📞 ${name} को अभी कॉल हो रही है। फ़ोन पेज पर घंटी बज रही है।`,
-  simulatedStarted: (name) => `🧪 ${name} को सिम्युलेटेड कॉल शुरू। सारांश जल्द आएगा।`,
+  ringing: (name) =>
+    `📞 ${name} को अभी कॉल हो रही है। फ़ोन पेज पर घंटी बजेगी (कोई कॉल चल रही हो तो उसके बाद): ${name} बनकर जवाब दें।`,
   alreadyCalling: (name) => `${name} को पहले से कॉल हो रही है।`,
   blocked: (code, name) =>
     ({
@@ -146,13 +152,8 @@ const HI: ReminderPhrases = {
     ...(skips.notIncluded > 0 ? [`${skips.notIncluded} और शामिल नहीं (एक बार में 10)`] : []),
   ],
   nobodyToCall: 'कॉल करने को कोई नहीं: सबको पिछले घंटे कॉल हुई, वे रुके हैं, या मना किया है।',
-  startedAll: (count, liveName, simulated) =>
-    [
-      `📞 ${count} लोगों को कॉल हो रही है।`,
-      ...(liveName ? [`${liveName} के फ़ोन पेज पर घंटी बज रही है।`] : []),
-      ...(simulated > 0 ? [`🧪 ${simulated} सिम्युलेटेड, एक बार में अधिकतम 4।`] : []),
-      'सारांश जल्द आएँगे।',
-    ].join(' '),
+  startedAll: (count) =>
+    `🧪 ${count} लोगों को सिम्युलेटेड कॉल हो रही है, एक बार में अधिकतम 4। सारांश जल्द आएँगे।`,
   notCalled: (count) => `${count} को अभी नियमों के कारण कॉल नहीं हो सकी।`,
   scoreTitle: (name, score, band) => `📊 *${name}: ${score}/100* (${band})`,
   paidOnTime: (points, good, total) =>
@@ -169,7 +170,7 @@ const TE: ReminderPhrases = {
   sectionBroken: (count) => `*మాట తప్పారు* (${count})`,
   sectionOverdue: (count) => `*గడువు దాటింది* (${count})`,
   sectionDueToday: (count) => `*ఈరోజు గడువు* (${count})`,
-  brokenLine: (label, promised, day, owed) =>
+  brokenLine: ({ label, promised, day, owed }) =>
     `• ${label} · ${day} లోపు ${promised} ఇస్తానన్నారు · మొత్తం ${owed} బాకీ`,
   overdueLine: (label, amount, days) => `• ${label} · ${amount} · ${days} రోజులు ఆలస్యం`,
   dueTodayLine: (label, amount) => `• ${label} · ఈరోజు ${amount} గడువు`,
@@ -182,8 +183,8 @@ const TE: ReminderPhrases = {
   rowDueToday: (amount) => `ఈరోజు ${amount} గడువు`,
   remindAllText: (count) => `లేదా అందరికీ గుర్తు చేయండి (${count} మంది).`,
   remindAllButton: 'అందరికీ గుర్తుచేయి',
-  ringing: (name) => `📞 ఇప్పుడు ${name}కి కాల్ చేస్తున్నాం. ఫోన్ పేజీ మోగుతోంది.`,
-  simulatedStarted: (name) => `🧪 ${name}కి సిమ్యులేటెడ్ కాల్ మొదలైంది. సారాంశం త్వరలో వస్తుంది.`,
+  ringing: (name) =>
+    `📞 ఇప్పుడు ${name}కి కాల్ చేస్తున్నాం. ఫోన్ పేజీలో మోగుతుంది (ఇప్పటికే కాల్ నడుస్తుంటే దాని తర్వాత): ${name}గా జవాబు ఇవ్వండి.`,
   alreadyCalling: (name) => `${name}కి ఇప్పటికే కాల్ వెళ్తోంది.`,
   blocked: (code, name) =>
     ({
@@ -201,13 +202,7 @@ const TE: ReminderPhrases = {
     ...(skips.notIncluded > 0 ? [`ఇంకా ${skips.notIncluded} మంది చేర్చలేదు (ఒకసారి 10)`] : []),
   ],
   nobodyToCall: 'కాల్ చేయాల్సిన వారు లేరు: అందరికీ గత గంటలో కాల్ అయింది, ఆపారు, లేదా వద్దన్నారు.',
-  startedAll: (count, liveName, simulated) =>
-    [
-      `📞 ${count} మందికి కాల్ చేస్తున్నాం.`,
-      ...(liveName ? [`${liveName} ఫోన్ పేజీ మోగుతోంది.`] : []),
-      ...(simulated > 0 ? [`🧪 ${simulated} సిమ్యులేటెడ్, ఒకసారి గరిష్ఠంగా 4.`] : []),
-      'సారాంశాలు త్వరలో వస్తాయి.',
-    ].join(' '),
+  startedAll: (count) => `🧪 ${count} మందికి సిమ్యులేటెడ్ కాల్స్ చేస్తున్నాం, ఒకసారి గరిష్ఠంగా 4. సారాంశాలు త్వరలో వస్తాయి.`,
   notCalled: (count) => `${count} మందికి నియమాల వల్ల ఇప్పుడు కాల్ చేయలేము.`,
   scoreTitle: (name, score, band) => `📊 *${name}: ${score}/100* (${band})`,
   paidOnTime: (points, good, total) =>
