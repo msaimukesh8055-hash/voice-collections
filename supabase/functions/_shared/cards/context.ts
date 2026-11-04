@@ -20,6 +20,15 @@ export interface BotContext {
   readonly log: Logger;
   /** Due alert, Remind, remind all and score explain (M5 5b). */
   readonly reminder: ReminderDeps;
+  /** Insights chart and dashboard link (M6). */
+  readonly web: WebDeps;
+}
+
+export interface WebDeps {
+  /** Uploads a PNG to Meta for one message: its media id, or null (already logged). */
+  readonly uploadImage: (png: Uint8Array<ArrayBuffer>) => Promise<string | null>;
+  /** A signed dashboard link for the owner (24 hours), or null when no dashboard is set up. */
+  readonly dashboardLink: () => Promise<string | null>;
 }
 
 /** New shopkeepers get +91 00000 9xxxx: the seed uses 00001–00100, and no real phone starts

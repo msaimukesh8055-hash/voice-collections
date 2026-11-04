@@ -5,6 +5,8 @@
 import { errorResponse, withErrorBoundary } from '../_shared/http.ts';
 import { REGION_HEADER } from '../_shared/region.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
+import { DASHBOARD_TOKEN_HEADER } from '../_shared/auth/dashboard-link.ts';
+import { DASHBOARD_ROUTES } from './dashboard-routes.ts';
 import { getDemo, ringLiveShopkeeper } from './demo-routes.ts';
 import { acceptCall, declineCall, endCall, getIncomingCall } from './phone-routes.ts';
 import { proxyCallUrl } from './sarvam-proxy.ts';
@@ -29,6 +31,16 @@ const ROUTES: readonly Route[] = [
   { pattern: /^\/v1\/calls\/([^/]+)\/accept$/, methods: { POST: acceptCall } },
   { pattern: /^\/v1\/calls\/([^/]+)\/decline$/, methods: { POST: declineCall } },
   { pattern: /^\/v1\/calls\/([^/]+)\/ended$/, methods: { POST: endCall } },
+  // M6: the web dashboard, behind the signed link.
+  { pattern: /^\/v1\/dashboard\/overview$/, methods: { GET: DASHBOARD_ROUTES.overview } },
+  { pattern: /^\/v1\/dashboard\/shopkeepers$/, methods: { GET: DASHBOARD_ROUTES.shopkeepers } },
+  {
+    pattern: /^\/v1\/dashboard\/shopkeepers\/([^/]+)$/,
+    methods: { GET: DASHBOARD_ROUTES.shopkeeper },
+  },
+  { pattern: /^\/v1\/dashboard\/calls$/, methods: { GET: DASHBOARD_ROUTES.calls } },
+  { pattern: /^\/v1\/dashboard\/calls\/([^/]+)$/, methods: { GET: DASHBOARD_ROUTES.call } },
+  { pattern: /^\/v1\/dashboard\/settings$/, methods: { POST: DASHBOARD_ROUTES.settings } },
   {
     pattern: /^\/v1\/sarvam\/orgs\/([^/]+)\/workspaces\/([^/]+)\/apps\/([^/]+)\/url$/,
     methods: { GET: proxyRoute },
@@ -43,7 +55,7 @@ function corsHeaders(req: Request, allowedOrigins: readonly string[]): HeadersIn
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     // x-api-key: the Sarvam SDK always sends it (empty); the real key is added server-side.
     'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info, ' +
-      `${REGION_HEADER}, ${CALL_TOKEN_HEADER}, x-api-key`,
+      `${REGION_HEADER}, ${CALL_TOKEN_HEADER}, x-api-key, ${DASHBOARD_TOKEN_HEADER}`,
     vary: 'Origin',
   };
 }

@@ -24,6 +24,9 @@ import {
   shownPending,
 } from '../_shared/ledger/views.ts';
 import type { Language } from '../_shared/schemas/shopkeeper.ts';
+import { piePng, pieSlices } from '../_shared/charts/pie.ts';
+import { computeInsights } from '../_shared/ledger/insights.ts';
+import { dashboardReply, insightsReplies } from '../_shared/ledger/insights-reply.ts';
 import type { Hearing } from '../_shared/speech/hear.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { dueAlertCommand, offerRemindAll, remindOne } from '../_shared/reminders/remind.ts';
@@ -95,6 +98,23 @@ function withOneShopkeeper(
   return Promise.resolve([textReply(blocks(phrases.pickPrompt(name), shops))]);
 }
 
+/** Figures, then the chart (uploaded to Meta) and the link, in parallel (M6, SPEC §6.6). */
+async function showInsights(ctx: BotContext): Promise<readonly Reply[]> {
+  const entries = await ctx.book.listEntries(ctx.owner.id);
+  const insights = computeInsights(ctx.shopkeepers, entries, ctx.today);
+  const rows = insights.top.map(({ shopkeeper }) => ({
+    shopkeeper,
+    entries: entries.filter((entry) => entry.shopkeeperId === shopkeeper.id),
+  }));
+  const { split } = insights;
+  const [scores, chartId, dashboardLink] = await Promise.all([
+    scoresFor(rows, ctx),
+    split.total > 0 ? piePng(pieSlices(split)).then(ctx.web.uploadImage) : Promise.resolve(null),
+    ctx.web.dashboardLink(),
+  ]);
+  return insightsReplies({ insights, scores, language: ctx.language, chartId, dashboardLink });
+}
+
 const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
   help: (_command, ctx) => Promise.resolve([textReply(phrasesFor(ctx.language).help)]),
   pending: async (_command, ctx) => [await pendingWithScores(ctx)],
@@ -130,6 +150,8 @@ const COMMANDS: { readonly [K in CommandKind]: Handler<K> } = {
   remind_all: (_command, ctx) => offerRemindAll(ctx, ctx.language),
   score: (command, ctx) =>
     withOneShopkeeper(command.name, ctx, (found) => scoreReplies(found, ctx, ctx.language)),
+  insights: (_command, ctx) => showInsights(ctx),
+  dashboard: async (_command, ctx) => [dashboardReply(await ctx.web.dashboardLink(), ctx.language)],
 };
 
 export function runCommand(command: Command, ctx: BotContext): Promise<readonly Reply[]> {

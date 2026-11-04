@@ -149,3 +149,14 @@ Deno.test('commands › "overdue" and "who is overdue?" open the due alert (M6)'
     assertEquals(parse(text), { kind: 'due_alert' }, text);
   }
 });
+
+Deno.test('commands › "insights" / "report" and "dashboard" (M6)', () => {
+  for (
+    const text of ['insights', 'Insights', 'report', 'stats', 'report chupinchu', 'రిపోర్ట్', 'रिपोर्ट']
+  ) {
+    assertEquals(parse(text), { kind: 'insights' }, text);
+  }
+  for (const text of ['dashboard', 'Dashboard link', 'open dashboard']) {
+    assertEquals(parse(text), { kind: 'dashboard' }, text);
+  }
+});

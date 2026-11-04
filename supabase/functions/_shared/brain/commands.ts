@@ -1,5 +1,6 @@
 // supabase/functions/_shared/brain/commands.ts
-// Fixed commands, parsed in code before any LLM (ADR-0014): help, pending, closed, a shopkeeper
+// Fixed commands, parsed in code before any LLM (ADR-0014): help, pending, closed, insights,
+// dashboard, a shopkeeper
 // name, "X paid N" and "X N due D", in English and in Latin-letter Hindi and Telugu. Names,
 // amounts and dates are cut out of the text itself; nothing is guessed. Anything else returns
 // null and goes to the LLM.
@@ -25,7 +26,10 @@ export type Command =
   | { readonly kind: 'due_alert' }
   | { readonly kind: 'remind'; readonly name: string }
   | { readonly kind: 'remind_all' }
-  | { readonly kind: 'score'; readonly name: string };
+  | { readonly kind: 'score'; readonly name: string }
+  // M6: insights (pie chart, % collected, top 5) and the web dashboard link.
+  | { readonly kind: 'insights' }
+  | { readonly kind: 'dashboard' };
 
 export type CommandKind = Command['kind'];
 
@@ -67,6 +71,22 @@ const PENDING = new Set([
 const CLOSED = new Set(['closed', 'paid off', 'cleared', 'settled', 'closed list', 'chukta']);
 /** "who is due?" / "who is overdue?" and the template's "Reply DUE" (M5 Decision 7). "dues"
  * stays "pending". */
+/** "insights" / "report" (SPEC §6.6); also in Telugu and Hindi script, like the greetings. */
+const INSIGHTS = new Set([
+  'insights',
+  'insight',
+  'report',
+  'reports',
+  'monthly report',
+  'collection report',
+  'stats',
+  'summary',
+  'report dikhao',
+  'report chupinchu',
+  'రిపోర్ట్',
+  'रिपोर्ट',
+]);
+const DASHBOARD = new Set(['dashboard', 'dashboard link', 'open dashboard', 'web', 'website']);
 const DUE_ALERT = new Set([
   'due',
   'due today',
@@ -282,6 +302,8 @@ function scoreOf(text: string): Command | null {
 export function parseCommand(text: string, today: string): Command | null {
   const clean = normalise(text);
   if (HELP.has(clean)) return { kind: 'help' };
+  if (INSIGHTS.has(clean)) return { kind: 'insights' };
+  if (DASHBOARD.has(clean)) return { kind: 'dashboard' };
   if (hasIndicScript(clean)) return null;
   if (PENDING.has(clean)) return { kind: 'pending' };
   if (CLOSED.has(clean)) return { kind: 'closed' };

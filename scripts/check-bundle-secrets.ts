@@ -17,6 +17,7 @@ const SECRET_NAMES = [
   'WHATSAPP_VERIFY_TOKEN',
   'OWNER_WHATSAPP_NUMBER',
   'WORKER_SECRET',
+  'DASHBOARD_LINK_SECRET',
 ] as const;
 
 function listFiles(dir: string): string[] {

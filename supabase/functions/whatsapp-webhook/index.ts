@@ -13,6 +13,7 @@ import { downloadMedia, uploadMedia } from '../_shared/whatsapp/media.ts';
 import { createSpeaker } from '../_shared/speech/tts.ts';
 import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
+import { dashboardLink } from '../_shared/auth/dashboard-link.ts';
 import { createTranscriber } from '../_shared/speech/stt.ts';
 import { MAX_SIMULATED_AT_ONCE } from '../_shared/calls/queue.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
@@ -86,6 +87,14 @@ const processDeps: ProcessDeps = {
       fetchImpl: fetch,
       log: logToConsole,
     }),
+  },
+  web: {
+    uploadImage: (png) =>
+      uploadMedia(mediaConfig, { bytes: png, mimeType: 'image/png', fileName: 'insights.png' }),
+    dashboardLink: () =>
+      env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
+        ? dashboardLink(env.DASHBOARD_URL, env.DASHBOARD_LINK_SECRET, new Date())
+        : Promise.resolve(null),
   },
   voice: {
     speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole }),

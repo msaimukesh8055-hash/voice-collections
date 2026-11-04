@@ -56,19 +56,34 @@ export function byOldestFirst(a: LedgerEntry, b: LedgerEntry): number {
   return byDue !== 0 ? byDue : a.entryDate.localeCompare(b.entryDate);
 }
 
-/** Credits still (partly) unpaid after confirmed payments are applied oldest first. */
-function openCredits(entries: readonly LedgerEntry[]): readonly OpenCredit[] {
+/** One confirmed credit after payments are applied: what was given and what is still owed. */
+export interface CreditState {
+  readonly dueDate: string;
+  readonly owedPaise: number;
+  readonly leftPaise: number;
+}
+
+/** Every confirmed credit, oldest first, with confirmed payments applied oldest first. Shared
+ * with the insights (M6) so both use exactly the same rule. */
+export function creditStates(entries: readonly LedgerEntry[]): readonly CreditState[] {
   const confirmed = entries.filter((entry) => entry.status === 'confirmed');
   let paymentsLeft = confirmed
     .filter((entry) => entry.kind === 'payment')
     .reduce((sum, entry) => sum + toPaise(entry.amount), 0);
   const credits = confirmed.filter((entry) => entry.kind === 'credit').sort(byOldestFirst);
-  return credits.flatMap((entry): OpenCredit[] => {
+  return credits.map((entry): CreditState => {
     const owed = toPaise(entry.amount);
     const cleared = Math.min(owed, paymentsLeft);
     paymentsLeft -= cleared;
-    return owed > cleared ? [{ dueDate: dueDateOf(entry), paise: owed - cleared }] : [];
+    return { dueDate: dueDateOf(entry), owedPaise: owed, leftPaise: owed - cleared };
   });
+}
+
+/** Credits still (partly) unpaid after confirmed payments are applied oldest first. */
+function openCredits(entries: readonly LedgerEntry[]): readonly OpenCredit[] {
+  return creditStates(entries)
+    .filter((credit) => credit.leftPaise > 0)
+    .map((credit) => ({ dueDate: credit.dueDate, paise: credit.leftPaise }));
 }
 
 function sumPaise(credits: readonly OpenCredit[]): number {

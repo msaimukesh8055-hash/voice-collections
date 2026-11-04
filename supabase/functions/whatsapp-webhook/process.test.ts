@@ -25,6 +25,7 @@ import { NOT_REGISTERED } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
 import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
 import { voiceNote } from '../_shared/audio/__fixtures__/ogg-files.ts';
+import { FAKE_WEB } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -87,6 +88,7 @@ function setup(
     log,
     reminder: reminderSetup({ now: NOW }).deps,
     listen: options.listen ?? NO_LISTEN,
+    web: FAKE_WEB,
     voice: options.voice ?? NO_VOICE,
     wakeWorker: () => {
       wakes.push(1);

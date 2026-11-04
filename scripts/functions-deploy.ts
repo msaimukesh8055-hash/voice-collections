@@ -25,9 +25,10 @@ const REQUIRED_SECRETS = [
   'GEMINI_API_KEY',
   // M5 follow-up worker (calls-api wakes it; it checks the secret).
   'WORKER_SECRET',
+  'DASHBOARD_LINK_SECRET',
 ] as const;
 /** Blank until Asha exists in Sarvam; calls-api refuses calls (503) until it is set. */
-const OPTIONAL_SECRETS = ['SARVAM_APP_ID'] as const;
+const OPTIONAL_SECRETS = ['SARVAM_APP_ID', 'DASHBOARD_URL'] as const;
 
 function readEnv(name: string): string {
   return process.env[name]?.trim() ?? '';

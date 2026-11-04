@@ -61,6 +61,7 @@ const CALLS_API_ENV = {
   SARVAM_WORKSPACE_ID: 'ws-1',
   SARVAM_APP_ID: 'app-1',
   WORKER_SECRET: 'w'.repeat(32),
+  DASHBOARD_LINK_SECRET: 'd'.repeat(32),
 };
 
 Deno.test('loadCallsApiEnv › splits allowed origins into a list', () => {
@@ -152,4 +153,22 @@ Deno.test('loadWorkerEnv › needs the worker secret, Sarvam, Meta and LLM keys,
 Deno.test('loadWhatsAppEnv › needs the worker secret to start simulated calls (M5 5b)', () => {
   const { WORKER_SECRET: _secret, ...withoutSecret } = WHATSAPP_ENV;
   assertThrows(() => loadWhatsAppEnv(withoutSecret), MissingEnvError, 'WORKER_SECRET');
+});
+
+Deno.test('env › calls-api needs a dashboard link secret of 32+ characters (M6)', () => {
+  const short = { ...CALLS_API_ENV, DASHBOARD_LINK_SECRET: 'short' };
+  assertThrows(() => loadCallsApiEnv(short), MissingEnvError, 'DASHBOARD_LINK_SECRET');
+});
+
+Deno.test('env › the bot\'s dashboard settings are optional; blank means "not set up"', () => {
+  const none = loadWhatsAppEnv(WHATSAPP_ENV);
+  assertEquals([none.DASHBOARD_URL, none.DASHBOARD_LINK_SECRET], [null, null]);
+  const set = loadWhatsAppEnv({
+    ...WHATSAPP_ENV,
+    DASHBOARD_URL: 'http://localhost:5173',
+    DASHBOARD_LINK_SECRET: 'd'.repeat(32),
+  });
+  assertEquals(set.DASHBOARD_URL, 'http://localhost:5173');
+  const bad = { ...WHATSAPP_ENV, DASHBOARD_URL: 'not a url' };
+  assertThrows(() => loadWhatsAppEnv(bad), MissingEnvError, 'DASHBOARD_URL');
 });

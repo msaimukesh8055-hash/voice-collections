@@ -7,7 +7,7 @@
 // never the text. Errors go through describeFailure: database operation + code, or the error's
 // name only, never its message (CP2 L1).
 import type { BrainLlm } from '../_shared/brain/llm.ts';
-import type { BotContext } from '../_shared/cards/context.ts';
+import type { BotContext, WebDeps } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
@@ -44,6 +44,8 @@ export interface ProcessDeps {
   readonly reminder: ReminderDeps;
   /** Voice notes (M6): Meta download and Saaras; the daily count is added per delivery. */
   readonly listen: Pick<HearDeps, 'download' | 'transcribe'>;
+  /** Insights chart upload and the dashboard link (M6). */
+  readonly web: WebDeps;
   /** Voice replies (M6): Bulbul, then upload to Meta. */
   readonly voice: {
     readonly speak: Speaker;
@@ -135,6 +137,7 @@ async function loadContext(deps: ProcessDeps): Promise<{ ctx: BotContext; demoNo
     newPhone: deps.newPhone,
     log: deps.log,
     reminder: deps.reminder,
+    web: deps.web,
   };
   return { ctx, demoNow };
 }
