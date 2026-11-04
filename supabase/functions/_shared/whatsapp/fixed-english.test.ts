@@ -39,10 +39,28 @@ Deno.test('fixed english › a label starting a line is swapped and recorded', (
     text: '🎤 Heard: “Ramesh ki 5000 …”',
     labels: ['🎤 Heard'],
   });
-  assertEquals(withFixedEnglish('బాకీ: ₹8,500\nగడువు: Sun 15 Nov'), {
-    text: 'Balance: ₹8,500\ndue: Sun 15 Nov',
+  assertEquals(withFixedEnglish('బాకీ: ₹8,500\nగడువు: 15 Nov'), {
+    text: 'Balance: ₹8,500\ndue: 15 Nov',
     labels: ['Balance', 'due'],
   });
+  assertEquals(withFixedEnglish('తర్వాత బాకీ: ₹3,500').text, 'Balance after: ₹3,500');
+});
+
+Deno.test('fixed english › whole-line labels and bold titles swap', () => {
+  assertEquals(withFixedEnglish('*చెల్లింపు అందింది*').text, '*Payment received*');
+  assertEquals(withFixedEnglish('*చెల్లింపు అందింది*  ').text, '*Payment received*  ');
+  assertEquals(withFixedEnglish('అందింది').text, 'Confirm received');
+  assertEquals(withFixedEnglish('*బాకీ*: ₹8,500').text, '*Balance*: ₹8,500');
+  assertEquals(withFixedEnglish('*బాకీ*').text, '*Balance*');
+  assertEquals(withFixedEnglish(PHRASES.te.sorry).text, PHRASES.en.sorry);
+});
+
+Deno.test('fixed english › a short word starting a free sentence is not swapped', () => {
+  for (const line of ['లేదు ఇంకా రాలేదు', 'ఉంది కానీ తర్వాత', 'వద్దు అన్నారు', 'అందింది కానీ తక్కువ']) {
+    assertEquals(withFixedEnglish(line), { text: line, labels: [] });
+  }
+  // A label followed by a space and a figure is not a format the bot uses, so not swapped either.
+  assertEquals(withFixedEnglish('బాకీ ₹8,500').text, 'బాకీ ₹8,500');
 });
 
 Deno.test('fixed english › never in the middle of a line', () => {
@@ -58,4 +76,5 @@ Deno.test('fixed english › a longer word (a letter, combining mark or digit af
   assertEquals(withFixedEnglish('వద్దుం').text, 'వద్దుం');
   assertEquals(withFixedEnglish('వద్దు').text, 'No');
   assertEquals(withFixedEnglish('అప్పు2').text, 'అప్పు2');
+  assertEquals(withFixedEnglish('బాకీ:').text, 'Balance:');
 });
