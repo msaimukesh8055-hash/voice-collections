@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { renderGreeting } from '../../../../voice-agents/asha/greetings.ts';
 import { ASHA_PROMPT, PROMPT_VERSION } from '../../../../voice-agents/asha/prompt.ts';
+import type { ChatTool } from '../llm/json-llm.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { TOOL_NAMES, TOOL_SPECS } from '../tools/schemas.ts';
 
@@ -29,6 +30,15 @@ function toolList(): string {
     const args = JSON.stringify(z.toJSONSchema(spec.args).properties ?? {});
     return `- ${name}: ${spec.description} Arguments: ${args}`;
   }).join('\n');
+}
+
+/** The same tools declared natively to sarvam-105b, which calls them that way (see json-llm). */
+export function ashaTools(): readonly ChatTool[] {
+  return TOOL_NAMES.map((name) => ({
+    name,
+    description: TOOL_SPECS[name].description,
+    parameters: z.toJSONSchema(TOOL_SPECS[name].args),
+  }));
 }
 
 const TEXT_MODE = `
