@@ -44,3 +44,12 @@ Deno.test('dashboard link › the link puts the token after "#t=" on the dashboa
   assertMatch(link, /^http:\/\/localhost:5173\/#t=\d+\.[A-Za-z0-9_-]{43}$/);
   assert(await isValidDashboardToken(link.split('#t=')[1] ?? null, SECRET, NOW));
 });
+
+/** The same vector is checked in web/dev/devDashboardToken.test.ts (Node), so the dev server's
+ * token and the bot's link token can never drift apart. */
+const GOLDEN_TOKEN = '1793872800.xendSZT2ifUmjmKjR5dFwfp051pftvMWrvX60eQfWR8';
+
+Deno.test('dashboard link › fixed vector: same secret and time give this exact token', async () => {
+  assertEquals(await signDashboardToken(SECRET, NOW), GOLDEN_TOKEN);
+  assert(await isValidDashboardToken(GOLDEN_TOKEN, SECRET, NOW));
+});

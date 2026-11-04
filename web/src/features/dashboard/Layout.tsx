@@ -1,7 +1,8 @@
 // web/src/features/dashboard/Layout.tsx
 // The dashboard's frame (M6, SPEC §12): title, navigation between the three pages, and the
 // shared loading / error / "open from WhatsApp" states. One light theme (light-blue canvas).
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
+import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { Loaded } from './useLoad.ts';
 
 export const PAGES = [
@@ -12,10 +13,30 @@ export const PAGES = [
 
 interface LayoutProps {
   readonly current: string;
+  readonly dashboard: Pick<DashboardApi, 'localDemo'>;
   readonly children: ReactNode;
 }
 
-export function Layout({ current, children }: LayoutProps): React.JSX.Element {
+/** True when this page reads with a localhost dev token (`npm run dev` only). */
+function useLocalDemo(dashboard: Pick<DashboardApi, 'localDemo'>): boolean {
+  const [local, setLocal] = useState(false);
+  useEffect(
+    function checkLocalDemo() {
+      let active = true;
+      dashboard.localDemo().then(function apply(on) {
+        if (active) setLocal(on);
+      });
+      return function cancel() {
+        active = false;
+      };
+    },
+    [dashboard],
+  );
+  return local;
+}
+
+export function Layout({ current, dashboard, children }: LayoutProps): React.JSX.Element {
+  const localDemo = useLocalDemo(dashboard);
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <header className="border-b border-border bg-surface">
@@ -25,6 +46,14 @@ export function Layout({ current, children }: LayoutProps): React.JSX.Element {
               Sri Lakshmi Traders · Anantapur
             </p>
             <p className="text-lg font-semibold">Easy Recovery AI</p>
+            {localDemo ? (
+              <p
+                title="Opened on this laptop without the WhatsApp link. The hosted dashboard still needs it."
+                className="mt-1 inline-block rounded-full bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand"
+              >
+                Local demo mode
+              </p>
+            ) : null}
           </div>
           <nav aria-label="Pages" className="flex gap-1">
             {PAGES.map((page) => (

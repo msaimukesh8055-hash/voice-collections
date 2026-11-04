@@ -36,7 +36,7 @@ export function ShopkeepersPage({
   readonly id: string | null;
 }): React.JSX.Element {
   return (
-    <Layout current="/shopkeepers">
+    <Layout current="/shopkeepers" dashboard={dashboard}>
       {id ? <One dashboard={dashboard} id={id} /> : <All dashboard={dashboard} />}
     </Layout>
   );

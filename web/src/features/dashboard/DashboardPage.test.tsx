@@ -1,6 +1,7 @@
 // web/src/features/dashboard/DashboardPage.test.tsx
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { fakeDashboard } from '../../test/dashboardFakes.ts';
+import { createDashboardApi, fetchDevToken } from '../../lib/dashboardApi.ts';
+import { fakeDashboard, OVERVIEW } from '../../test/dashboardFakes.ts';
 import { fakeApi } from '../../test/fakes.ts';
 import { DashboardPage, weekNote } from './DashboardPage.tsx';
 import { segmentsOf } from './Donut.tsx';
@@ -41,6 +42,49 @@ describe('DashboardPage', () => {
     render(<DashboardPage api={fakeApi().api} dashboard={fake.dashboard} />);
     expect(await screen.findByText('Open the dashboard from WhatsApp')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Ring Ramesh' })).toBeInTheDocument();
+  });
+});
+
+describe('DashboardPage on localhost with no WhatsApp link (npm run dev)', () => {
+  /** The real client, with fetch answering the Vite dev endpoint and calls-api. */
+  function localDashboard(devReply: Response): {
+    dashboard: ReturnType<typeof createDashboardApi>;
+    sentTokens: string[];
+  } {
+    const sentTokens: string[] = [];
+    function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      if (String(input) === '/__dev/dashboard-token') return Promise.resolve(devReply);
+      sentTokens.push(new Headers(init?.headers).get('x-dashboard-token') ?? '');
+      return Promise.resolve(Response.json(OVERVIEW));
+    }
+    function devToken(): Promise<string | null> {
+      return fetchDevToken(fakeFetch);
+    }
+    const dashboard = createDashboardApi({
+      baseUrl: 'https://x/calls-api',
+      anonKey: 'anon',
+      region: 'ap-south-1',
+      token: null,
+      devToken,
+      fetchImpl: fakeFetch,
+    });
+    return { dashboard, sentTokens };
+  }
+
+  it('uses the dev token, shows the data and a "Local demo mode" note', async () => {
+    const local = localDashboard(Response.json({ token: '1793872800.dev' }));
+    render(<DashboardPage api={fakeApi().api} dashboard={local.dashboard} />);
+    expect(await screen.findByText('30%', { selector: 'p' })).toBeInTheDocument();
+    expect(await screen.findByText('Local demo mode')).toBeInTheDocument();
+    expect(local.sentTokens[0]).toBe('1793872800.dev');
+  });
+
+  it('when the dev endpoint answers 404, still asks to open it from WhatsApp', async () => {
+    const local = localDashboard(new Response('{}', { status: 404 }));
+    render(<DashboardPage api={fakeApi().api} dashboard={local.dashboard} />);
+    expect(await screen.findByText('Open the dashboard from WhatsApp')).toBeInTheDocument();
+    expect(screen.queryByText('Local demo mode')).not.toBeInTheDocument();
+    expect(local.sentTokens).toEqual([]);
   });
 });
 

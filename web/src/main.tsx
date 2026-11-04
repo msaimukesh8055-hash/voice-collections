@@ -5,7 +5,7 @@ import './index.css';
 import { App } from './App.tsx';
 import { loadAppConfig } from './config.ts';
 import { createAppApi } from './lib/appApi.ts';
-import { createDashboardApi, readToken } from './lib/dashboardApi.ts';
+import { createDashboardApi, fetchDevToken, readToken } from './lib/dashboardApi.ts';
 import { createBrowserAgent } from './lib/sarvamBrowser.ts';
 import { createSarvamClient } from './lib/sarvamClient.ts';
 
@@ -35,11 +35,14 @@ function clearHash(): void {
 }
 
 // The dashboard link's token (#t=…) moves into this tab's storage and out of the address bar.
+// `npm run dev` only: with no link, the local Vite server hands out a token. In a production build
+// import.meta.env.DEV is false, so this is `undefined` and fetchDevToken is dropped from the bundle.
 const dashboard = createDashboardApi({
   baseUrl: config.appApiUrl,
   anonKey: config.anonKey,
   region: config.region,
   token: readToken({ hash: window.location.hash, storage: sessionStore(), clearHash }),
+  devToken: import.meta.env.DEV ? fetchDevToken : undefined,
 });
 
 createRoot(rootElement).render(

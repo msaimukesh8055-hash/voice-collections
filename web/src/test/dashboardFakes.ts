@@ -124,6 +124,7 @@ export function fakeDashboard(): FakeDashboard {
     english: true,
     dashboard: {
       hasToken: () => !fake.needsLink,
+      localDemo: () => Promise.resolve(false),
       overview: () => answer('overview', OVERVIEW),
       shopkeepers: () => answer('shopkeepers', SHOPKEEPERS),
       shopkeeper: (id) => answer(`shopkeeper:${id}`, SHOPKEEPER),
