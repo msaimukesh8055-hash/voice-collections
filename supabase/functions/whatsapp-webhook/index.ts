@@ -11,6 +11,7 @@ import { logToConsole } from '../_shared/log.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
 import { downloadMedia, uploadMedia } from '../_shared/whatsapp/media.ts';
 import { createSpeaker } from '../_shared/speech/tts.ts';
+import { createSpokenSummarizer } from '../_shared/whatsapp/spoken-summary.ts';
 import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
 import { dashboardLink, phonePageLink, shopkeeperLink } from '../_shared/auth/dashboard-link.ts';
@@ -109,6 +110,12 @@ const processDeps: ProcessDeps = {
       : null,
   },
   voice: {
+    summarize: createSpokenSummarizer({
+      sarvamApiKey: env.SARVAM_API_KEY,
+      fetchImpl: fetch,
+      log: logToConsole,
+      random: Math.random,
+    }),
     speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole }),
     upload: (file) => uploadMedia(mediaConfig, file),
   },

@@ -11,7 +11,8 @@ import { LATHA, PRAVEEN_1, RAMESH } from '../_shared/db/fake-book-repository.ts'
 import { reminderSetup } from '../_shared/reminders/__fixtures__/reminder-deps.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
-import { routeMessage, runCommand } from './route.ts';
+import { routeMessage } from './route.ts';
+import { runCommand } from './run-command.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');

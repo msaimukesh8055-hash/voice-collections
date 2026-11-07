@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-07 · M7 Build A — Spoken summary, bot profile, buttons · ✅ Done (awaiting commit)**
+sarvam-105b writes a casual spoken voice-note summary (figures and names checked in code, else today's version), Menu list + reply buttons, cleaner layout; Meta accepted the logo + About line on the test number. Next: Asha memory (B1), then Munshi, the owner's call line.
+Deno 985 + root 99 + web 82, gate green, deployed; tester caught "5thousand"/"5k" slipping the number check (fixed); smoke OK by Saim · Built locally (no cloud) · Details → [`milestones/M7.md`](milestones/M7.md)
+
 **2026-11-04 · M6 — Voice notes, translation, insights · ✅ Deployed + smoked (awaiting commit)**
 Voice notes in (Saaras v3 translit, picked by spike) and out (Bulbul: Telugu v4-flash Kavitha, Hindi/English v3 Kavitha), English under Telugu, insights ring chart, dashboard behind a signed 24-hour link. Live smoke found two bugs, both fixed: "will pay … by 15th" read as a payment (parser), and natural sentences couldn't reach due alert / insights / dashboard / score (brain prompt v2).
 Deno 818 + web 77 + root 60, gate green; smoke 7/8 pass + 1 skipped by Saim; seed re-ran on db:push; Sarvam ≈ ₹6–8 · Localhost dev dashboard opens without the link ("Local demo mode"; server lock unchanged) · Details → [`milestones/M6.md`](milestones/M6.md), [ADR-0017](adr/ADR-0017-voice-notes-translate-dashboard-link.md)

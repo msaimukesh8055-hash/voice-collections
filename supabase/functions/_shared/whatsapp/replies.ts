@@ -3,9 +3,16 @@
 // them into HTTP requests, so the logic is tested without any network.
 import type { Language } from '../schemas/shopkeeper.ts';
 
-/** Meta limits: 3 reply buttons, 10 list rows. */
+/** Meta limits: 3 reply buttons, 10 list rows, 1,024 characters in a button or list body. */
 export const MAX_BUTTONS = 3;
 export const MAX_LIST_ROWS = 10;
+export const MAX_INTERACTIVE_BODY = 1024;
+
+/** M7 Decision 9: [📒 Pending] [📋 Menu] after Save, [🔔 Due today] [📋 Menu] after insights. */
+export function withButtons(reply: Reply, buttons: readonly Button[]): Reply {
+  if (reply.kind !== 'text' || reply.text.length > MAX_INTERACTIVE_BODY) return reply;
+  return { ...reply, kind: 'buttons', buttons };
+}
 
 export interface Button {
   readonly id: string;

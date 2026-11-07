@@ -11,7 +11,10 @@ import {
   type TwinSettings,
   withEnglishTwin,
 } from './english-twin.ts';
+import { hintReply, menuReply } from './menu.ts';
 import type { Reply } from './replies.ts';
+import { lookupActionsReply, shopkeeperReplies } from '../ledger/views.ts';
+import { FAKE_TODAY, fakeBookEntries } from '../db/fake-book-repository.ts';
 
 const TELUGU = '*పెండింగ్:* 2 మంది బాకీ ₹10,500\n\n1. Ramesh · ₹8,500';
 
@@ -179,13 +182,17 @@ Deno.test('english twin › the real payment card: fixed English, name block kep
   assertEquals(
     card.kind === 'buttons' ? card.text : '',
     [
-      '*చెల్లింపు అందింది*',
+      '💰 *చెల్లింపు అందింది*',
       'Ramesh (Ramesh Kirana)\n₹5,000',
       'తర్వాత బాకీ: ₹3,500',
     ].join('\n\n'),
   );
   await h.send(card);
-  const english = ['*Payment received*', 'Ramesh (Ramesh Kirana)\n₹5,000', 'Balance after: ₹3,500']
+  const english = [
+    '💰 *Payment received*',
+    'Ramesh (Ramesh Kirana)\n₹5,000',
+    'Balance after: ₹3,500',
+  ]
     .join('\n\n');
   assertEquals(h.sent.length, 1);
   assertEquals(
@@ -237,4 +244,41 @@ Deno.test('english twin › a free-text line Translate fails on stays as written
     text: 'తెలుగు\n\nHeard: “తెలుగు”\n\nPending',
     english: 'Heard: “తెలుగు”\n\nPending',
   }]);
+});
+
+Deno.test('english twin › M7: Telugu Menu, lookup, next step and hint get their English, no Translate', async () => {
+  const h = harness();
+  const menu = menuReply('te', 'Srinivas Reddy');
+  const lookup = shopkeeperReplies({
+    lastNote: null,
+    shopkeeper: RAMESH,
+    entries: fakeBookEntries().filter((entry) => entry.shopkeeperId === RAMESH.id),
+    lastPromise: null,
+    score: null,
+    today: FAKE_TODAY,
+    language: 'te',
+  })[0];
+  const next = lookupActionsReply({ shopkeeper: RAMESH, outstanding: 100, language: 'te' });
+  for (const reply of [menu, lookup!, next, hintReply('add', 'te')]) await h.send(reply);
+  assertEquals(h.asked.length, 0);
+  const [menuSent, lookupSent, nextSent, hintSent] = h.sent;
+  assertEquals(menuSent?.kind === 'list' ? menuSent.rows[0]?.title : '', '📒 బాకీ');
+  assertEquals(
+    menuSent?.kind === 'list' ? menuSent.text.split('\n\n')[3] : '',
+    '👋 *Namaste Srinivas!* I keep your credit book.',
+  );
+  const lookupLines = lookupSent?.kind === 'text' ? lookupSent.text.split('\n') : [];
+  assertEquals(lookupLines.includes('Overdue: ₹5,000 · 12 days'), true);
+  assertEquals(lookupLines.includes('Next due: ₹3,500 · Thu 5 Nov'), true);
+  assertEquals(
+    nextSent?.kind === 'buttons' ? nextSent.text : '',
+    'Ramesh కి తర్వాత ఏం చేయాలి?\n\nWhat next for Ramesh?',
+  );
+  assertEquals(nextSent?.kind === 'buttons' ? nextSent.buttons[0]?.title : '', '📞 గుర్తుచేయి');
+  assertEquals(
+    (hintSent?.kind === 'text' ? hintSent.text : '').endsWith(
+      'Nothing is saved until you tap Save.',
+    ),
+    true,
+  );
 });

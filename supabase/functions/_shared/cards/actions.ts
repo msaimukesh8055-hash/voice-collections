@@ -14,9 +14,16 @@ import { formatInr } from '../format.ts';
 import { computeDues } from '../ledger/dues.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
-import { blocks, type Reply, textIn, textReply } from '../whatsapp/replies.ts';
+import {
+  blocks,
+  type Button,
+  type Reply,
+  textReply,
+  withButtons,
+  withEnglish,
+} from '../whatsapp/replies.ts';
 import { booksLinkFor, type BotContext, findShopkeeper } from './context.ts';
-import type { CardVerb, Tap } from './ids.ts';
+import { type CardVerb, menuRowId, type Tap } from './ids.ts';
 import {
   type EntryPayload,
   EntryPayloadSchema,
@@ -95,10 +102,27 @@ async function save(action: PendingAction, ctx: BotContext): Promise<readonly Re
   ]);
   const name = findShopkeeper(ctx, payload.shopkeeperId)?.name ?? '';
   const balance = formatInr(computeDues(entries, ctx.today).outstanding);
-  return [textIn(payload.language, function savedLine(each): string {
+  return [savedReply({ name, balance, link }, payload.language)];
+}
+
+/** "✅ Saved. Ramesh now owes ₹13,500." + the books link, with [📒 Pending] [📋 Menu] (M7). */
+function savedReply(
+  saved: { name: string; balance: string; link: string | null },
+  language: Language,
+): Reply {
+  const phrases = phrasesFor(language);
+  const buttons: readonly Button[] = [
+    { id: menuRowId('pending', language), title: phrases.pendingButton },
+    { id: menuRowId('menu', language), title: phrases.menuButton },
+  ];
+  return withEnglish(language, function savedIn(each): Reply {
     const words = phrasesFor(each);
-    return blocks(words.saved(name, balance), link ? words.viewInBooks(link) : null);
-  })];
+    const text = blocks(
+      words.saved(saved.name, saved.balance),
+      saved.link ? words.viewInBooks(saved.link) : null,
+    );
+    return withButtons(textReply(text), buttons);
+  });
 }
 
 async function cancel(

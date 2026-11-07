@@ -7,7 +7,7 @@
 // aloud (reply links, cloud build): the link is for tapping, in the text message.
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from './phrases.ts';
-import { hasText, type Reply } from './replies.ts';
+import { type BodiedReply, isBodied, type Reply } from './replies.ts';
 
 /** Spoken rows of a numbered list (pending, due alert). */
 export const SPOKEN_LIST_ROWS = 3;
@@ -53,15 +53,62 @@ function asSentences(lines: readonly string[]): string {
   return lines.map((line) => (/[.?!।:]$/.test(line) ? line : `${line}.`)).join(' ');
 }
 
+/** The reply's lines without the "Heard" block and without link lines: what may be spoken. */
+export function speakableLines(text: string, language: Language): readonly string[] {
+  const heard = phrasesFor(language).heard;
+  const body = text.split('\n\n').filter((block) => !block.startsWith(heard)).join('\n');
+  return body.split('\n').filter((line) => !LINK.test(line));
+}
+
+/** Bodied replies the voice note may speak about (never a template or a voice note). */
+function speakable(replies: readonly Reply[]): readonly BodiedReply[] {
+  return replies.filter(isBodied);
+}
+
 /** What the voice note says for these replies, in the reply language ('' = nothing to say). */
 export function spokenText(replies: readonly Reply[], language: Language): string {
-  const first = replies.filter(hasText).find((reply) => reply.kind !== 'template');
+  const first = speakable(replies)[0];
   if (!first) return '';
-  const heard = phrasesFor(language).heard;
-  const body = first.text.split('\n\n').filter((block) => !block.startsWith(heard)).join('\n');
-  const lines = shortLists(body.split('\n').filter((line) => !LINK.test(line)))
+  const lines = shortLists(speakableLines(first.text, language))
     .map((line) => cleanLine(line, language))
     .filter((line) => line !== '');
   const text = asSentences(lines);
   return text.length > MAX_SPOKEN_CHARS ? `${text.slice(0, MAX_SPOKEN_CHARS - 1)}…` : text;
+}
+
+/** What the summary LLM is given (M7 Decision 4): every bodied reply's speakable lines (a list's
+ * rows too) and the titles he can tap. The safety checks compare the summary with this. */
+export interface SpokenSource {
+  readonly reply: string;
+  readonly buttons: readonly string[];
+}
+
+function tapTitles(reply: BodiedReply): readonly string[] {
+  if (reply.kind === 'buttons') return reply.buttons.map((button) => button.title);
+  return reply.kind === 'list' ? [reply.buttonLabel] : [];
+}
+
+function rowLines(reply: BodiedReply): readonly string[] {
+  if (reply.kind !== 'list') return [];
+  return reply.rows.map((row) => [row.title, row.description].filter(Boolean).join(' · '));
+}
+
+function withoutEmoji(title: string): string {
+  return title.replace(EMOJI, '').replace(/\s+/g, ' ').trim();
+}
+
+export function spokenSource(replies: readonly Reply[], language: Language): SpokenSource {
+  const bodied = speakable(replies);
+  const parts = bodied.map((reply) =>
+    [...speakableLines(reply.text, language), ...rowLines(reply)].join('\n').trim()
+  );
+  return {
+    reply: parts.filter((part) => part !== '').join('\n\n'),
+    buttons: bodied.flatMap(tapTitles).map(withoutEmoji).filter((title) => title !== ''),
+  };
+}
+
+/** The source as one text for the checks: the reply, then each button title on its own line. */
+export function sourceText(source: SpokenSource): string {
+  return [source.reply, ...source.buttons].join('\n');
 }

@@ -6,12 +6,20 @@
 // the caller (score.ts, the same as "why is X N?") and passed in, so this file stays pure.
 import type { BookEntry, BookShopkeeper, LastPromise } from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
-import { claimButtonId, lookupRowId } from '../cards/ids.ts';
+import {
+  claimButtonId,
+  fullPaymentButtonId,
+  lookupRowId,
+  menuRowId,
+  partPaymentButtonId,
+  remindButtonId,
+} from '../cards/ids.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import { type Phrases, phrasesFor } from '../whatsapp/phrases.ts';
 import {
   blocks,
+  type Button,
   MAX_BUTTONS,
   MAX_LIST_ROWS,
   type Reply,
@@ -113,6 +121,25 @@ function pendingIn(view: PendingView): Reply {
   return textReply(blocks(title, withMore(lines, owing.length, phrases)));
 }
 
+/** After "pending" (M7 Decision 9): the same top 10 as a list; a row opens that shopkeeper.
+ * Null when nobody owes anything. */
+export function pendingOpenList(view: BookView): Reply | null {
+  const shown = owingOf(view).slice(0, VIEW_ROWS);
+  if (shown.length === 0) return null;
+  const phrases = phrasesFor(view.language);
+  const rows = shown.map(({ shopkeeper, dues }) => ({
+    id: lookupRowId(shopkeeper.id, view.language),
+    title: shopkeeper.name,
+    description: `${formatInr(dues.outstanding)} · ${
+      dues.overdueAmount > 0 ? phrases.daysOverdue(dues.daysOverdue) : phrases.notDueYet
+    }`,
+  }));
+  return withEnglish(view.language, function listIn(each): Reply {
+    const text = phrasesFor(each).openShopkeeper;
+    return { kind: 'list', text, buttonLabel: phrases.openButton, rows };
+  });
+}
+
 /** "closed", with the same list rendered in English for the twin (dry-run fix 4). */
 export function closedReply(view: BookView): Reply {
   return withEnglish(view.language, (language) => closedIn({ ...view, language }));
@@ -137,17 +164,20 @@ function closedIn(view: BookView): Reply {
   return textReply(blocks(phrases.closedTitle, withMore(lines, closed.length, phrases)));
 }
 
-function balanceLine(dues: Dues, phrases: Phrases): string {
-  const details = [
-    dues.overdueAmount > 0
-      ? phrases.overdueSince(formatInr(dues.overdueAmount), dues.daysOverdue)
-      : null,
-    dues.nextDueDate
-      ? phrases.nextDue(formatInr(dues.nextDueAmount), formatShortDay(dues.nextDueDate))
-      : null,
-  ].filter((part): part is string => part !== null);
-  const suffix = details.length > 0 ? ` (${details.join('; ')})` : '';
-  return `${phrases.balance}: ${formatInr(dues.outstanding)}${suffix}`;
+/** M7 Decision 8: the balance, then what is overdue and what falls due next, one per line. */
+function balanceLines(dues: Dues, phrases: Phrases): readonly string[] {
+  const overdue = dues.overdueAmount > 0
+    ? `${phrases.overdueLabel}: ${formatInr(dues.overdueAmount)} · ${
+      phrases.dayCount(dues.daysOverdue)
+    }`
+    : null;
+  const next = dues.nextDueDate
+    ? `${phrases.nextDueLabel}: ${formatInr(dues.nextDueAmount)} · ${
+      formatShortDay(dues.nextDueDate)
+    }`
+    : null;
+  const balance = `${phrases.balance}: ${formatInr(dues.outstanding)}`;
+  return [balance, overdue, next].filter((line): line is string => line !== null);
 }
 
 function entryLine(entry: BookEntry, phrases: Phrases): string {
@@ -207,7 +237,7 @@ function claimCard(view: ShopkeeperView, claim: BookEntry, phrases: Phrases): Re
 }
 
 /** Summary text (with its English rendering), then one [Confirm received] [Not received] card
- * per open claim (up to 3). */
+ * per open claim (up to 3), then "What next for Ramesh?" with its buttons (M7 Decision 9). */
 export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
   const phrases = phrasesFor(view.language);
   const claims = view.entries.filter((entry) => entry.status === 'claimed');
@@ -216,7 +246,38 @@ export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
     (language) => textReply(lookupText({ ...view, language })),
   );
   const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
-  return [text, ...cards];
+  const outstanding = computeDues(view.entries, view.today).outstanding;
+  const next = lookupActionsReply({
+    shopkeeper: view.shopkeeper,
+    outstanding,
+    language: view.language,
+  });
+  return [text, ...cards, next];
+}
+
+function lookupButtons(shopkeeperId: string, owes: boolean, language: Language): readonly Button[] {
+  const phrases = phrasesFor(language);
+  if (!owes) return [{ id: menuRowId('menu', language), title: phrases.menuButton }];
+  return [
+    { id: remindButtonId(shopkeeperId, language), title: phrases.remindShort },
+    { id: fullPaymentButtonId(shopkeeperId, language), title: phrases.paidInFull },
+    { id: partPaymentButtonId(shopkeeperId, language), title: phrases.partPayment },
+  ];
+}
+
+/** A separate short message after the lookup (so the lookup text and its link never hit the
+ * 1,024-character limit of a button message): [Remind] [Paid in full] [Part payment] when he
+ * owes something, else just [Menu]. A tap does exactly what the typed command does. */
+export function lookupActionsReply(input: {
+  shopkeeper: BookShopkeeper;
+  outstanding: number;
+  language: Language;
+}): Reply {
+  const { shopkeeper, language } = input;
+  const buttons = lookupButtons(shopkeeper.id, input.outstanding > 0, language);
+  return withEnglish(language, function nextIn(each): Reply {
+    return { kind: 'buttons', text: phrasesFor(each).nextFor(shopkeeper.name), buttons };
+  });
 }
 
 function lookupText(view: ShopkeeperView): string {
@@ -226,8 +287,8 @@ function lookupText(view: ShopkeeperView): string {
   const recent = [...view.entries].sort(newestFirst).slice(0, LAST_ENTRIES);
   return blocks(
     [
-      `*${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,
-      balanceLine(computeDues(view.entries, view.today), phrases),
+      `👤 *${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,
+      ...balanceLines(computeDues(view.entries, view.today), phrases),
     ],
     recent.length > 0
       ? [`${phrases.lastEntries}:`, ...recent.map((e) => entryLine(e, phrases))]

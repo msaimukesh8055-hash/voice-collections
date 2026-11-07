@@ -215,7 +215,7 @@ Bands: **Reliable 75+**, **Watch 50–74**, **Risky below 50**. New shopkeepers 
 - **Platform feedback doc** (`docs/sarvam-feedback.md`): what worked and what didn't, with evidence. Already found: promise saved twice, payment-link contradiction, filler spoken after a tool result, identity question restarted, mic blocked in embedded browsers, test-call billing not visible, no bring-your-own model, no public agent-config API.
 - **Unit economics** (`docs/unit-economics.md`): cost per reminder call, per WhatsApp interaction, per voice note and per owner per month (100 shopkeepers); compared with money recovered and a suggested price.
 
-## 12. Web app (light-blue theme)
+## 12. Web app (beige / brown / gold theme; light blue until M7)
 
 | Page | Shows |
 |---|---|
@@ -290,8 +290,9 @@ Lean mode as before: plan → STOP → build + tests → quality gate → STOP �
 | **M4** | **WhatsApp core**: webhook, signature, owner check; ledger queries; add credit / mark paid by text with confirm cards; Sarvam LLM brain + fallback | All §6.1–6.3 by text | 4 h |
 | **M5** | **Reminder loop**: due alert with per-person Remind; remind everyone + queue; simulated calls; follow-up agent; WhatsApp summaries; claims confirm; memory; tone ladder; promise checker; score | Demo steps 2–6 | 5 h |
 | **M6** | **Voice notes + insights**: voice in and out (Telugu/Hindi/English); add credit by voice; pie chart; top 5; dashboard pages | Demo steps 1, 7 | 3 h |
-| **M7** | **Evals + gate**: 10 scripted borrowers, 30 brain messages, judge, gate, dashboard page | Gate passes | 3 h |
-| **M8** | **Go-live**: feedback doc, unit economics, demo script, Vercel deploy, recorded demo | Pitch pack ready | 2 h |
+| **M7** | **Polish + memory** (added 2026-11-07, Saim). Build A: spoken voice-note summary (sarvam-105b, code-checked figures, fallback to today's), bot profile photo + About line, cleaner WhatsApp messages with buttons and list menus. Build B: Asha v6 reads a code-built history of the last 3 calls; call screen with avatars and who-is-speaking arrows; beige / brown / gold theme | Both builds smoke-tested | 5 h |
+| **M8** | **Evals + gate**: 10 scripted borrowers, 30 brain messages, judge, gate, dashboard page | Gate passes | 3 h |
+| **M9** | **Go-live**: Vercel deploy, recorded demo. Feedback doc, unit economics and demo script on hold (Saim, 2026-11-07) | Demo recorded | 2 h |
 
 Checkpoints: **CP2 after M5** (the full loop works), **CP3 before go-live** (with `refactorer`). (`guidelines/workflow.md` updated.)
 

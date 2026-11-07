@@ -17,12 +17,19 @@ import type { BookRepository } from '../db/book-repository.ts';
 import type { Translator } from '../speech/translate.ts';
 import type { WhatsAppClient } from './client.ts';
 import { withFixedEnglish } from './fixed-english.ts';
-import { blocks, type BodiedReply, isBodied, type Reply, textReply } from './replies.ts';
+import {
+  blocks,
+  type BodiedReply,
+  isBodied,
+  MAX_INTERACTIVE_BODY,
+  type Reply,
+  textReply,
+} from './replies.ts';
 
 /** Meta's limits: plain text 4,096 characters; the body of a message with buttons or a list
  * 1,024. */
 const TEXT_LIMIT = 4096;
-const INTERACTIVE_LIMIT = 1024;
+const INTERACTIVE_LIMIT = MAX_INTERACTIVE_BODY;
 /** Names (shopkeepers, the owner) are read at most this often. */
 export const SETTINGS_TTL_MS = 5 * 60_000;
 

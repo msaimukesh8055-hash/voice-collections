@@ -14,7 +14,7 @@ A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake
 
 ## Connect WhatsApp (M4)
 
-In Meta → WhatsApp → Configuration set **Callback URL** `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` and **Verify token** = `WHATSAPP_VERIFY_TOKEN`, then subscribe to `messages`. Send "hi" from the owner's phone to the test number. Commands: `pending`, `closed`, `Ramesh`, `Ramesh 5000 due 15th`, `Ramesh paid 2000`, or free text in Telugu/Hindi/English. Every change waits for a **Save** tap.
+In Meta → WhatsApp → Configuration set **Callback URL** `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` and **Verify token** = `WHATSAPP_VERIFY_TOKEN`, then subscribe to `messages`. Send "hi" from the owner's phone to the test number: the **Menu** list opens every main action with one tap (M7). Commands: `pending`, `closed`, `Ramesh`, `Ramesh 5000 due 15th`, `Ramesh paid 2000`, or free text in Telugu/Hindi/English. A lookup ends with [Remind] [Paid in full] [Part payment]. Every change waits for a **Save** tap.
 
 ## Try a call
 
@@ -61,6 +61,8 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 | `npm run smoke:tools` | End-to-end check on the deployed functions: ring → accept → 5 tools → ended (no voice credit) |
 | `npm run smoke:whatsapp` | Signed fake Meta messages to the deployed webhook: verify, bad signature, stranger. Add `-- --send-to-owner` for pending / lookup / card → Save / duplicate id (**sends real WhatsApp replies to the owner**); cleans up its rows |
 | `npm run smoke:reminders` | M5 reminder loop on the deployed functions: worker secret (401/202). Add `-- --send-to-owner` for "due" → Remind tap → one live call queued, then declined (no voice minutes) → follow-up; then one simulated call end to end → follow-up run + note (**sends real WhatsApp messages to the owner, about ₹1 of LLM**); cleans up its rows |
+| `npm run brand:png` | Render `web/public/brand/logo.svg` to the 640×640 profile PNG (`logo-640.png`, committed) |
+| `npm run bot:profile` | Set the bot's WhatsApp profile (logo, About, description, category, website = `DASHBOARD_URL` if https) on the Meta test number. Needs `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID` and `META_APP_ID` (App settings → Basic → App ID). Add `-- --dry-run` first: prints the payload, calls nothing |
 | `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam |
 | `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes` |
 

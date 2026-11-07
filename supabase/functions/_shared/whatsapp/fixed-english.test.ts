@@ -24,7 +24,7 @@ Deno.test('fixed english › pairs come from phrases.ts, nested objects too; fun
   assert(has(te.balanceAfter, en.balanceAfter));
   assert(has(te.voiceProblem.cap, en.voiceProblem.cap));
   assert(has(te.promiseStatus.kept, en.promiseStatus.kept));
-  assert(!FIXED_ENGLISH.some((pair) => pair.te === te.help));
+  assert(!FIXED_ENGLISH.some((pair) => pair.te.includes('\n')));
   assert(!FIXED_ENGLISH.some((pair) => pair.te === te.save)); // "Save" in both
 });
 
@@ -47,8 +47,10 @@ Deno.test('fixed english › a label starting a line is swapped and recorded', (
 });
 
 Deno.test('fixed english › whole-line labels and bold titles swap', () => {
-  assertEquals(withFixedEnglish('*చెల్లింపు అందింది*').text, '*Payment received*');
-  assertEquals(withFixedEnglish('*చెల్లింపు అందింది*  ').text, '*Payment received*  ');
+  assertEquals(withFixedEnglish('💰 *చెల్లింపు అందింది*').text, '💰 *Payment received*');
+  assertEquals(withFixedEnglish('💰 *చెల్లింపు అందింది*  ').text, '💰 *Payment received*  ');
+  // Since M7 the title has an emoji; the bare words (no emoji) are no longer a label.
+  assertEquals(withFixedEnglish('*చెల్లింపు అందింది*').text, '*చెల్లింపు అందింది*');
   assertEquals(withFixedEnglish('అందింది').text, 'Confirm received');
   assertEquals(withFixedEnglish('*బాకీ*: ₹8,500').text, '*Balance*: ₹8,500');
   assertEquals(withFixedEnglish('*బాకీ*').text, '*Balance*');
@@ -77,4 +79,32 @@ Deno.test('fixed english › a longer word (a letter, combining mark or digit af
   assertEquals(withFixedEnglish('వద్దు').text, 'No');
   assertEquals(withFixedEnglish('అప్పు2').text, 'అప్పు2');
   assertEquals(withFixedEnglish('బాకీ:').text, 'Balance:');
+});
+
+Deno.test('fixed english › M7: the new Telugu labels and titles have their fixed English', () => {
+  const te = PHRASES.te;
+  const en = PHRASES.en;
+  for (
+    const key of [
+      'overdueLabel',
+      'nextDueLabel',
+      'closedTitle',
+      'addCreditTitle',
+      'paymentTitle',
+      'cancelled',
+      'remindShort',
+      'paidInFull',
+      'partPayment',
+      'menuButton',
+      'pendingButton',
+      'dueButton',
+      'openShopkeeper',
+      'openButton',
+    ] as const
+  ) {
+    assertEquals(withFixedEnglish(te[key]).text, en[key], key);
+  }
+  assertEquals(withFixedEnglish('ఆలస్యం: ₹3,000').text, 'Overdue: ₹3,000');
+  assertEquals(withFixedEnglish('తర్వాతి గడువు: ₹5,500').text, 'Next due: ₹5,500');
+  assertEquals(withFixedEnglish('✅ *ఈ నెల తీరినవి*').text, '✅ *Paid off this month*');
 });

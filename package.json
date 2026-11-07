@@ -29,10 +29,13 @@
     "smoke:tools": "node --env-file=.env scripts/smoke-tools.ts",
     "smoke:whatsapp": "node --env-file=.env scripts/smoke-whatsapp.ts",
     "spike:voice": "node --env-file=.env scripts/spike-voice.ts",
-    "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts"
+    "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts",
+    "brand:png": "node scripts/brand-png.ts",
+    "bot:profile": "node --env-file-if-exists=.env scripts/bot-profile.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@resvg/resvg-js": "2.6.2",
     "@supabase/supabase-js": "^2.118.0",
     "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^4.1.12",

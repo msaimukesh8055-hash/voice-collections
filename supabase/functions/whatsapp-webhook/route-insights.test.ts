@@ -46,7 +46,7 @@ Deno.test('route insights › "insights" sends the chart, then the figures and t
     hear: NO_HEARING,
   });
   assertEquals(result.command, 'insights');
-  assertEquals(result.replies.map((reply) => reply.kind), ['image', 'text']);
+  assertEquals(result.replies.map((reply) => reply.kind), ['image', 'buttons']);
   assertEquals([...(web.pngs[0] ?? []).slice(1, 4)], [0x50, 0x4e, 0x47]); // "PNG"
   const body = replyText(result.replies);
   assertStringIncludes(body, 'Top 5 overdue');
@@ -60,7 +60,7 @@ Deno.test('route insights › upload failing → text only, slices in the text',
     demoNow: NOW,
     hear: NO_HEARING,
   });
-  assertEquals(result.replies.map((reply) => reply.kind), ['text']);
+  assertEquals(result.replies.map((reply) => reply.kind), ['buttons']);
   assertStringIncludes(replyText(result.replies), '🟦 Not yet due');
 });
 
