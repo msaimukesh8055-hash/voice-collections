@@ -116,6 +116,15 @@ Saim plays two people: the **owner** (on his own WhatsApp) and **Ramesh**, one s
 - The webhook answers Meta at once and does the work in the background.
 - Confirmation cards expire after 30 minutes.
 
+### 6.10 Munshi — the owner's call line (added 2026-11-07, Saim; ADR-0018)
+- **Munshi** is a second Sarvam voice agent, for the owner only: male Bulbul voice, very casual ("friend next door"), Telugu, Hindi and English; greets in Telugu and follows the speaker. Its prompt, voice and tools live in `voice-agents/munshi/`.
+- **Start:** the WhatsApp Menu's "📞 Call Munshi" row sends a single-use link (15 minutes) to a `/munshi` browser call page. No PIN: the link reaches only the owner's verified number, and starting the call uses it up. Calls are capped at 8 minutes, with a warning near the end; Munshi asks "anything else?" before ending.
+- **Answers** anything about the book in one step: pending, overdue, due today, who owes how much and since when, one shopkeeper's dues and entries, promises, payment claims waiting, insights figures, and what happened on Asha's last calls (from the shop's records).
+- **Acts** only after reading the change back and hearing the owner's yes, **enforced in code** (prepare → confirm): add credit; mark paid (full or part); delete any entry (stored as a reversal, never removed); have Asha remind a shopkeeper (she calls after the Munshi call ends); accept or reject a payment a shopkeeper told Asha about; send the pending list, today's dues, one shopkeeper's statement or insights on WhatsApp.
+- **WhatsApp only when asked:** no receipt after a change. After a reminded call, the follow-up summary arrives on WhatsApp as today, and Munshi knows the result on the next call.
+- **Fast:** every tool answers in under 0.5 s (95th percentile, measured from the audit log and a latency run).
+- **Tested in text:** 15 scripted owner conversations run Munshi in text mode with the same tools; live voice only for the final check and the demo.
+
 ## 7. Reminder call — Asha on Sarvam
 
 ### 7.1 Borrower phone page (web)
@@ -134,7 +143,7 @@ Saim plays two people: the **owner** (on his own WhatsApp) and **Ramesh**, one s
 7. Thank, goodbye, end.
 
 ### 7.3 Memory (idea 2)
-Before speaking, Asha gets the shopkeeper's history: the last promise (amount, date, kept or broken), the last call note, any rejected payment claim. She uses it naturally: "Last time you said Friday for 3,000 rupees, and it hasn't come through yet. What happened?"
+Before speaking, Asha gets the shopkeeper's history: the last promise (amount, date, kept or broken), any rejected payment claim, and a code-built history of the last 3 calls (outcome, promise terms, reasons; the shopkeeper's own words only as a labelled, number-free phrase; M7 B1, ADR-0019). She uses it naturally: "Last time you said Friday for 3,000 rupees, and it hasn't come through yet. What happened?"
 
 ### 7.4 Tone ladder after broken promises (idea 4)
 
@@ -171,7 +180,7 @@ Runs after every call, live or simulated.
 1. **Transcript**: live calls — fetched from Sarvam's Analytics API using the call's interaction id when the phone page reports the call ended; simulated — already in hand.
 2. **Rules first** (clear cases): promise logged → set a check date; claim recorded → send the owner the confirm card; owner callback → flag; no answer → retry suggestion.
 3. **Agent for judgement calls** (Sarvam LLM): mixed signals, hardship, angry calls → decides the next step from a fixed list (remind again on a date, owner should call, pause reminders).
-4. **Always writes a note** that Asha reads next call.
+4. **Always writes a note** for the owner (WhatsApp lookup, dashboard); Asha reads the code-built call history instead (CP2 M2, M7 B1).
 5. **WhatsApp summary to the owner**: name, outcome, promise or claim, tone level, next step, "simulated" label if relevant, with buttons where an action is needed.
 6. **Promise checker** (daily): a promise date passed without a confirmed payment → promise marked **broken** → feeds the tone ladder and the score.
 
@@ -291,10 +300,11 @@ Lean mode as before: plan → STOP → build + tests → quality gate → STOP �
 | **M5** | **Reminder loop**: due alert with per-person Remind; remind everyone + queue; simulated calls; follow-up agent; WhatsApp summaries; claims confirm; memory; tone ladder; promise checker; score | Demo steps 2–6 | 5 h |
 | **M6** | **Voice notes + insights**: voice in and out (Telugu/Hindi/English); add credit by voice; pie chart; top 5; dashboard pages | Demo steps 1, 7 | 3 h |
 | **M7** | **Polish + memory** (added 2026-11-07, Saim). Build A: spoken voice-note summary (sarvam-105b, code-checked figures, fallback to today's), bot profile photo + About line, cleaner WhatsApp messages with buttons and list menus. Build B: Asha v6 reads a code-built history of the last 3 calls; call screen with avatars and who-is-speaking arrows; beige / brown / gold theme | Both builds smoke-tested | 5 h |
-| **M8** | **Evals + gate**: 10 scripted borrowers, 30 brain messages, judge, gate, dashboard page | Gate passes | 3 h |
-| **M9** | **Go-live**: Vercel deploy, recorded demo. Feedback doc, unit economics and demo script on hold (Saim, 2026-11-07) | Demo recorded | 2 h |
+| **M8** | **Munshi, the owner's call line** (added 2026-11-07, Saim; §6.10, ADR-0018). Build A: Menu row + single-use link, `/munshi` page, `munshi-tools` with reads. Build B: read-back + confirm actions (credit, payment, delete as reversal, remind, claims, WhatsApp send). Build C: 15 text evals, latency run, live smoke | Live Munshi call → Asha call → WhatsApp summary; tools p95 < 0.5 s | 9.5 h |
+| **M9** | **Evals + gate**: 10 scripted borrowers, 30 brain messages, Munshi's 15 owner scenarios, judge, gate, dashboard page | Gate passes | 3 h |
+| **M10** | **Go-live**: Vercel deploy, recorded demo. Feedback doc, unit economics and demo script on hold (Saim, 2026-11-07) | Demo recorded | 2 h |
 
-Checkpoints: **CP2 after M5** (the full loop works), **CP3 before go-live** (with `refactorer`). (`guidelines/workflow.md` updated.)
+Checkpoints: **CP2 after M5** (the full loop works), **CP3 before go-live** (after M9, with `refactorer`).
 
 **Saim agreed as must-have:** voice notes both ways, ideas 1–4, insights, reliability score, own evals, feedback doc, unit economics.
 

@@ -4,6 +4,14 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-07 · M8 — Munshi, the owner's call line · 🟡 Planned (approved)**
+Owner calls a male, casual Sarvam agent from a one-time WhatsApp link; it answers anything about the book and acts only after a spoken yes checked in code; WhatsApp only on request; tools under 0.5 s.
+~9.5 h in 3 builds; SPEC §6.10 + M8 Munshi / M9 Evals / M10 Go-live; ADR-0018 · Details → [`milestones/M8.md`](milestones/M8.md)
+
+**2026-11-07 · M7 Build B1 — Asha remembers past calls · 🟡 Planned (approved)**
+get_dues adds a code-built history of the last 3 calls (fixed reasons + at most one short, number-free "their words" phrase), same DB trip; Asha v6 memory lines; reusable by Munshi.
+Not RAG (direct lookup by shopkeeper id) · closes backlog 9 and 10 · Details → [`milestones/M7.md`](milestones/M7.md)
+
 **2026-11-07 · M7 Build A — Spoken summary, bot profile, buttons · ✅ Done (awaiting commit)**
 sarvam-105b writes a casual spoken voice-note summary (figures and names checked in code, else today's version), Menu list + reply buttons, cleaner layout; Meta accepted the logo + About line on the test number. Next: Asha memory (B1), then Munshi, the owner's call line.
 Deno 985 + root 99 + web 82, gate green, deployed; tester caught "5thousand"/"5k" slipping the number check (fixed); smoke OK by Saim · Built locally (no cloud) · Details → [`milestones/M7.md`](milestones/M7.md)

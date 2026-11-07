@@ -8,7 +8,7 @@ A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake
 2. `npm install`
 3. Copy `.env.example` → `.env` and fill it in (never commit `.env`). Supabase project in **ap-south-1 (Mumbai)**. Sarvam needs two keys: `SARVAM_API_KEY` (speech, LLM) and `SARVAM_AGENTS_API_KEY` (Voice Agents, indus.sarvam.ai), plus org and workspace ids. `SARVAM_TOOL_SECRET` is a random 32+ character string you also store in Sarvam's Secrets vault as `easy-recovery-tool-secret`. The WhatsApp bot (M4) needs `META_ACCESS_TOKEN` (system-user token, never expires), `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_APP_SECRET`, a random `WHATSAPP_VERIFY_TOKEN`, the owner's number in `OWNER_WHATSAPP_NUMBER` (only number the bot answers; never stored) and `GEMINI_API_KEY` (fallback brain). The follow-up worker (M5) needs `WORKER_SECRET`, another random 32+ character string (calls-api and whatsapp-webhook send it to wake the worker; pg_cron reads it from Vault, see "Scheduler").
 4. `npm run db:push` — applies migrations + seed to the linked Supabase project.
-5. `npm run db:check-seed` — verifies seed counts, Ramesh's figures and that the browser key cannot read data.
+5. `npm run db:check-seed` — verifies seed counts, Ramesh's figures, his 2 seeded past calls (Asha's call history, M7 B1) and that the browser key cannot read data.
 6. `npm run functions:deploy` — uploads function secrets and deploys `sarvam-tools`, `calls-api`, `whatsapp-webhook` and `followup-worker`.
 7. `npm run agent:build` — writes `voice-agents/asha/build/agent.json` to create/update Asha in Sarvam (see `voice-agents/README.md`). Put Asha's app id in `SARVAM_APP_ID`, then deploy the functions again.
 

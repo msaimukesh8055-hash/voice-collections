@@ -5,6 +5,7 @@
 // figure"). Only the reason is logged, never the text.
 import { DEVANAGARI_SCRIPT, TELUGU_SCRIPT } from '../brain/language.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
+import { DIGIT, hasScaleWord } from '../figure-words.ts';
 import { MAX_SPOKEN_CHARS } from './spoken.ts';
 
 export type SpokenCheckReason =
@@ -30,48 +31,10 @@ export interface SpokenCheckInput {
 }
 
 const LINK = /https?:\/\/|www\./i;
-const DIGIT = '[0-9०-९౦-౯]';
 const NUMBER = new RegExp(`${DIGIT}+(?:[,.]${DIGIT}+)*`, 'gu');
 const DEVANAGARI_ZERO = 0x0966;
 const TELUGU_ZERO = 0x0c66;
 const LATIN_WORD = /[A-Za-z]+/g;
-/** Letter runs only, so a scale word glued to a digit ("5thousand", "5వేలు") is still a word. */
-const TOKEN_SPLIT = /[^\p{L}\p{M}]+/u;
-
-/** Scale words that hide a figure (Decision 4, check 5). Latin and Hindi: the whole word.
- * "lac", "lacs" (Indian spelling of lakh) and "k" ("5k") were added in testing. */
-const SCALE_WORDS = new Set(
-  [
-    'thousand',
-    'thousands',
-    'hundred',
-    'hundreds',
-    'lakh',
-    'lakhs',
-    'crore',
-    'crores',
-    'lac',
-    'lacs',
-    'k',
-    'hazaar',
-    'hazar',
-    'hajar',
-    'vela',
-    'velu',
-    'हज़ार',
-    'हजार',
-    'हज़ारों',
-    'हजारों',
-    'सौ',
-    'लाख',
-    'लाखों',
-    'करोड़',
-    'करोड़ों',
-  ].map((word) => word.normalize('NFC')),
-);
-/** Telugu joins endings to the word (వేలు, వేల, లక్షలు), so these are word starts. */
-const TELUGU_SCALE_STARTS = ['వంద', 'వేల', 'లక్ష', 'కోటి', 'కోట్ల'];
-
 /** Words any summary may use although the reply does not (Decision 4, check 7). Days and months
  * are added so "Sunday 15 November" passes for a reply that says "Sun 15 Nov". */
 const ALLOWED_WORDS = new Set([
@@ -120,13 +83,6 @@ function hasRightScript(say: string, language: Language): boolean {
   if (language === 'te') return TELUGU_SCRIPT.test(say);
   if (language === 'hi') return DEVANAGARI_SCRIPT.test(say);
   return !TELUGU_SCRIPT.test(say) && !DEVANAGARI_SCRIPT.test(say);
-}
-
-function hasScaleWord(say: string): boolean {
-  return say.normalize('NFC').split(TOKEN_SPLIT).some(function isScale(token): boolean {
-    if (SCALE_WORDS.has(token.toLowerCase())) return true;
-    return TELUGU_SCALE_STARTS.some((start) => token.startsWith(start));
-  });
 }
 
 function escapeRegExp(text: string): string {

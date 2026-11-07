@@ -5,8 +5,11 @@
 // just broke counts), and one round of writes: any promise status change and the call's tone
 // level. Sarvam gives Asha only `say`, so memory and tone are written into it as plain facts;
 // how to use them is in her prompt. The LLM-written follow-up note is never read here (CP2 M2):
-// everything in the reply is built in code from the shop's own records.
-import { istDate } from '../clock.ts';
+// everything in the reply is built in code from the shop's own records. M7 B1: the same read
+// round also loads the last 3 calls; their history follows the memory lines (Decision 2).
+import { addDays, istDate } from '../clock.ts';
+import { buildCallHistory, type CallHistory } from '../calls/call-history.ts';
+import { describeHistoryForAsha, historyData } from '../calls/call-history-asha.ts';
 import { buildMemory, describeMemory, memoryData } from '../calls/memory.ts';
 import {
   consequenceFor,
@@ -17,6 +20,7 @@ import {
 } from '../calls/tone.ts';
 import { formatDay, formatRupees } from '../format.ts';
 import { computeDues, type Dues } from '../ledger/dues.ts';
+import { HISTORY_DAYS } from '../ledger/history.ts';
 import {
   applyPromiseChanges,
   checkPromises,
@@ -101,6 +105,15 @@ function assess(
   };
 }
 
+/** Start of the six-month window (India midnight), the same window as the tone ladder. */
+function historyStart(today: string): Date {
+  return new Date(`${addDays(today, -HISTORY_DAYS)}T00:00:00+05:30`);
+}
+
+function pastLines(memory: string, history: CallHistory): string {
+  return [memory, describeHistoryForAsha(history)].filter((part) => part !== '').join(' ');
+}
+
 export async function getDues(
   ctx: ToolContext,
   _args: ToolArgs<'get_dues'>,
@@ -108,19 +121,21 @@ export async function getDues(
   const refusal = requireIdentity(ctx.session);
   if (refusal) return refusal;
 
-  const { shopkeeperId } = ctx.session;
+  const { shopkeeperId, callId } = ctx.session;
   const today = istDate(ctx.now);
-  const [entries, stored, shopkeeper] = await Promise.all([
+  const [entries, stored, shopkeeper, rows] = await Promise.all([
     ctx.repo.getLedger(shopkeeperId),
     ctx.repo.listPromises(shopkeeperId),
     ctx.repo.getShopkeeper(shopkeeperId),
+    ctx.repo.listPastCalls(shopkeeperId, callId, historyStart(today)),
   ]);
   const ownerText = shopkeeper?.consequenceText ?? null;
   const { dues, promises, changes, tone } = assess({ entries, stored, ownerText }, today);
   await saveChecks(ctx, changes, tone.level);
 
   const memory = buildMemory({ promises, entries, today });
-  return ok(describeDues(dues, describeMemory(memory), tone), {
+  const history = buildCallHistory({ rows, promises, entries, today, currentCallId: callId });
+  return ok(describeDues(dues, pastLines(describeMemory(memory), history), tone), {
     outstanding: dues.outstanding,
     overdue_amount: dues.overdueAmount,
     oldest_due_date: dues.oldestDueDate,
@@ -128,6 +143,7 @@ export async function getDues(
     next_due_date: dues.nextDueDate,
     next_due_amount: dues.nextDueAmount,
     ...memoryData(memory),
+    ...historyData(history),
     tone_level: tone.level,
     consequence: tone.consequence,
   });

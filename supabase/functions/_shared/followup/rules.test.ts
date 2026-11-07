@@ -2,7 +2,7 @@
 // Follow-up rules (M5 Decision 4): every row of the table, and the agent only on mixed signals.
 import { assertEquals } from '@std/assert';
 import { CLAIM, facts, PROMISE } from './__fixtures__/facts.ts';
-import { decideByRules, findMixedSignals, outcomeOf } from './rules.ts';
+import { decideByRules, findMixedSignals, outcomeFrom, outcomeOf } from './rules.ts';
 
 const WANTS_OWNER = {
   reason: 'wants_owner',
@@ -115,4 +115,24 @@ Deno.test('outcome › one label per call result', () => {
   assertEquals(outcomeOf(facts({ callbacks: [WANTS_OWNER] })), 'callback');
   assertEquals(outcomeOf(facts()), 'no_promise');
   assertEquals(outcomeOf(facts({ identity: 'unknown', callbacks: [WANTS_OWNER] })), 'callback');
+});
+
+Deno.test('outcome › outcomeFrom labels plain flags the same way (call history, M7 B1)', () => {
+  const base = {
+    connected: true,
+    declined: false,
+    identity: 'confirmed',
+    hasClaim: false,
+    hasPromise: false,
+    callbackCount: 0,
+  } as const;
+  assertEquals(outcomeFrom({ ...base, connected: false, declined: true }), 'declined');
+  assertEquals(outcomeFrom({ ...base, connected: false }), 'no_answer');
+  assertEquals(outcomeFrom({ ...base, identity: 'denied', callbackCount: 1 }), 'wrong_person');
+  assertEquals(outcomeFrom({ ...base, identity: 'unknown' }), 'ended_early');
+  assertEquals(outcomeFrom({ ...base, identity: 'unknown', callbackCount: 1 }), 'callback');
+  assertEquals(outcomeFrom({ ...base, hasClaim: true, hasPromise: true }), 'claim');
+  assertEquals(outcomeFrom({ ...base, hasPromise: true }), 'promise');
+  assertEquals(outcomeFrom({ ...base, callbackCount: 2 }), 'callback');
+  assertEquals(outcomeFrom(base), 'no_promise');
 });

@@ -2,6 +2,7 @@
 // Data access contract. Tools and handlers depend on this interface, never on Supabase directly,
 // so tests run against the in-memory fake. Latency rule: a tool does at most one round of reads
 // (run in parallel) and one write.
+import type { PastCallRow } from '../calls/call-history.ts';
 import type { ToneLevel } from '../calls/tone.ts';
 import type { PromiseRecord } from '../ledger/promise-check.ts';
 import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
@@ -148,4 +149,12 @@ export interface Repository {
   /** Compare-and-set from 'open', so running the promise check twice changes nothing. */
   setPromiseStatus(promiseId: string, status: 'kept' | 'broken'): Promise<boolean>;
   setCallToneLevel(callId: string, level: ToneLevel): Promise<void>;
+  /** Call history (M7 B1): the shopkeeper's ended calls since `since`, newest first, at most
+   * MAX_PAST_CALLS, without `excludeCallId` (the current call), each with its promise, claim,
+   * callback rows and follow-up signals. Read in get_dues's same round of reads. */
+  listPastCalls(
+    shopkeeperId: string,
+    excludeCallId: string,
+    since: Date,
+  ): Promise<readonly PastCallRow[]>;
 }

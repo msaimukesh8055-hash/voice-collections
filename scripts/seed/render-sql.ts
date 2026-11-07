@@ -5,6 +5,7 @@ import { OWNER } from './names.ts';
 import type {
   PromiseDay,
   SeedData,
+  SeedPastCall,
   SeedEntry,
   SeedPromise,
   SeedShopkeeper,
@@ -14,6 +15,8 @@ const TODAY_CTE = "with d as (select (now() at time zone 'Asia/Kolkata')::date a
 /** Most recent Friday strictly before today (ISO weekday: Monday 1 … Sunday 7). */
 const LAST_FRIDAY = 'd.today - ((extract(isodow from d.today)::int + 1) % 7 + 1)';
 const PROMISE_TIME = "time '11:00'";
+/** Seeded past calls ring at 11:00 India time and are answered a minute later. */
+const CALL_TIME = "time '11:00'";
 
 function text(value: string | null): string {
   return value === null ? 'null::text' : `'${value.replaceAll("'", "''")}'`;
@@ -73,16 +76,85 @@ ${entries.map(entryRow).join(',\n')}
 
 function promiseRow(promise: SeedPromise): string {
   const created = `(${dayExpression(promise.createdDay)} + ${PROMISE_TIME}) at time zone 'Asia/Kolkata'`;
-  return `  (${text(promise.shopkeeperId)}::uuid, ${promise.amount}, ${promiseDayExpression(promise.day)}, ${text(promise.status)}, ${created})`;
+  const callId = `${text(promise.callId ?? null)}::uuid`;
+  return `  (${text(promise.shopkeeperId)}::uuid, ${callId}, ${promise.amount}, ${promiseDayExpression(promise.day)}, ${text(promise.status)}, ${created})`;
 }
 
 function promisesSql(promises: readonly SeedPromise[]): string {
   return `${TODAY_CTE}
-insert into public.promises (shopkeeper_id, amount, promise_date, status, created_at)
-select v.shopkeeper_id, v.amount, v.promise_date, v.status, v.created_at
+insert into public.promises (shopkeeper_id, call_id, amount, promise_date, status, created_at)
+select v.shopkeeper_id, v.call_id, v.amount, v.promise_date, v.status, v.created_at
 from d cross join lateral (values
 ${promises.map(promiseRow).join(',\n')}
-) as v(shopkeeper_id, amount, promise_date, status, created_at);
+) as v(shopkeeper_id, call_id, amount, promise_date, status, created_at);
+`;
+}
+
+function callStart(call: SeedPastCall): string {
+  return `(${dayExpression(call.day)} + ${CALL_TIME}) at time zone 'Asia/Kolkata'`;
+}
+
+/** Answered a minute after ringing; a missed or declined call was never answered. */
+function callTimes(call: SeedPastCall, start: string): string {
+  if ((call.status ?? 'completed') !== 'completed') {
+    return `${start}, ${start}, null::timestamptz, ${start} + interval '1 minute', 0`;
+  }
+  const accepted = `${start} + interval '1 minute'`;
+  const ended = `${accepted} + interval '${call.durationSeconds} seconds'`;
+  return `${start}, ${start}, ${accepted}, ${ended}, ${call.durationSeconds}`;
+}
+
+function pastCallRow(call: SeedPastCall): string {
+  const status = text(call.status ?? 'completed');
+  const identity = text(call.identity ?? 'confirmed');
+  return `  (${text(call.id)}::uuid, ${text(call.shopkeeperId)}::uuid, ${text(call.language)}, ${status}, ${identity}, ${callTimes(call, callStart(call))})`;
+}
+
+/** M7 B1 Decision 4: Ramesh's two earlier calls plus the five stories (stories.ts), already
+ * followed up (worker queue: done). */
+function pastCallsSql(calls: readonly SeedPastCall[]): string {
+  return `-- Earlier calls (M7 B1): Asha's call history on the first demo call
+${TODAY_CTE}
+insert into public.calls (id, shopkeeper_id, mode, status, language, identity_status, tone_level, queued_at, ringing_at, accepted_at, ended_at, duration_seconds, followup_status)
+select v.id, v.shopkeeper_id, 'live', v.status, v.language, v.identity_status, 1, v.queued_at, v.ringing_at, v.accepted_at, v.ended_at, v.duration_seconds, 'done'
+from d cross join lateral (values
+${calls.map(pastCallRow).join(',\n')}
+) as v(id, shopkeeper_id, language, status, identity_status, queued_at, ringing_at, accepted_at, ended_at, duration_seconds);
+`;
+}
+
+function runActions(call: SeedPastCall): string {
+  const actions = {
+    outcome: call.run.outcome,
+    signals: call.run.signals,
+    agent_path: call.run.path === 'agent' ? 'sarvam' : null,
+    note_source: 'code',
+    transcript: 'missing',
+    simulated: false,
+  };
+  return `${text(JSON.stringify(actions))}::jsonb`;
+}
+
+function followupRunRow(call: SeedPastCall): string {
+  return `  (${text(call.id)}::uuid, ${text(call.shopkeeperId)}::uuid, ${text(call.run.path)}, ${text(call.run.decision)}, ${text(call.run.reasoning)}, ${runActions(call)})`;
+}
+
+function callbackRow(call: SeedPastCall): readonly string[] {
+  if (call.callback === null) return [];
+  return [
+    `  (${text(call.id)}::uuid, ${text(call.shopkeeperId)}::uuid, ${text(call.callback.reason)}, ${text(call.callback.summary)})`,
+  ];
+}
+
+function followupsSql(calls: readonly SeedPastCall[]): string {
+  return `insert into public.followup_runs (call_id, shopkeeper_id, path, decision, reasoning, actions) values
+${calls.map(followupRunRow).join(',\n')};
+
+insert into public.followups (call_id, shopkeeper_id, kind, reason, summary, status)
+select v.call_id, v.shopkeeper_id, 'owner_callback', v.reason, v.summary, 'done'
+from (values
+${calls.flatMap(callbackRow).join(',\n')}
+) as v(call_id, shopkeeper_id, reason, summary);
 `;
 }
 
@@ -105,7 +177,9 @@ export function renderSeedSql(data: SeedData): string {
     ownerSql(),
     shopkeepersSql(data.shopkeepers),
     ...ledgers,
+    pastCallsSql(data.pastCalls),
     promisesSql(data.promises),
+    followupsSql(data.pastCalls),
     demoSettingsSql(live),
   ].join('\n');
 }
