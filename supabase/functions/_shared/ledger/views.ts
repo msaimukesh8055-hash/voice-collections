@@ -233,17 +233,15 @@ export interface ShopkeeperView {
   readonly booksLink?: string | null;
 }
 
-function claimCard(view: ShopkeeperView, claim: BookEntry, phrases: Phrases): Reply {
+/** One open claim with [Confirm received] [Not received] (the lookup and /claims). */
+export function claimCardReply(name: string, claim: BookEntry, language: Language): Reply {
+  const phrases = phrasesFor(language);
   return {
     kind: 'buttons',
-    text: phrases.claimQuestion(
-      view.shopkeeper.name,
-      formatInr(claim.amount),
-      formatShortDay(claim.entryDate),
-    ),
+    text: phrases.claimQuestion(name, formatInr(claim.amount), formatShortDay(claim.entryDate)),
     buttons: [
-      { id: claimButtonId(claim.id, true, view.language), title: phrases.confirmReceived },
-      { id: claimButtonId(claim.id, false, view.language), title: phrases.notReceived },
+      { id: claimButtonId(claim.id, true, language), title: phrases.confirmReceived },
+      { id: claimButtonId(claim.id, false, language), title: phrases.notReceived },
     ],
   };
 }
@@ -251,13 +249,14 @@ function claimCard(view: ShopkeeperView, claim: BookEntry, phrases: Phrases): Re
 /** Summary text (with its English rendering), then one [Confirm received] [Not received] card
  * per open claim (up to 3), then "What next for Ramesh?" with its buttons (M7 Decision 9). */
 export function shopkeeperReplies(view: ShopkeeperView): readonly Reply[] {
-  const phrases = phrasesFor(view.language);
   const claims = view.entries.filter((entry) => entry.status === 'claimed');
   const text = withEnglish(
     view.language,
     (language) => textReply(lookupText({ ...view, language })),
   );
-  const cards = claims.slice(0, MAX_BUTTONS).map((claim) => claimCard(view, claim, phrases));
+  const cards = claims
+    .slice(0, MAX_BUTTONS)
+    .map((claim) => claimCardReply(view.shopkeeper.name, claim, view.language));
   const outstanding = computeDues(view.entries, view.today).outstanding;
   const next = lookupActionsReply({
     shopkeeper: view.shopkeeper,

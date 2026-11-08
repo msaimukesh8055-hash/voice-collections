@@ -1,22 +1,22 @@
 /* web/src/index.css */
 @import 'tailwindcss';
 
-/* Design tokens: one light theme (coding-standards.md, Saim 2026-11-07 / 11-08). Beige page,
-   cream cards, dark-brown text; light-brown card borders and thin gold for accents and active
-   states. Gold is never text. Every text / background pair is checked for WCAG AA in
+/* Design tokens: one light theme, very light blue (Saim 2026-11-08: back to light blue after
+   trying beige/brown/gold). White cards, dark navy text, light-blue borders; the "gold" tokens
+   are now a mid blue for thin accents and active states, never text. Every text / background pair is checked for WCAG AA in
    theme.test.ts, with the faint logo watermark included. */
 @theme {
-  --color-canvas: #f5ede0;
-  --color-surface: #fbf7f0;
-  --color-border: #d9c4a8;
-  --color-ink: #4a2e1a;
-  --color-ink-muted: #7a4e2d;
-  --color-brand: #4a2e1a;
-  --color-brand-strong: #3b2414;
-  --color-brand-soft: #efe3cc;
-  --color-on-brand: #fbf7f0;
-  --color-gold: #c9a227;
-  --color-gold-deep: #9c7a14;
+  --color-canvas: #f0f6ff;
+  --color-surface: #ffffff;
+  --color-border: #d6e4f5;
+  --color-ink: #0f1f33;
+  --color-ink-muted: #4a5d75;
+  --color-brand: #1d5fd1;
+  --color-brand-strong: #154aa6;
+  --color-brand-soft: #e3eeff;
+  --color-on-brand: #ffffff;
+  --color-gold: #5b8fe0;
+  --color-gold-deep: #1d5fd1;
   /* The drawn faces on the call screen (Avatar.tsx): fills only, never text. */
   --color-skin: #e0b088;
   --color-skin-shade: #c99366;
@@ -68,11 +68,11 @@
     0%,
     100% {
       transform: scale(1);
-      box-shadow: 0 0 0 0 rgb(201 162 39 / 0.45);
+      box-shadow: 0 0 0 0 rgb(29 95 209 / 0.45);
     }
     50% {
       transform: scale(1.04);
-      box-shadow: 0 0 0 14px rgb(201 162 39 / 0);
+      box-shadow: 0 0 0 14px rgb(29 95 209 / 0);
     }
   }
   @keyframes dot {

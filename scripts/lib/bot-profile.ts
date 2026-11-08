@@ -118,7 +118,8 @@ export class MetaStepError extends Error {
   override name = 'MetaStepError';
 }
 
-async function failureOf(step: string, response: Response): Promise<MetaStepError> {
+/** A failed Meta step: its HTTP status and Meta's code/subcode (also used by whatsapp-commands). */
+export async function failureOf(step: string, response: Response): Promise<MetaStepError> {
   const parsed = MetaErrorSchema.safeParse(await response.json().catch(() => null));
   const code = parsed.success
     ? ` code ${parsed.data.error.code ?? '-'} subcode ${parsed.data.error.error_subcode ?? '-'}`
