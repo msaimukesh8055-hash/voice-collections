@@ -4,17 +4,19 @@
 // lookup map (run-command.ts). A voice note (M6) is heard first (Saaras) and then takes exactly
 // the text path, in the language Saaras detected; its replies start with "🎤 Heard: …" so a
 // misheard name is seen. M7: a voice reply's summary is checked against every known name.
-import { interpret } from '../_shared/brain/interpret.ts';
+// 2026-11-08: "call Munshi" and "/" commands are answered in code first (slash.ts), before any
+// name lookup or LLM.
+import { detectLanguage } from '../_shared/brain/language.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 import type { BotContext } from '../_shared/cards/context.ts';
 import type { MessagePath } from '../_shared/db/book-repository.ts';
-import { matchShopkeepers } from '../_shared/ledger/match.ts';
 import type { Language } from '../_shared/schemas/shopkeeper.ts';
 import type { Hearing } from '../_shared/speech/hear.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { phrasesFor } from '../_shared/whatsapp/phrases.ts';
 import { blocks, hasText, type Reply, textReply } from '../_shared/whatsapp/replies.ts';
 import { didNotGet, runCommand } from './run-command.ts';
+import { routeEarly, understand } from './slash.ts';
 import { runTap } from './taps.ts';
 
 export interface Outcome {
@@ -57,14 +59,13 @@ async function routeText(
   ctx: BotContext,
   deps: RouteDeps,
 ): Promise<Outcome> {
-  const isKnownName = (name: string): boolean =>
-    matchShopkeepers(name, ctx.shopkeepers).kind !== 'none';
-  const understood = await interpret(text, {
-    today: ctx.today,
-    now: deps.demoNow,
-    llm: deps.llm,
-    isKnownName,
-  });
+  const early = await routeEarly(
+    text,
+    { ...ctx, language: replyLanguage(spoken, detectLanguage(text)) },
+    deps,
+  );
+  if (early) return early;
+  const understood = await understand(text, ctx, deps);
   const language = replyLanguage(spoken, understood.language);
   const withLanguage = { ...ctx, language };
   if (!understood.command) {

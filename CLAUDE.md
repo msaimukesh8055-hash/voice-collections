@@ -29,7 +29,7 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 - **Plan first.** No code until Saim says "go ahead" or "confirmed" on the milestone plan.
 - **Concise, direct, plain English.** No jargon without a one-line explanation.
 - **TypeScript always.** No `any`.
-- **UI theme: beige background, dark brown text, thin gold borders and accents, faint logo watermark, across all screens** (project exception to the global "dark themes preferred" rule; changed from very light blue by Saim on 2026-11-07). Gold is for borders and accents only, never body text. One light theme, no dark toggle.
+- **UI theme: very light blue background, dark navy text, light-blue borders, mid-blue accents, faint logo watermark, across all screens** (project exception to the global "dark themes preferred" rule; Saim tried beige/brown/gold on 2026-11-07/08 and went back to light blue on 2026-11-08). One light theme, no dark toggle.
 - **Prompts and experiment choices are Saim's decisions.** Explain key design decisions in plain English at each milestone.
 - **No hardcoded secrets** — environment variables only.
 - **No anonymous inline JSX handlers** — named functions only.
@@ -46,7 +46,7 @@ Agents in `.claude/agents/`: `architect`, `designer`, `implementer`, `tester`, `
 | WhatsApp brain, follow-ups, simulated calls | Sarvam LLM `sarvam-105b` (fixed commands parsed in code first) |
 | Speech (voice notes) | Sarvam Saaras (speech-to-text), Bulbul (text-to-speech) — Telugu, Hindi, English, code-mixed |
 | Eval judge, fallback | Google Gemini (free tier) |
-| Frontend | Vite + React + TypeScript + Tailwind (beige / brown / gold theme) |
+| Frontend | Vite + React + TypeScript + Tailwind (very light blue theme) |
 | Backend | Supabase Edge Functions (Deno) |
 | Database | Supabase Postgres |
 | Validation | Zod (schemas shared between web and functions) |

@@ -16,6 +16,8 @@ A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake
 
 In Meta → WhatsApp → Configuration set **Callback URL** `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` and **Verify token** = `WHATSAPP_VERIFY_TOKEN`, then subscribe to `messages`. Send "hi" from the owner's phone to the test number: the **Menu** list opens every main action with one tap (M7). Commands: `pending`, `closed`, `Ramesh`, `Ramesh 5000 due 15th`, `Ramesh paid 2000`, or free text in Telugu/Hindi/English. A lookup ends with [Remind] [Paid in full] [Part payment]. Every change waits for a **Save** tap.
 
+**Slash commands** (typed with `/`, answered in code): `/munshi`, `/menu`, `/pending`, `/due` (or `/overdue`), `/paid [Ramesh 2000]`, `/add [Ramesh 5000 due 15th]`, `/asha [Ramesh]` (or `/reminder`), `/claims`, `/promises`, `/insights`, `/statement [Ramesh]`; any other `/…` lists them. Typing "call Munshi" (or just "Munshi") anywhere also sends the Munshi link. To show them in WhatsApp's "/" menu run `npm run whatsapp:commands` once (see Commands).
+
 ## Try a call
 
 1. `npm run dev`, open `http://localhost:5173/phone` in one Chrome window (allow the microphone) and `http://localhost:5173/` in another.
@@ -69,6 +71,7 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 | `npm run evals:munshi` | M8 text evals: 15 scripted owner scenarios, Munshi on `sarvam-105b`, owner on Gemini (Sarvam fallback), tools in-process on a fake book (`evals/munshi/book.fixture.ts`), code checks + Gemini judge. Writes `evals/munshi/results/<date>.json`, prints a table, exits 1 unless the pass rule holds. **One full run ≈ ₹10–15 of Sarvam** and ~10–15 minutes (Gemini calls are spaced for the free tier). `-- --dry` = fake models, no network, nothing written; `-- --only 04,06` = just those scenarios. Needs `SARVAM_API_KEY`, `GEMINI_API_KEY` |
 | `npm run brand:png` | Render `web/public/brand/logo.svg` to the 640×640 profile PNG (`logo-640.png`, committed) |
 | `npm run bot:profile` | Set the bot's WhatsApp profile (logo, About, description, category, website = `DASHBOARD_URL` if https) on the Meta test number. Needs `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID` and `META_APP_ID` (App settings → Basic → App ID). Add `-- --dry-run` first: prints the payload, calls nothing |
+| `npm run whatsapp:commands` | Register the slash commands (names + English descriptions, from `supabase/functions/_shared/whatsapp/slash-commands.ts`) on the Meta number via conversational automation. Needs `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID`. Add `-- --dry` first: prints the payload, calls nothing |
 | `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam. `-- --agent munshi` for Munshi |
 | `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes`. `-- --agent munshi` for Munshi |
 

@@ -10,15 +10,11 @@ import { formatRupees, formatShortDay } from '../format.ts';
 import { type AlertPromise, BROKEN_ALERT_DAYS, groupBy } from '../ledger/due-alert.ts';
 import { computeDues, type Dues, toPaise, toRupees } from '../ledger/dues.ts';
 import { computeInsights } from '../ledger/insights.ts';
-import { applyPromiseChanges } from '../ledger/promise-check.ts';
-import { changesFor } from '../reminders/load-alert.ts';
+import { promiseLists } from '../reminders/promise-lists.ts';
 import type { BookFocus, OwnerToolArgs } from './schemas.ts';
 import { fitParts, labelOf, paidBy, people, topLines } from './say.ts';
 import type { ToolData } from '../tools/types.ts';
 import { ownerOk, type OwnerToolContext, type OwnerToolOutcome } from './types.ts';
-
-/** Open promises falling due within this many days count as "this week". */
-export const PROMISE_WINDOW_DAYS = 7;
 
 interface Book {
   readonly shopkeepers: readonly BookShopkeeper[];
@@ -153,21 +149,8 @@ function shopkeeperLabel(shopkeeperId: string, book: Book): string {
   return shopkeeper ? labelOf(shopkeeper, book.shopkeepers) : 'Someone';
 }
 
-/** The alert promises after the promise check, in memory (nothing written). */
-function checkedPromises(book: Book): readonly AlertPromise[] {
-  return applyPromiseChanges(book.promises, changesFor(book.promises, book.entries, book.today));
-}
-
 function promises(book: Book): Summary {
-  const checked = checkedPromises(book);
-  const weekEnd = addDays(book.today, PROMISE_WINDOW_DAYS);
-  const brokenSince = addDays(book.today, -BROKEN_ALERT_DAYS);
-  const open = checked
-    .filter((p) => p.status === 'open' && p.promiseDate >= book.today && p.promiseDate <= weekEnd)
-    .sort((a, b) => a.promiseDate.localeCompare(b.promiseDate));
-  const broken = checked
-    .filter((p) => p.status === 'broken' && p.promiseDate >= brokenSince)
-    .sort((a, b) => b.promiseDate.localeCompare(a.promiseDate));
+  const { open, broken } = promiseLists(book);
   const line = (p: AlertPromise, word: string): string =>
     `${shopkeeperLabel(p.shopkeeperId, book)} ${formatRupees(p.amount)} ${word} ` +
     formatShortDay(p.promiseDate);
