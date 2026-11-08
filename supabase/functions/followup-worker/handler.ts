@@ -9,6 +9,7 @@
 //   POST /followup-worker/simulations/next start the next queued simulated call, if a slot is free
 //   POST /followup-worker/daily-alert      the owner's daily due alert (cron, 9:00 IST)
 //   POST /followup-worker/promise-check    the daily promise check (cron)
+//   POST /followup-worker/owner-send/{id}  M8 B5: send what the owner asked Munshi for (once)
 import { z } from 'zod';
 import { hasBearerSecret } from '../_shared/auth/bearer.ts';
 import type { FollowupOutcome } from '../_shared/followup/process.ts';
@@ -18,6 +19,7 @@ import { describeFailure } from '../_shared/tools/registry.ts';
 
 const FUNCTION_PREFIX = '/followup-worker';
 const CALL_PATH = /^\/calls\/([^/]+)$/;
+const OWNER_SEND_PATH = /^\/owner-send\/([^/]+)$/;
 const ACCEPTED = 202;
 
 export interface WorkerDeps {
@@ -28,6 +30,8 @@ export interface WorkerDeps {
   readonly nextSimulation: () => Promise<unknown>;
   readonly dailyAlert: () => Promise<unknown>;
   readonly promiseCheck: () => Promise<unknown>;
+  /** M8 B5: one voice_send action (reminders/owner-send.ts). */
+  readonly ownerSend: (actionId: string) => Promise<unknown>;
   readonly log: Logger;
 }
 
@@ -68,6 +72,13 @@ async function route(req: Request, deps: WorkerDeps): Promise<Response> {
   const job = Object.hasOwn(JOBS, path) ? JOBS[path] : undefined;
   if (job) {
     inBackground(deps, job, deps[job]);
+    return accepted();
+  }
+  const sendId = OWNER_SEND_PATH.exec(path)?.[1];
+  if (sendId !== undefined) {
+    const actionId = z.uuid().safeParse(sendId);
+    if (!actionId.success) return errorResponse('NOT_FOUND');
+    inBackground(deps, 'owner_send', () => deps.ownerSend(actionId.data));
     return accepted();
   }
   const callId = z.uuid().safeParse(CALL_PATH.exec(path)?.[1]);

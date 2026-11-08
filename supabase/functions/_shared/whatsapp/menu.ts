@@ -10,7 +10,7 @@ import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from './phrases.ts';
 import { blocks, type ListRow, type Reply, textIn, withEnglish } from './replies.ts';
 
-/** The 8 rows, in the order shown (MENU_TARGETS without "menu" itself). */
+/** The 9 rows, in the order shown (MENU_TARGETS without "menu" itself); M8 added "munshi" last. */
 export const MENU_ITEMS = MENU_TARGETS.filter(
   (item): item is Exclude<MenuTarget, 'menu'> => item !== 'menu',
 );
@@ -46,6 +46,7 @@ const EN: MenuPhrases = {
     insights: { title: '📊 Insights', description: 'Pie chart, % collected, top 5' },
     dashboard: { title: '🖥️ Dashboard', description: 'Link to the web dashboard' },
     remind_all: { title: '📞 Remind all due', description: 'Asks before calling anyone' },
+    munshi: { title: '📞 Call Munshi', description: 'Talk to your book: ask, add, mark paid' },
   },
   hints: {
     add: [
@@ -75,6 +76,10 @@ const HI: MenuPhrases = {
     insights: { title: '📊 रिपोर्ट', description: 'पाई चार्ट, % वसूली, टॉप 5' },
     dashboard: { title: '🖥️ डैशबोर्ड', description: 'वेब डैशबोर्ड का लिंक' },
     remind_all: { title: '📞 सबको याद दिलाएँ', description: 'कॉल से पहले पूछेगा' },
+    munshi: {
+      title: '📞 मुंशी को कॉल करें',
+      description: 'बोलकर पूछें, उधार जोड़ें, भुगतान दर्ज करें',
+    },
   },
   hints: {
     add: [
@@ -104,6 +109,10 @@ const TE: MenuPhrases = {
     insights: { title: '📊 రిపోర్ట్', description: 'పై చార్ట్, % వసూలు, టాప్ 5' },
     dashboard: { title: '🖥️ డ్యాష్‌బోర్డ్', description: 'వెబ్ డ్యాష్‌బోర్డ్ లింక్' },
     remind_all: { title: '📞 అందరికీ గుర్తుచేయి', description: 'కాల్ చేసే ముందు అడుగుతుంది' },
+    munshi: {
+      title: '📞 మున్షీకి కాల్',
+      description: 'మాట్లాడి అడగండి, అప్పు జోడించండి, చెల్లింపు రాయండి',
+    },
   },
   hints: {
     add: [

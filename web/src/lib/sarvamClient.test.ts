@@ -1,11 +1,12 @@
 // web/src/lib/sarvamClient.test.ts
-import { ACCEPTED_CALL, TOKEN } from '../test/fixtures.ts';
+import { ACCEPTED_CALL, ACCEPTED_MUNSHI_CALL, OWNER_CALL_ID, TOKEN } from '../test/fixtures.ts';
 import type { SarvamProxy } from './appApi.ts';
 import {
   type AgentCallbacks,
   type AgentHandle,
   type AgentRequest,
   buildAgentRequest,
+  buildMunshiRequest,
   type CallEvents,
   CONNECT_ERROR,
   createSarvamClient,
@@ -169,5 +170,35 @@ describe('createSarvamClient', () => {
     expect(fake.calls).toEqual(['start', 'stop']);
     const byCode = Object.assign(new Error('429'), { code: 'RATE_LIMITED' });
     await expect(startCall(fakeAgent({ startError: byCode }))).rejects.toThrow(DAILY_LIMIT_ERROR);
+  });
+});
+
+describe('Munshi (M8)', () => {
+  it('passes the owner call token and names, and greets in Telugu with his first name', () => {
+    const request = buildMunshiRequest(ACCEPTED_MUNSHI_CALL, PROXY);
+    expect(request.variables).toEqual({
+      owner_call_token: OWNER_CALL_ID,
+      owner_short_name: 'Srinivas',
+      owner_name: 'Srinivas Reddy',
+      business_name: 'Sri Lakshmi Traders',
+      today: 'Saturday, 2026-11-07',
+    });
+    expect(request.languageName).toBe('Telugu');
+    expect(request.greeting).toBe('హా Srinivas అన్నా, మున్షీని. చెప్పండి, ఏం చూడాలి?');
+    expect([request.appId, request.userIdentifier]).toEqual(['munshi-app', OWNER_CALL_ID]);
+  });
+
+  it('starts the Munshi call through the same connect path', async () => {
+    const fake = fakeAgent();
+    const { events, log } = recorder();
+    const client = createSarvamClient(function factory(request, callbacks) {
+      fake.request = request;
+      fake.callbacks = callbacks;
+      return fake.handle;
+    });
+    const session = await client.startMunshi(ACCEPTED_MUNSHI_CALL, PROXY, events);
+    expect(log).toEqual(['phase:connecting', 'phase:live']);
+    expect(fake.request?.appId).toBe('munshi-app');
+    await expect(session.stop()).resolves.toBe('interaction-1');
   });
 });

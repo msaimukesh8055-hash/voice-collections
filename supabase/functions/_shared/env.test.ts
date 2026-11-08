@@ -2,6 +2,7 @@
 import { assertEquals, assertThrows } from '@std/assert';
 import {
   loadCallsApiEnv,
+  loadOwnerToolsEnv,
   loadServerEnv,
   loadToolsEnv,
   loadWhatsAppEnv,
@@ -171,4 +172,70 @@ Deno.test('env › the bot\'s dashboard settings are optional; blank means "not 
   assertEquals(set.DASHBOARD_URL, 'http://localhost:5173');
   const bad = { ...WHATSAPP_ENV, DASHBOARD_URL: 'not a url' };
   assertThrows(() => loadWhatsAppEnv(bad), MissingEnvError, 'DASHBOARD_URL');
+});
+
+const OWNER_SECRET = 'o'.repeat(32);
+
+Deno.test('loadOwnerToolsEnv › needs its own tool secret of 32+ characters (M8)', () => {
+  assertThrows(() => loadOwnerToolsEnv(VALID_ENV), MissingEnvError, 'SARVAM_OWNER_TOOL_SECRET');
+  assertThrows(
+    () => loadOwnerToolsEnv({ ...VALID_ENV, SARVAM_OWNER_TOOL_SECRET: 'short' }),
+    MissingEnvError,
+    'SARVAM_OWNER_TOOL_SECRET',
+  );
+  const env = loadOwnerToolsEnv({
+    ...VALID_ENV,
+    SARVAM_OWNER_TOOL_SECRET: OWNER_SECRET,
+    WORKER_SECRET: 'w'.repeat(32),
+  });
+  assertEquals(env.SARVAM_OWNER_TOOL_SECRET, OWNER_SECRET);
+});
+
+Deno.test('loadOwnerToolsEnv › needs WORKER_SECRET to kick the WhatsApp send job (M8 B5)', () => {
+  const base = { ...VALID_ENV, SARVAM_OWNER_TOOL_SECRET: OWNER_SECRET };
+  assertThrows(() => loadOwnerToolsEnv(base), MissingEnvError, 'WORKER_SECRET');
+  assertThrows(
+    () => loadOwnerToolsEnv({ ...base, WORKER_SECRET: 'short' }),
+    MissingEnvError,
+    'WORKER_SECRET',
+  );
+  assertEquals(
+    loadOwnerToolsEnv({ ...base, WORKER_SECRET: 'w'.repeat(32) }).WORKER_SECRET,
+    'w'.repeat(32),
+  );
+});
+
+Deno.test("loadOwnerToolsEnv › refuses to start when the owner secret is Asha's secret", () => {
+  const same = {
+    ...VALID_ENV,
+    SARVAM_OWNER_TOOL_SECRET: OWNER_SECRET,
+    SARVAM_TOOL_SECRET: OWNER_SECRET,
+    WORKER_SECRET: 'w'.repeat(32),
+  };
+  const error = assertThrows(
+    () => loadOwnerToolsEnv(same),
+    MissingEnvError,
+    'SARVAM_OWNER_TOOL_SECRET',
+  );
+  assertEquals(error.message.includes(OWNER_SECRET), false);
+  const differ = { ...same, SARVAM_TOOL_SECRET: 'a'.repeat(32) };
+  assertEquals(loadOwnerToolsEnv(differ).SARVAM_TOOL_SECRET, 'a'.repeat(32));
+});
+
+Deno.test('env › Munshi settings are optional; blank means "not set up" (M8)', () => {
+  const bot = loadWhatsAppEnv(WHATSAPP_ENV);
+  assertEquals(bot.MUNSHI_LINK_SECRET, null);
+  const api = loadCallsApiEnv(CALLS_API_ENV);
+  assertEquals([api.MUNSHI_LINK_SECRET, api.SARVAM_MUNSHI_APP_ID], [null, null]);
+  const set = loadCallsApiEnv({
+    ...CALLS_API_ENV,
+    MUNSHI_LINK_SECRET: 'm'.repeat(32),
+    SARVAM_MUNSHI_APP_ID: 'Munshi-1',
+  });
+  assertEquals([set.MUNSHI_LINK_SECRET, set.SARVAM_MUNSHI_APP_ID], ['m'.repeat(32), 'Munshi-1']);
+  assertThrows(
+    () => loadWhatsAppEnv({ ...WHATSAPP_ENV, MUNSHI_LINK_SECRET: 'short' }),
+    MissingEnvError,
+    'MUNSHI_LINK_SECRET',
+  );
 });

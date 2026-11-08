@@ -6,11 +6,11 @@ A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake
 
 1. Node 20+ (tested on 25). No global Deno or Docker needed — Deno installs as a project dependency.
 2. `npm install`
-3. Copy `.env.example` → `.env` and fill it in (never commit `.env`). Supabase project in **ap-south-1 (Mumbai)**. Sarvam needs two keys: `SARVAM_API_KEY` (speech, LLM) and `SARVAM_AGENTS_API_KEY` (Voice Agents, indus.sarvam.ai), plus org and workspace ids. `SARVAM_TOOL_SECRET` is a random 32+ character string you also store in Sarvam's Secrets vault as `easy-recovery-tool-secret`. The WhatsApp bot (M4) needs `META_ACCESS_TOKEN` (system-user token, never expires), `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_APP_SECRET`, a random `WHATSAPP_VERIFY_TOKEN`, the owner's number in `OWNER_WHATSAPP_NUMBER` (only number the bot answers; never stored) and `GEMINI_API_KEY` (fallback brain). The follow-up worker (M5) needs `WORKER_SECRET`, another random 32+ character string (calls-api and whatsapp-webhook send it to wake the worker; pg_cron reads it from Vault, see "Scheduler").
+3. Copy `.env.example` → `.env` and fill it in (never commit `.env`). Supabase project in **ap-south-1 (Mumbai)**. Sarvam needs two keys: `SARVAM_API_KEY` (speech, LLM) and `SARVAM_AGENTS_API_KEY` (Voice Agents, indus.sarvam.ai), plus org and workspace ids. `SARVAM_TOOL_SECRET` is a random 32+ character string you also store in Sarvam's Secrets vault as `easy-recovery-tool-secret`. The WhatsApp bot (M4) needs `META_ACCESS_TOKEN` (system-user token, never expires), `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_APP_SECRET`, a random `WHATSAPP_VERIFY_TOKEN`, the owner's number in `OWNER_WHATSAPP_NUMBER` (only number the bot answers; never stored) and `GEMINI_API_KEY` (fallback brain). The follow-up worker (M5) needs `WORKER_SECRET`, another random 32+ character string (calls-api, whatsapp-webhook and munshi-tools send it to wake the worker; pg_cron reads it from Vault, see "Scheduler"). Munshi (M8) needs `MUNSHI_LINK_SECRET` (random 32+ characters, signs the one-time `/munshi` links), `SARVAM_OWNER_TOOL_SECRET` (random 32+ characters, different from `SARVAM_TOOL_SECRET`; also stored in Sarvam's vault as `easy-recovery-owner-tool-secret`) and, once the agent exists, `SARVAM_MUNSHI_APP_ID`.
 4. `npm run db:push` — applies migrations + seed to the linked Supabase project.
 5. `npm run db:check-seed` — verifies seed counts, Ramesh's figures, his 2 seeded past calls (Asha's call history, M7 B1) and that the browser key cannot read data.
-6. `npm run functions:deploy` — uploads function secrets and deploys `sarvam-tools`, `calls-api`, `whatsapp-webhook` and `followup-worker`.
-7. `npm run agent:build` — writes `voice-agents/asha/build/agent.json` to create/update Asha in Sarvam (see `voice-agents/README.md`). Put Asha's app id in `SARVAM_APP_ID`, then deploy the functions again.
+6. `npm run functions:deploy` — uploads function secrets and deploys `sarvam-tools`, `calls-api`, `whatsapp-webhook`, `followup-worker` and `munshi-tools`.
+7. `npm run agent:build` — writes `voice-agents/asha/build/agent.json` to create/update Asha in Sarvam (see `voice-agents/README.md`). Put Asha's app id in `SARVAM_APP_ID`, then deploy the functions again. `npm run agent:build -- --agent munshi` does the same for Munshi (`voice-agents/munshi/build/agent.json`, app id in `SARVAM_MUNSHI_APP_ID`).
 
 ## Connect WhatsApp (M4)
 
@@ -26,6 +26,10 @@ In Meta → WhatsApp → Configuration set **Callback URL** `https://<project-re
 To run every waiting follow-up by hand (e.g. after a lost wake-up): `curl -X POST -H "Authorization: Bearer $WORKER_SECRET" https://<project-ref>.supabase.co/functions/v1/followup-worker/sweep` (5 calls per run).
 
 Voice minutes cost ₹3.50/min + GST: use them for manual checks and the demo only. Bulk testing runs as text evals.
+
+## Call Munshi (M8)
+
+Munshi is the owner's own voice line to his book. On WhatsApp: **Menu → 📞 Call Munshi**. The bot replies with a one-time link (`<DASHBOARD_URL>/munshi#t=…`, works once, for 15 minutes; at most 3 links per 10 minutes and 6 Munshi calls a day). Open it in Chrome, tap **Start call** and ask: "how much is pending?", "who is overdue?", "what happened with Ramesh?". Munshi greets in Telugu and follows your language; calls stop at 8 minutes ("1 minute left" from 7:00). He can also add credit, mark a payment (part or full), delete an entry (kept on record as reversed), have Asha remind someone, accept or reject a payment a shopkeeper told Asha about, and get something on WhatsApp: Munshi reads each change back, and the code does it only after his yes. While Munshi is talking, the shopkeeper phone page shows the line as busy and a queued Asha call waits.
 
 ## Reminders and simulated calls (M5)
 
@@ -50,30 +54,32 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Web dev server (`/` demo controls, `/phone` shopkeeper phone) |
+| `npm run dev` | Web dev server (`/` demo controls, `/phone` shopkeeper phone, `/munshi` owner call line) |
 | `npm run check` | Full quality gate: format, lint, typecheck, tests + coverage, build, bundle secret scan, Edge Function fmt/lint/check/tests |
 | `npm run lint` | ESLint, zero warnings. Also checks the size limits (function ≤ 50 lines, ≤ 3 parameters, file ≤ 800 lines, nesting ≤ 4) on `supabase/functions`; `deno lint` covers the rest there |
 | `npm run fn:coverage` | Edge Function coverage report |
 | `npm run db:push` | Apply migrations + seed |
 | `npm run db:check-seed` | Seed + RLS smoke test |
 | `npm run seed:generate` | Regenerate `supabase/seed.sql` from the deterministic generator |
-| `npm run functions:deploy` | Upload function secrets, deploy `sarvam-tools`, `calls-api`, `whatsapp-webhook`, `followup-worker` |
+| `npm run functions:deploy` | Upload function secrets, deploy `sarvam-tools`, `calls-api`, `whatsapp-webhook`, `followup-worker`, `munshi-tools` |
 | `npm run smoke:tools` | End-to-end check on the deployed functions: ring → accept → 5 tools → ended (no voice credit) |
 | `npm run smoke:whatsapp` | Signed fake Meta messages to the deployed webhook: verify, bad signature, stranger. Add `-- --send-to-owner` for pending / lookup / card → Save / duplicate id (**sends real WhatsApp replies to the owner**); cleans up its rows |
 | `npm run smoke:reminders` | M5 reminder loop on the deployed functions: worker secret (401/202). Add `-- --send-to-owner` for "due" → Remind tap → one live call queued, then declined (no voice minutes) → follow-up; then one simulated call end to end → follow-up run + note (**sends real WhatsApp messages to the owner, about ₹1 of LLM**); cleans up its rows |
+| `npm run smoke:munshi-latency` | M8 latency run on the deployed `munshi-tools` (no voice, no LLM, ₹0): creates a test owner call, runs `book_summary`, `lookup_shopkeeper` and each `prepare_*` + `cancel_action` 20 times (never `confirm_action`, so the book does not change), prints p50 / p95 / max per tool from `owner_tool_events.duration_ms`, fails if any p95 ≥ 500 ms, then marks the test call completed. Needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SARVAM_OWNER_TOOL_SECRET`. While it runs (~1–2 min) the phone line counts as busy |
+| `npm run evals:munshi` | M8 text evals: 15 scripted owner scenarios, Munshi on `sarvam-105b`, owner on Gemini (Sarvam fallback), tools in-process on a fake book (`evals/munshi/book.fixture.ts`), code checks + Gemini judge. Writes `evals/munshi/results/<date>.json`, prints a table, exits 1 unless the pass rule holds. **One full run ≈ ₹10–15 of Sarvam** and ~10–15 minutes (Gemini calls are spaced for the free tier). `-- --dry` = fake models, no network, nothing written; `-- --only 04,06` = just those scenarios. Needs `SARVAM_API_KEY`, `GEMINI_API_KEY` |
 | `npm run brand:png` | Render `web/public/brand/logo.svg` to the 640×640 profile PNG (`logo-640.png`, committed) |
 | `npm run bot:profile` | Set the bot's WhatsApp profile (logo, About, description, category, website = `DASHBOARD_URL` if https) on the Meta test number. Needs `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID` and `META_APP_ID` (App settings → Basic → App ID). Add `-- --dry-run` first: prints the payload, calls nothing |
-| `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam |
-| `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes` |
+| `npm run agent:build` | Validate Asha's config and render the JSON to push to Sarvam. `-- --agent munshi` for Munshi |
+| `npm run agent:record` | Record a committed Sarvam version of Asha in `publishes`. `-- --agent munshi` for Munshi |
 
 ## Repository layout
 
 ```
-web/          demo controls + shopkeeper phone page (Vite + React + Tailwind, light-blue theme)
-supabase/     migrations, seed, Edge Functions (_shared core, sarvam-tools, calls-api, whatsapp-webhook, followup-worker)
+web/          demo controls, shopkeeper phone page, Munshi call page (Vite + React + Tailwind, light-blue theme)
+supabase/     migrations, seed, Edge Functions (_shared core, sarvam-tools, calls-api, whatsapp-webhook, followup-worker, munshi-tools)
 voice-agents/ voice agents as code (prompt, greetings, voice, languages, tools) — pushed to Sarvam
 scripts/      seed generator, deploy, smoke tests, agent build/record
-evals/        simulated conversations, judge, release gate (M7)
+evals/        text evals: munshi/ (M8 C1: scenarios, fake book, checks, judge, runner, results/)
 docs/         spec, architecture, ADRs, build log, milestones (plan + results), checkpoint reviews
 guidelines/   coding, testing, security, workflow standards
 ```

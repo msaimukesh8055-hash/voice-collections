@@ -1,7 +1,9 @@
 // supabase/functions/followup-worker/index.ts
 // Deployed with --no-verify-jwt: calls-api and pg_cron call it with WORKER_SECRET (checked in
 // the handler before anything else), not a Supabase JWT.
-import { callLink } from '../_shared/auth/dashboard-link.ts';
+import { callLink, dashboardLink, shopkeeperLink } from '../_shared/auth/dashboard-link.ts';
+import { createSupabaseVoiceActionRepository } from '../_shared/db/supabase-voice-action-repository.ts';
+import { sendOwnerRequest } from '../_shared/reminders/owner-send.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
@@ -122,6 +124,21 @@ const simulatorDeps: SimulatorDeps = {
   startNext: () => kickJob(SIMULATION_NEXT_PATH),
 };
 const jobDeps = { ...followupDeps, store };
+// M8 B5: what the owner asked Munshi to send; links only when a dashboard is set up.
+const linkBase = env.DASHBOARD_URL && env.DASHBOARD_LINK_SECRET
+  ? { url: env.DASHBOARD_URL, secret: env.DASHBOARD_LINK_SECRET }
+  : null;
+const ownerSendDeps = {
+  ...jobDeps,
+  actions: createSupabaseVoiceActionRepository(query),
+  listCallStatuses: (shopkeeperId: string) => followupDeps.followups.listCallStatuses(shopkeeperId),
+  dashboardLink: () =>
+    linkBase ? dashboardLink(linkBase.url, linkBase.secret, new Date()) : Promise.resolve(null),
+  shopkeeperLink: (shopkeeperId: string) =>
+    linkBase
+      ? shopkeeperLink(linkBase.url, linkBase.secret, { shopkeeperId, now: new Date() })
+      : Promise.resolve(null),
+};
 
 const deps: WorkerDeps = {
   secret: env.WORKER_SECRET,
@@ -136,6 +153,7 @@ const deps: WorkerDeps = {
   nextSimulation: () => runNextSimulation(simulatorDeps),
   dailyAlert: () => sendDailyAlert(jobDeps),
   promiseCheck: () => runPromiseCheck(jobDeps),
+  ownerSend: (actionId) => sendOwnerRequest(actionId, ownerSendDeps),
   log: logToConsole,
 };
 

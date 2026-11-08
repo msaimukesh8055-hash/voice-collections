@@ -39,7 +39,9 @@ export interface LoadedAlert {
   readonly changes: readonly ShopkeeperPromiseChange[];
 }
 
-function changesFor(
+/** Promise-check changes for every shopkeeper with an open promise (also used by Munshi's
+ * book_summary in memory, M8). */
+export function changesFor(
   promises: readonly AlertPromise[],
   entries: readonly (LedgerEntry & { readonly shopkeeperId: string })[],
   today: string,

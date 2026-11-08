@@ -8,6 +8,8 @@
 // sarvam-105b sometimes repeats a tool it already used (same name and arguments) instead of
 // speaking: a repeat is not run again (no duplicate rows); she gets the earlier reply back
 // (CP2 smoke finding, 2026-11-04).
+// M8 C1: Munshi's text evals use the same loop with the other side labelled OWNER and their own
+// turn cap (owner-conversation.ts); Asha's calls keep the defaults.
 import type { ChatMessage } from '../llm/json-llm.ts';
 import type { Turn } from '../sarvam-analytics.ts';
 import { type ToolResult, toReplyBody } from '../tools/types.ts';
@@ -19,6 +21,8 @@ export const MAX_TURNS = 10;
 export const MAX_TOOL_STEPS = 3;
 /** Asha's context starts with this, so the conversation opens with a user turn. */
 export const CALL_CONNECTED = '(The call has connected. Your greeting has been spoken.)';
+/** How the other side's lines reach the agent by default: "SHOPKEEPER: ...". */
+export const DEFAULT_USER_LABEL = 'SHOPKEEPER';
 
 /** One model answer as raw text; null when the model failed (already logged by the caller). */
 export type ChatFn = (messages: readonly ChatMessage[]) => Promise<string | null>;
@@ -26,7 +30,12 @@ export type ChatFn = (messages: readonly ChatMessage[]) => Promise<string | null
 export interface ConversationDeps {
   readonly asha: ChatFn;
   readonly shopkeeper: ChatFn;
-  readonly runTool: (name: string, args: unknown) => Promise<ToolResult>;
+  /** Any registry's result (Asha's or Munshi's refusal codes). */
+  readonly runTool: (name: string, args: unknown) => Promise<ToolResult<string>>;
+  /** Label of the other side's lines (default DEFAULT_USER_LABEL). */
+  readonly userLabel?: string;
+  /** The other side's replies per call (default MAX_TURNS). */
+  readonly maxTurns?: number;
 }
 
 export type EndReason =
@@ -123,7 +132,8 @@ async function exchange(state: State, deps: ConversationDeps): Promise<EndReason
   if (!line) return 'shopkeeper_failed';
   state.transcript.push({ role: 'user', content: line.say });
   state.shopkeeperContext.push({ role: 'assistant', content: JSON.stringify(line) });
-  state.ashaContext.push({ role: 'user', content: `SHOPKEEPER: ${line.say}` });
+  const label = deps.userLabel ?? DEFAULT_USER_LABEL;
+  state.ashaContext.push({ role: 'user', content: `${label}: ${line.say}` });
   if (line.hang_up) return 'shopkeeper_hung_up';
   const reply = await ashaTurn(state, deps);
   if (!reply || reply.spoken === '') return 'asha_failed';
@@ -134,7 +144,8 @@ async function exchange(state: State, deps: ConversationDeps): Promise<EndReason
 
 export async function converse(greeting: string, deps: ConversationDeps): Promise<Conversation> {
   const state = startState(greeting);
-  for (let turn = 0; turn < MAX_TURNS; turn += 1) {
+  const maxTurns = deps.maxTurns ?? MAX_TURNS;
+  for (let turn = 0; turn < maxTurns; turn += 1) {
     const end = await exchange(state, deps);
     if (end) return { transcript: state.transcript, end, toolCalls: state.toolCalls };
   }

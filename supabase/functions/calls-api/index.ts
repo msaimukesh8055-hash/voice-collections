@@ -6,6 +6,7 @@ import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
 import { createSupabaseDashboardRepository } from '../_shared/db/supabase-dashboard-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
+import { createSupabaseOwnerCallRepository } from '../_shared/db/supabase-owner-call-repository.ts';
 import { loadCallsApiEnv } from '../_shared/env.ts';
 import { createFollowupKicker, followupWorkerUrl } from '../_shared/followup/kick.ts';
 import { logToConsole } from '../_shared/log.ts';
@@ -27,6 +28,7 @@ const kick = createFollowupKicker({
 
 const query = createPostgrestClient(env);
 const repo = createSupabaseRepository(query);
+const book = createSupabaseBookRepository(query);
 const deps: CallsApiDeps = {
   repo,
   clock: () => new Date(),
@@ -37,12 +39,13 @@ const deps: CallsApiDeps = {
     orgId: env.SARVAM_ORG_ID,
     workspaceId: env.SARVAM_WORKSPACE_ID,
     appId: env.SARVAM_APP_ID,
+    munshiAppId: env.SARVAM_MUNSHI_APP_ID,
   },
   fetchImpl: fetch,
   kickFollowup: kick,
   dashboard: {
     linkSecret: env.DASHBOARD_LINK_SECRET,
-    book: createSupabaseBookRepository(query),
+    book,
     reads: createSupabaseDashboardRepository(query),
     translate: env.SARVAM_API_KEY
       ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole })
@@ -51,6 +54,11 @@ const deps: CallsApiDeps = {
       listPromises: repo.listPromises,
       listCallStatuses: createSupabaseFollowupRepository(query).listCallStatuses,
     },
+  },
+  munshi: {
+    ownerCalls: createSupabaseOwnerCallRepository(query),
+    linkSecret: env.MUNSHI_LINK_SECRET,
+    getOwner: book.getOwner,
   },
 };
 

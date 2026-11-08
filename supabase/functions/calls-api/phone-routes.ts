@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { istDayLabel, resolveNow } from '../_shared/clock.ts';
 import { lineState } from '../_shared/calls/live-line.ts';
-import { isStillRinging } from '../_shared/calls/ringing.ts';
+import { isStillRinging, OWNER_CALL_MAX_MS } from '../_shared/calls/ringing.ts';
 import type { CallPatch, CallSession } from '../_shared/db/repository.ts';
 import { isInteractionId } from '../_shared/sarvam-analytics.ts';
 import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
@@ -16,7 +16,7 @@ const MAX_CALL_SECONDS = 3600;
 const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
 const LIVE: readonly CallStatus[] = ['accepted', 'in_progress'];
 
-const EndedBodySchema = z.object({
+export const EndedBodySchema = z.object({
   /** Sarvam's id, e.g. "20261102/…"; absent when the call never connected. */
   // Sarvam ids contain ':' (e.g. 20261102/182f511f-21:45:10-8bfe8bd5). M3's pattern refused
   // them, so the page's report failed and calls stayed in_progress (fixed in M5).
@@ -50,9 +50,14 @@ async function markMissed(call: CallSession, ctx: RouteContext): Promise<Respons
 /** The next live call for the phone page, for any shopkeeper (Live remind, pre-M6): one at a
  * time, oldest first. The page shows who Saim is answering as, from the call's own row. */
 export async function getIncomingCall(_req: Request, ctx: RouteContext): Promise<Response> {
-  const { repo, clock } = ctx.deps;
+  const { repo, clock, munshi } = ctx.deps;
   const now = clock();
-  const line = lineState(await repo.listOpenLiveCalls(), now);
+  // M8: while Munshi is on a call with the owner, the line is busy (one round trip for both).
+  const [calls, ownerCallActive] = await Promise.all([
+    repo.listOpenLiveCalls(),
+    munshi.ownerCalls.hasActiveOwnerCall(new Date(now.getTime() - OWNER_CALL_MAX_MS)),
+  ]);
+  const line = lineState(calls, now, ownerCallActive);
   if (line.kind === 'idle' || line.kind === 'busy') return jsonResponse(NO_CALL, 200, ctx.cors);
   if (line.kind === 'stale') return markMissed(line.call, ctx);
   const { call } = line;

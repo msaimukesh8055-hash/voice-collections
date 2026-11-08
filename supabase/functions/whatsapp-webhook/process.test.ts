@@ -1,6 +1,7 @@
 // supabase/functions/whatsapp-webhook/process.test.ts
 // One message end to end over fakes: fake book, fake WhatsApp client (records replies, no
 // network), fake LLM. FAKE numbers only.
+import { createFakeOwnerCallRepository } from '../_shared/db/fake-owner-call-repository.ts';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import type { LlmResult } from '../_shared/brain/llm.ts';
 import { cardButtonId, claimButtonId, lookupRowId, parseTap } from '../_shared/cards/ids.ts';
@@ -95,6 +96,7 @@ function setup(
     reminder: reminderSetup({ now: NOW }).deps,
     listen: options.listen ?? NO_LISTEN,
     web: FAKE_WEB,
+    munshi: { ownerCalls: createFakeOwnerCallRepository().ownerCalls, link: null },
     voice: options.voice ?? NO_VOICE,
     wakeWorker: () => {
       wakes.push(1);

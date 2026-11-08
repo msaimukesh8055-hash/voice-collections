@@ -47,7 +47,10 @@ export interface NewShopkeeper {
   readonly language: Language;
 }
 
-/** A confirmed entry the owner saved from a card (source 'text'). */
+/** Who saved a confirmed entry: a WhatsApp card ('text', the default) or Munshi (M8). */
+export type EntrySource = 'text' | 'munshi';
+
+/** A confirmed entry the owner saved from a card (source 'text') or by voice (source 'munshi'). */
 export interface NewEntry {
   readonly shopkeeperId: string;
   readonly kind: 'credit' | 'payment';
@@ -56,6 +59,8 @@ export interface NewEntry {
   /** Required for credits, null for payments (database rule). */
   readonly dueDate: string | null;
   readonly note: string | null;
+  /** Default 'text'. */
+  readonly source?: EntrySource;
 }
 
 /** remind_all (M5): "Call 7 people?" [Yes] [No], holding who will be called. */
@@ -125,6 +130,10 @@ export interface BookRepository {
   insertEntry(entry: NewEntry): Promise<string>;
   /** Compare-and-set from 'claimed': the settled entry, or null if it was not an open claim. */
   settleClaim(entryId: string, status: 'confirmed' | 'rejected'): Promise<BookEntry | null>;
+  /** M8 delete by voice: confirmed → reversed plus a ledger_reversals row, in one database call
+   * (reverse_ledger_entry). False when the entry was not confirmed (already reversed, a claim,
+   * unknown): an entry is reversed at most once, never removed. */
+  reverseEntry(entryId: string, ownerCallId: string): Promise<boolean>;
   createPendingAction(action: NewPendingAction): Promise<string>;
   getPendingAction(actionId: string): Promise<PendingAction | null>;
   /** Compare-and-set: false when the card was no longer in `from` (a second tap). */

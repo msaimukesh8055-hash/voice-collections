@@ -8,6 +8,7 @@ import {
   fakeCall,
   type FakeState,
 } from '../_shared/db/fake-repository.ts';
+import { FAKE_OWNER_CALL_ID } from '../_shared/db/fake-owner-call-repository.ts';
 import type { Repository } from '../_shared/db/repository.ts';
 import type { LogFields, Logger } from '../_shared/log.ts';
 import { AUDIT_MARKERS } from '../_shared/tools/registry.ts';
@@ -207,4 +208,30 @@ Deno.test('sarvam-tools › a path outside /sarvam-tools/ names no tool', async 
   });
   const body = await reply(await handleToolRequest(req, deps));
   assertEquals(body['code'], 'UNKNOWN_TOOL');
+});
+
+Deno.test("sarvam-tools › Munshi's tool names do not exist here (UNKNOWN_TOOL)", async () => {
+  for (const tool of ['book_summary', 'lookup_shopkeeper']) {
+    const { deps, state } = setup({ identityStatus: 'confirmed' });
+    const body = await reply(await handleToolRequest(toolRequest(tool, TOKEN), deps));
+    assertEquals(body['code'], 'UNKNOWN_TOOL', tool);
+    assertEquals(state.toolEvents[0]?.args, AUDIT_MARKERS.unknownTool);
+  }
+});
+
+Deno.test("sarvam-tools › an owner call's id never works as a shopkeeper call token", async () => {
+  const { deps, state } = setup({ identityStatus: 'confirmed' });
+  const ownerCallToken = { call_token: FAKE_OWNER_CALL_ID };
+  const body = await reply(await handleToolRequest(toolRequest('get_dues', ownerCallToken), deps));
+  assertEquals(body['code'], 'CALL_NOT_AUTHORISED');
+  assertEquals(body['outstanding'], undefined);
+  assertEquals(state.toolEvents.length, 0);
+});
+
+Deno.test("sarvam-tools › Munshi's owner tool secret is refused (401), nothing read", async () => {
+  const { deps, state } = setup({ identityStatus: 'confirmed' });
+  const ownerSecret = { authorization: `Bearer ${'o'.repeat(40)}` };
+  const response = await handleToolRequest(toolRequest('get_dues', TOKEN, ownerSecret), deps);
+  assertEquals(response.status, 401);
+  assertEquals(state.toolEvents.length, 0);
 });

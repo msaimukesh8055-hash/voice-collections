@@ -7,10 +7,14 @@ import {
   type FakeBookState,
 } from '../../db/fake-book-repository.ts';
 import type { BookRepository } from '../../db/book-repository.ts';
+import {
+  createFakeOwnerCallRepository,
+  type FakeOwnerCallState,
+} from '../../db/fake-owner-call-repository.ts';
 import type { LogFields, Logger } from '../../log.ts';
 import type { Language } from '../../schemas/shopkeeper.ts';
 import { type ReminderSetup, reminderSetup } from '../../reminders/__fixtures__/reminder-deps.ts';
-import type { BotContext, WebDeps } from '../context.ts';
+import type { BotContext, MunshiLinkDeps, WebDeps } from '../context.ts';
 
 /** Noon IST on FAKE_TODAY (real time, used for card expiry). */
 export const FAKE_NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -22,6 +26,8 @@ export interface BotSetup {
   readonly logs: Array<{ event: string; fields: LogFields }>;
   /** The fakes behind ctx.reminder (M5). */
   readonly reminder: ReminderSetup;
+  /** The owner call rows behind ctx.munshi (M8). */
+  readonly ownerCalls: FakeOwnerCallState;
 }
 
 export interface BotSetupOptions {
@@ -31,6 +37,14 @@ export interface BotSetupOptions {
   readonly now?: Date;
   readonly reminder?: ReminderSetup;
   readonly web?: WebDeps;
+  /** M8: null = Munshi not set up; default signs a fake link. */
+  readonly munshiLink?: MunshiLinkDeps['link'];
+  readonly ownerCalls?: Partial<FakeOwnerCallState>;
+}
+
+/** The fake Munshi link for one owner call (no real signature). */
+export function fakeMunshiLink(ownerCallId: string): string {
+  return `https://dashboard.example/munshi#t=${ownerCallId}.SIGNATURE`;
 }
 
 export const FAKE_DASHBOARD_LINK = 'https://dashboard.example/#t=TOKEN';
@@ -62,6 +76,13 @@ export function botSetup(options: BotSetupOptions = {}): BotSetup {
   const logs: Array<{ event: string; fields: LogFields }> = [];
   const log: Logger = (_level, event, fields = {}) => logs.push({ event, fields });
   const reminder = options.reminder ?? reminderSetup({ now: options.now ?? FAKE_NOW });
+  const owner = createFakeOwnerCallRepository({
+    clock: () => options.now ?? FAKE_NOW,
+    ...options.ownerCalls,
+  });
+  const munshiLink = options.munshiLink === undefined
+    ? (id: string): Promise<string> => Promise.resolve(fakeMunshiLink(id))
+    : options.munshiLink;
   const ctx: BotContext = {
     book: { ...fake.book, ...options.book },
     owner: FAKE_OWNER,
@@ -73,8 +94,9 @@ export function botSetup(options: BotSetupOptions = {}): BotSetup {
     log,
     reminder: reminder.deps,
     web: options.web ?? FAKE_WEB,
+    munshi: { ownerCalls: owner.ownerCalls, link: munshiLink },
   };
-  return { ctx, state: fake.state, logs, reminder };
+  return { ctx, state: fake.state, logs, reminder, ownerCalls: owner.state };
 }
 
 /** Same context, with the shopkeeper list re-read (after a new shopkeeper was added). */

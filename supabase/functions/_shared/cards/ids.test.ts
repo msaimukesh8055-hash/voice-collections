@@ -102,6 +102,7 @@ Deno.test('ids › M7: every menu row and the [Menu] button round-trip', () => {
     'dashboard',
     'remind_all',
     'menu',
+    'munshi',
   ]);
   for (const item of MENU_TARGETS) {
     for (const language of ['en', 'hi', 'te'] as const) {

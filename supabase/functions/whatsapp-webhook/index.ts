@@ -15,6 +15,8 @@ import { createSpokenSummarizer } from '../_shared/whatsapp/spoken-summary.ts';
 import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
 import { dashboardLink, phonePageLink, shopkeeperLink } from '../_shared/auth/dashboard-link.ts';
+import { munshiLink, signOwnerCallToken } from '../_shared/auth/owner-call-link.ts';
+import { createSupabaseOwnerCallRepository } from '../_shared/db/supabase-owner-call-repository.ts';
 import { createTranscriber } from '../_shared/speech/stt.ts';
 import { MAX_SIMULATED_AT_ONCE } from '../_shared/calls/queue.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
@@ -32,6 +34,13 @@ import { type ProcessDeps, processPayload } from './process.ts';
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 const env = loadWhatsAppEnv(Deno.env.toObject());
+
+function signedMunshiLink(
+  baseUrl: string,
+  secret: string,
+): (ownerCallId: string) => Promise<string> {
+  return async (ownerCallId) => munshiLink(baseUrl, await signOwnerCallToken(secret, ownerCallId));
+}
 const query = createPostgrestClient(env);
 const repo = createSupabaseRepository(query);
 const defer = (task: Promise<unknown>): void => EdgeRuntime.waitUntil(task);
@@ -120,6 +129,13 @@ const processDeps: ProcessDeps = {
     upload: (file) => uploadMedia(mediaConfig, file),
   },
   wakeWorker: () => kickJob(SWEEP_PATH),
+  munshi: {
+    ownerCalls: createSupabaseOwnerCallRepository(query),
+    // The /munshi page lives in the same web app as the dashboard (DASHBOARD_URL).
+    link: env.DASHBOARD_URL && env.MUNSHI_LINK_SECRET
+      ? signedMunshiLink(env.DASHBOARD_URL, env.MUNSHI_LINK_SECRET)
+      : null,
+  },
 };
 
 const deps: WebhookDeps = {

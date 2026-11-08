@@ -1,14 +1,21 @@
 // web/src/features/phone/LiveTranscript.tsx
-// The call's words as they are spoken: Asha on the left, the shopkeeper on the right.
+// The call's words as they are spoken: the agent (Asha, or Munshi on /munshi) on the left, the
+// person on the page on the right.
 import { useEffect, useRef } from 'react';
 import type { TranscriptLine } from '../../lib/sarvamClient.ts';
 
 interface LiveTranscriptProps {
   readonly lines: readonly TranscriptLine[];
   readonly shopkeeperName: string;
+  /** The agent's name; Asha unless the page says otherwise (Munshi, M8). */
+  readonly agentName?: string;
 }
 
-export function LiveTranscript({ lines, shopkeeperName }: LiveTranscriptProps): React.JSX.Element {
+export function LiveTranscript({
+  lines,
+  shopkeeperName,
+  agentName = 'Asha',
+}: LiveTranscriptProps): React.JSX.Element {
   const endRef = useRef<HTMLLIElement>(null);
 
   useEffect(
@@ -37,7 +44,7 @@ export function LiveTranscript({ lines, shopkeeperName }: LiveTranscriptProps): 
                 }`}
               >
                 <span className="block text-xs font-semibold text-ink-muted">
-                  {isAsha ? 'Asha' : shopkeeperName}
+                  {isAsha ? agentName : shopkeeperName}
                 </span>
                 {line.text}
               </li>

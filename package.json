@@ -30,6 +30,8 @@
     "smoke:whatsapp": "node --env-file=.env scripts/smoke-whatsapp.ts",
     "spike:voice": "node --env-file=.env scripts/spike-voice.ts",
     "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts",
+    "smoke:munshi-latency": "node --env-file=.env scripts/smoke-munshi-latency.ts",
+    "evals:munshi": "node --env-file-if-exists=.env evals/munshi/run.ts",
     "brand:png": "node scripts/brand-png.ts",
     "bot:profile": "node --env-file-if-exists=.env scripts/bot-profile.ts"
   },

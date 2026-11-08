@@ -7,7 +7,7 @@
 // never the text. Errors go through describeFailure: database operation + code, or the error's
 // name only, never its message (CP2 L1).
 import type { BrainLlm } from '../_shared/brain/llm.ts';
-import type { BotContext, WebDeps } from '../_shared/cards/context.ts';
+import type { BotContext, MunshiLinkDeps, WebDeps } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
@@ -47,6 +47,8 @@ export interface ProcessDeps {
   readonly listen: Pick<HearDeps, 'download' | 'transcribe'>;
   /** Insights chart upload and the dashboard link (M6). */
   readonly web: WebDeps;
+  /** "📞 Call Munshi" (M8): owner call rows and the signed link. */
+  readonly munshi: MunshiLinkDeps;
   /** Voice replies (M6): Bulbul, then upload to Meta. M7: the words come from the spoken
    * summary (sarvam-105b, checked), falling back to spokenText. */
   readonly voice: {
@@ -159,6 +161,7 @@ async function loadContext(deps: ProcessDeps): Promise<{ ctx: BotContext; demoNo
     log: deps.log,
     reminder: deps.reminder,
     web: deps.web,
+    munshi: deps.munshi,
   };
   return { ctx, demoNow };
 }

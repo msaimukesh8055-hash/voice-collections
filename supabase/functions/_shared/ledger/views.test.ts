@@ -291,3 +291,23 @@ Deno.test('lookup › reply links: View in books is the last line; absent or nul
   assert(!replyText(shopkeeperReplies({ ...view, booksLink: null })).includes('📒'));
   assert(!replyText(shopkeeperReplies(view)).includes('📒'));
 });
+
+Deno.test('lookup › a reversed (deleted) entry is never listed (M8)', () => {
+  const entries = [
+    bookEntry({ kind: 'credit', amount: 4321, entryDate: '2026-11-01', status: 'reversed' }),
+    bookEntry({ kind: 'payment', amount: 700, entryDate: '2026-10-30' }),
+  ];
+  const text = replyText(
+    shopkeeperReplies({
+      lastNote: null,
+      shopkeeper: RAMESH,
+      entries,
+      lastPromise: null,
+      score: null,
+      today: FAKE_TODAY,
+      language: 'en',
+    }),
+  );
+  assert(!text.includes('4,321'));
+  assertStringIncludes(text, 'Payment ₹700');
+});

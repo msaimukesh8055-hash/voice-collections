@@ -13,12 +13,19 @@ import type { Logger } from '../_shared/log.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { handleCallsApi } from './handler.ts';
 import { dashboardSetup } from './__fixtures__/dashboard.ts';
+import { munshiSetup } from './__fixtures__/munshi.ts';
 import type { SarvamSettings } from './sarvam-proxy.ts';
 import type { CallsApiDeps } from './types.ts';
 
 const ORIGIN = 'http://localhost:5173';
 const BASE = 'https://ref.supabase.co/functions/v1/calls-api';
-const SARVAM = { apiKey: 'agents-key', orgId: 'org-1', workspaceId: 'ws-1', appId: 'app-1' };
+const SARVAM = {
+  apiKey: 'agents-key',
+  orgId: 'org-1',
+  workspaceId: 'ws-1',
+  appId: 'app-1',
+  munshiAppId: null,
+};
 const SECONDS_AGO = (seconds: number): string =>
   new Date(FAKE_NOW.getTime() - seconds * 1000).toISOString();
 
@@ -41,6 +48,7 @@ function setup(overrides: Partial<FakeState> = {}, sarvam: Partial<SarvamSetting
     fetchImpl,
     kickFollowup: (callId) => kicked.push(callId),
     dashboard: dashboardSetup().dashboard,
+    munshi: munshiSetup().munshi,
   };
   return { deps, state, kicked };
 }

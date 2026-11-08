@@ -7,6 +7,7 @@ import type {
   BookEntry,
   BookRepository,
   BookShopkeeper,
+  EntrySource,
   LastPromise,
   NewShopkeeper,
   OutboundRecord,
@@ -128,6 +129,10 @@ export interface FakeBookState {
   outbound: readonly OutboundRecord[];
   strangerReplies: readonly string[];
   newShopkeepers: readonly NewShopkeeper[];
+  /** Who saved each entry inserted in the test (M8: 'munshi' for voice). */
+  sources: Readonly<Record<string, EntrySource>>;
+  /** ledger_reversals rows written by reverseEntry (M8). */
+  reversals: readonly { readonly entryId: string; readonly ownerCallId: string }[];
 }
 
 function initialState(overrides: Partial<FakeBookState>): FakeBookState {
@@ -141,6 +146,8 @@ function initialState(overrides: Partial<FakeBookState>): FakeBookState {
     outbound: [],
     strangerReplies: [],
     newShopkeepers: [],
+    sources: {},
+    reversals: [],
     ...overrides,
   };
 }
@@ -161,7 +168,7 @@ function bookReads(state: FakeBookState): Pick<
 
 function bookWrites(state: FakeBookState): Pick<
   BookRepository,
-  'insertShopkeeper' | 'insertEntry' | 'settleClaim'
+  'insertShopkeeper' | 'insertEntry' | 'settleClaim' | 'reverseEntry'
 > {
   return {
     insertShopkeeper: (input) => {
@@ -177,12 +184,10 @@ function bookWrites(state: FakeBookState): Pick<
       return Promise.resolve(created);
     },
     insertEntry: (input) => {
-      const created = bookEntry({
-        ...input,
-        entryDate: input.entryDate,
-        createdAt: new Date().toISOString(),
-      });
+      const { source, note: _note, ...fields } = input;
+      const created = bookEntry({ ...fields, createdAt: new Date().toISOString() });
       state.entries = [...state.entries, created];
+      state.sources = { ...state.sources, [created.id]: source ?? 'text' };
       return Promise.resolve(created.id);
     },
     settleClaim: (entryId, status) => {
@@ -193,6 +198,17 @@ function bookWrites(state: FakeBookState): Pick<
       const settled = { ...found, status };
       state.entries = state.entries.map((entry) => (entry.id === entryId ? settled : entry));
       return Promise.resolve(settled);
+    },
+    reverseEntry: (entryId, ownerCallId) => {
+      const found = state.entries.find((entry) =>
+        entry.id === entryId && entry.status === 'confirmed'
+      );
+      if (!found) return Promise.resolve(false);
+      state.entries = state.entries.map((entry): BookEntry =>
+        entry.id === entryId ? { ...entry, status: 'reversed' } : entry
+      );
+      state.reversals = [...state.reversals, { entryId, ownerCallId }];
+      return Promise.resolve(true);
     },
   };
 }

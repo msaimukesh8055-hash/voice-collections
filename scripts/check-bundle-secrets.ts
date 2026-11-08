@@ -20,6 +20,8 @@ const SECRET_NAMES = [
   'OWNER_WHATSAPP_NUMBER',
   'WORKER_SECRET',
   'DASHBOARD_LINK_SECRET',
+  'MUNSHI_LINK_SECRET',
+  'SARVAM_OWNER_TOOL_SECRET',
 ] as const;
 
 /** Must never ship: the dev server's token endpoint and anything that looks like a signed token. */

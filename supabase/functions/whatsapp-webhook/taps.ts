@@ -15,6 +15,7 @@ import { reminderPhrasesFor } from '../_shared/reminders/phrases.ts';
 import { hintReply, menuReply } from '../_shared/whatsapp/menu.ts';
 import { phrasesFor } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, textIn, textReply } from '../_shared/whatsapp/replies.ts';
+import { startOwnerCall } from './owner-call.ts';
 import { runCommand, showShopkeeper } from './run-command.ts';
 
 /** The replies and what was tapped (for the message log; never the text). */
@@ -49,6 +50,8 @@ const MENU_ACTIONS: Readonly<Record<MenuTarget, (ctx: BotContext) => Promise<rea
   dashboard: command({ kind: 'dashboard' }),
   remind_all: command({ kind: 'remind_all' }),
   menu: (ctx) => Promise.resolve([menuReply(ctx.language, ctx.owner.name)]),
+  // M8: a single-use link to the /munshi call page.
+  munshi: startOwnerCall,
 };
 
 async function lookupTap(

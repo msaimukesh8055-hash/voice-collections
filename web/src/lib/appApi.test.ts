@@ -138,4 +138,52 @@ describe('createAppApi', () => {
     });
     await expect(notJson.api.getDemo()).rejects.toMatchObject({ code: null });
   });
+
+  it('checks, accepts and ends a Munshi link with the link token header (M8)', async () => {
+    const link = `${TOKEN}.${'a'.repeat(43)}`;
+    const session = setup(json({ state: 'used' }));
+    await expect(session.api.munshiSession(link)).resolves.toBe('used');
+    expect(session.sent[0]?.url).toBe(`${BASE}/v1/munshi/session`);
+    expect(session.sent[0]?.init.method).toBeUndefined();
+    expect(session.sent[0]?.init.headers).toMatchObject({ 'x-call-token': link, apikey: 'anon' });
+    const accepted = {
+      ownerCallToken: TOKEN,
+      ownerName: 'Srinivas Reddy',
+      ownerShortName: 'Srinivas',
+      businessName: 'Sri Lakshmi Traders',
+      today: 'Saturday, 2026-11-07',
+      sarvam: { orgId: 'org', workspaceId: 'ws', appId: 'munshi' },
+    };
+    const accept = setup(json(accepted));
+    await expect(accept.api.munshiAccept(link)).resolves.toEqual(accepted);
+    expect([accept.sent[0]?.url, accept.sent[0]?.init.method]).toEqual([
+      `${BASE}/v1/munshi/accept`,
+      'POST',
+    ]);
+    const ended = setup(json({ status: 'completed' }));
+    await ended.api.munshiEnded(link, { interactionId: 'abc/1', seconds: 300.4 });
+    expect(ended.sent[0]?.url).toBe(`${BASE}/v1/munshi/ended`);
+    expect(ended.sent[0]?.init.body).toBe('{"seconds":300,"interactionId":"abc/1"}');
+    expect(ended.sent[0]?.init.headers).toMatchObject({ 'x-call-token': link });
+  });
+
+  it('refuses an unknown Munshi link state as an unexpected reply', async () => {
+    await expect(setup(json({ state: 'maybe' })).api.munshiSession('x')).rejects.toThrow(
+      UNEXPECTED_ERROR,
+    );
+  });
+
+  it("wakes Munshi's tool server with an opaque GET", async () => {
+    const { api, sent } = setup(json({}));
+    api.warmMunshiTools();
+    await Promise.resolve();
+    expect(sent[0]?.url).toBe('https://ref.supabase.co/functions/v1/munshi-tools/warm');
+    expect(sent[0]?.init.mode).toBe('no-cors');
+  });
+
+  it('sends no call token header on the other requests', async () => {
+    const { api, sent } = setup(json({ liveShopkeeper: null }));
+    await api.getDemo();
+    expect(sent[0]?.init.headers).not.toHaveProperty('x-call-token');
+  });
 });

@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-07 · M7 Build B2 — Call screen + beige/brown/gold theme · 🟡 Planned**
+Dialling screen, two avatars, two-lane who-is-speaking arrows and live transcript on the phone page and Munshi; one warm theme (beige #F5EDE0, brown #4A2E1A text, gold #C9A227 borders only, faint logo) on every screen, contrast checked by a test.
+~2.5–3 h, web only; 3 look decisions for Saim · Details → [`milestones/M7.md`](milestones/M7.md)
+
 **2026-11-07 · M8 — Munshi, the owner's call line · 🟡 Planned (approved)**
 Owner calls a male, casual Sarvam agent from a one-time WhatsApp link; it answers anything about the book and acts only after a spoken yes checked in code; WhatsApp only on request; tools under 0.5 s.
 ~9.5 h in 3 builds; SPEC §6.10 + M8 Munshi / M9 Evals / M10 Go-live; ADR-0018 · Details → [`milestones/M8.md`](milestones/M8.md)

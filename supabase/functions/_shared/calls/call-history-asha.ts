@@ -35,6 +35,7 @@ const CLAIM_RESULT: Readonly<Record<PastClaim['status'], string>> = {
   confirmed: 'the owner confirmed it',
   rejected: 'the owner did not receive it',
   claimed: 'not yet confirmed',
+  reversed: 'the owner later deleted it',
 };
 
 const REASON_TEXT: Readonly<Record<CallbackReason, string>> = {

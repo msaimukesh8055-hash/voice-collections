@@ -2,7 +2,11 @@
 // Checks the exact database requests and row mapping, with a fake fetch (no network).
 import { assert, assertEquals, assertRejects, assertStringIncludes } from '@std/assert';
 import { createPostgrestClient } from './postgrest.ts';
-import { createSupabaseBookRepository, PAGE_SIZE } from './supabase-book-repository.ts';
+import {
+  createSupabaseBookRepository,
+  PAGE_SIZE,
+  PAGES_AT_ONCE,
+} from './supabase-book-repository.ts';
 
 const ENV = { SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-key' };
 const OWNER_ID = '0e000000-0000-4000-8000-000000000001';
@@ -87,15 +91,27 @@ Deno.test('book repo › owner and shopkeepers are read and mapped', async () =>
   assertStringIncludes(requests[1]?.url ?? '', 'limit=1000');
 });
 
-Deno.test('book repo › listEntries reads every page until a short page', async () => {
+Deno.test('book repo › listEntries reads three pages at once and stops at a short page', async () => {
   const full = Array.from({ length: PAGE_SIZE }, () => ENTRY);
-  const { repo, requests } = setup({ body: full }, { body: [ENTRY] });
+  const { repo, requests } = setup({ body: full }, { body: [ENTRY] }, { body: [] });
   const entries = await repo.listEntries(OWNER_ID);
   assertEquals(entries.length, PAGE_SIZE + 1);
   assertEquals(entries[0]?.amount, 2000);
+  assertEquals(requests.length, PAGES_AT_ONCE);
   assertStringIncludes(requests[0]?.url ?? '', 'shopkeepers!inner(owner_id)');
   assertStringIncludes(requests[0]?.url ?? '', '&offset=0');
   assertStringIncludes(requests[1]?.url ?? '', `&offset=${PAGE_SIZE}`);
+  assertStringIncludes(requests[2]?.url ?? '', `&offset=${2 * PAGE_SIZE}`);
+});
+
+Deno.test('book repo › listEntries asks for the next three pages only when all three were full', async () => {
+  const full = { body: Array.from({ length: PAGE_SIZE }, () => ENTRY) };
+  const { repo, requests } = setup(full, full, full, { body: [ENTRY] }, { body: [] }, {
+    body: [],
+  });
+  assertEquals((await repo.listEntries(OWNER_ID)).length, 3 * PAGE_SIZE + 1);
+  assertEquals(requests.length, 2 * PAGES_AT_ONCE);
+  assertStringIncludes(requests[3]?.url ?? '', `&offset=${3 * PAGE_SIZE}`);
 });
 
 Deno.test('book repo › listEntries stops after 20 full pages', async () => {
@@ -257,4 +273,36 @@ Deno.test("book repo › counts today's voice notes, up to the cap (M6)", async 
     requests[0]?.url ?? '',
     'wa_messages?select=id&direction=eq.in&msg_type=eq.voice&ist_day=eq.2026-11-04&limit=50',
   );
+});
+
+Deno.test('book repo › a Munshi entry is saved with source munshi (M8)', async () => {
+  const { repo, requests } = setup({ body: [{ id: ENTRY_ID }] });
+  await repo.insertEntry({
+    shopkeeperId: SHOPKEEPER_ID,
+    kind: 'payment',
+    amount: 2000,
+    entryDate: '2026-11-02',
+    dueDate: null,
+    note: null,
+    source: 'munshi',
+  });
+  assertEquals(requests[0]?.body?.['source'], 'munshi');
+});
+
+Deno.test('book repo › reverseEntry calls reverse_ledger_entry once and reads its answer', async () => {
+  const CALL_ID = 'ca000000-0000-4000-8000-0000000000b1';
+  const { repo, requests } = setup({ body: true }, { body: false });
+  const first = await repo.reverseEntry(ENTRY_ID, CALL_ID);
+  const second = await repo.reverseEntry(ENTRY_ID, CALL_ID);
+  assertEquals([first, second], [true, false]);
+  assertStringIncludes(requests[0]?.url ?? '', 'rpc/reverse_ledger_entry');
+  assertEquals([requests[0]?.method, requests[0]?.body], [
+    'POST',
+    { entry_id: ENTRY_ID, owner_call_id: CALL_ID },
+  ]);
+});
+
+Deno.test('book repo › reverseEntry refuses a reply that is not a boolean', async () => {
+  const { repo } = setup({ body: { ok: true } });
+  await assertRejects(() => repo.reverseEntry(ENTRY_ID, 'ca000000-0000-4000-8000-0000000000b1'));
 });

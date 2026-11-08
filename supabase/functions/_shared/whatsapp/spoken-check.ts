@@ -5,7 +5,7 @@
 // figure"). Only the reason is logged, never the text.
 import { DEVANAGARI_SCRIPT, TELUGU_SCRIPT } from '../brain/language.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
-import { DIGIT, hasScaleWord } from '../figure-words.ts';
+import { hasScaleWord, numbersIn } from '../figure-words.ts';
 import { MAX_SPOKEN_CHARS } from './spoken.ts';
 
 export type SpokenCheckReason =
@@ -31,9 +31,6 @@ export interface SpokenCheckInput {
 }
 
 const LINK = /https?:\/\/|www\./i;
-const NUMBER = new RegExp(`${DIGIT}+(?:[,.]${DIGIT}+)*`, 'gu');
-const DEVANAGARI_ZERO = 0x0966;
-const TELUGU_ZERO = 0x0c66;
 const LATIN_WORD = /[A-Za-z]+/g;
 /** Words any summary may use although the reply does not (Decision 4, check 7). Days and months
  * are added so "Sunday 15 November" passes for a reply that says "Sun 15 Nov". */
@@ -66,18 +63,6 @@ const ALLOWED_WORDS = new Set([
   ...['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august'],
   ...['september', 'october', 'november', 'december'],
 ]);
-
-function plainNumber(token: string): string {
-  const ascii = token.replace(/[०-९౦-౯]/gu, function toAscii(digit): string {
-    const code = digit.charCodeAt(0);
-    return String(code - (code >= TELUGU_ZERO ? TELUGU_ZERO : DEVANAGARI_ZERO));
-  });
-  return String(Number(ascii.replace(/,/g, '')));
-}
-
-function numbersIn(text: string): readonly string[] {
-  return (text.match(NUMBER) ?? []).map(plainNumber);
-}
 
 function hasRightScript(say: string, language: Language): boolean {
   if (language === 'te') return TELUGU_SCRIPT.test(say);

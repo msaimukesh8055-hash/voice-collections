@@ -1,6 +1,7 @@
 // supabase/functions/_shared/cards/context.ts
 // Everything one owner message needs, loaded once per message by the webhook.
 import type { BookRepository, BookShopkeeper, Owner } from '../db/book-repository.ts';
+import type { OwnerCallRepository } from '../db/owner-call-repository.ts';
 import type { Logger } from '../log.ts';
 import type { ReminderDeps } from '../reminders/deps.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
@@ -22,6 +23,21 @@ export interface BotContext {
   readonly reminder: ReminderDeps;
   /** Insights chart and dashboard link (M6). */
   readonly web: WebDeps;
+  /** "📞 Call Munshi" (M8): the owner call rows and the signed /munshi link. */
+  readonly munshi: MunshiLinkDeps;
+}
+
+export interface MunshiLinkDeps {
+  readonly ownerCalls: Pick<
+    OwnerCallRepository,
+    | 'createOwnerCall'
+    | 'expireIssuedOwnerCalls'
+    | 'countOwnerCallsIssuedSince'
+    | 'countOwnerUrlsIssuedSince'
+  >;
+  /** The signed /munshi link for one owner call, or null when Munshi is not set up (no web
+   * address or no MUNSHI_LINK_SECRET). */
+  readonly link: ((ownerCallId: string) => Promise<string>) | null;
 }
 
 export interface WebDeps {

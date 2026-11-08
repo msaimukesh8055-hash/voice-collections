@@ -4,8 +4,15 @@ import { ashaAgent } from './asha/agent.config.ts';
 import { AgentConfigSchema, BodyFieldSchema } from './schema.ts';
 
 describe('AgentConfigSchema', () => {
-  it('rejects a call cap above 4 minutes (credit guard)', () => {
-    expect(AgentConfigSchema.safeParse({ ...ashaAgent, maxCallSeconds: 241 }).success).toBe(false);
+  it('rejects a call cap above 8 minutes (credit guard; Asha is held to 4 in her own test)', () => {
+    expect(AgentConfigSchema.safeParse({ ...ashaAgent, maxCallSeconds: 481 }).success).toBe(false);
+    expect(AgentConfigSchema.safeParse({ ...ashaAgent, maxCallSeconds: 480 }).success).toBe(true);
+  });
+
+  it('accepts tool paths on sarvam-tools and munshi-tools only', () => {
+    const [tool] = ashaAgent.tools;
+    const munshi = { ...ashaAgent, tools: [{ ...tool, path: '/munshi-tools/book_summary' }] };
+    expect(AgentConfigSchema.safeParse(munshi).success).toBe(true);
   });
 
   it('rejects a tool path outside sarvam-tools', () => {

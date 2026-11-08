@@ -27,9 +27,15 @@ function byQueuedAt(a: CallSession, b: CallSession): number {
   return a.queuedAt.localeCompare(b.queuedAt);
 }
 
-/** `calls`: the open live calls (queued, ringing, accepted, in progress), in any order. */
-export function lineState(calls: readonly CallSession[], realNow: Date): LineState {
-  if (calls.some((call) => holdsLine(call, realNow))) return { kind: 'busy' };
+/** `calls`: the open live calls (queued, ringing, accepted, in progress), in any order.
+ * `ownerCallActive` (M8): Munshi is on a call with the owner (accepted within OWNER_CALL_MAX_MS),
+ * so the line is busy and a Remind he asked for rings after he hangs up. */
+export function lineState(
+  calls: readonly CallSession[],
+  realNow: Date,
+  ownerCallActive = false,
+): LineState {
+  if (ownerCallActive || calls.some((call) => holdsLine(call, realNow))) return { kind: 'busy' };
   const waiting = calls.filter((call) => call.status === 'queued' || call.status === 'ringing');
   // A call already ringing keeps ringing; otherwise the oldest queued call goes next.
   const next = waiting.find((call) => call.status === 'ringing') ??

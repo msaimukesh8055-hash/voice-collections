@@ -1,5 +1,5 @@
 // supabase/functions/_shared/whatsapp/menu.test.ts
-// The Menu list (M7 Decision 7): 8 rows, WhatsApp's limits in every language, English rendering
+// The Menu list (M7 Decision 7; M8 added Call Munshi as the 9th row): 9 rows, WhatsApp's limits in every language, English rendering
 // for the twin, and the add / paid hints.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { parseTap } from '../cards/ids.ts';
@@ -18,10 +18,10 @@ function listOf(reply: Reply): Extract<Reply, { kind: 'list' }> {
   return reply;
 }
 
-Deno.test('menu › 8 rows in the agreed order, each an mn: id in the reply language', () => {
+Deno.test('menu › 9 rows in the agreed order, each an mn: id in the reply language', () => {
   for (const language of SUPPORTED_LANGUAGES) {
     const menu = listOf(menuReply(language, OWNER));
-    assertEquals(menu.rows.length, 8);
+    assertEquals(menu.rows.length, 9);
     assert(menu.rows.length <= MAX_LIST_ROWS);
     const items = menu.rows.map((row) => {
       const tap = parseTap(row.id);
@@ -101,4 +101,31 @@ Deno.test('menu › hints: add credit and mark paid, with an English rendering',
 
 Deno.test('menu › a one-word owner name is used as it is', () => {
   assertStringIncludes(listOf(menuReply('en', 'Srinivas')).text, 'Namaste Srinivas!');
+});
+
+/** The 8 M7 rows as they were before M8 (English): ids, titles and descriptions unchanged. */
+const M7_ROWS_EN = [
+  ['mn:pending:en', '📒 Pending', 'Who owes you, biggest first'],
+  ['mn:due:en', '🔔 Due today', 'Who is due or overdue, with Remind'],
+  ['mn:add:en', '🧾 Add credit', 'How to add credit by text or voice'],
+  ['mn:paid:en', '💰 Mark paid', 'How to record a payment'],
+  ['mn:closed:en', '✅ Paid off', 'Cleared this month'],
+  ['mn:insights:en', '📊 Insights', 'Pie chart, % collected, top 5'],
+  ['mn:dashboard:en', '🖥️ Dashboard', 'Link to the web dashboard'],
+  ['mn:remind_all:en', '📞 Remind all due', 'Asks before calling anyone'],
+];
+
+Deno.test('menu › M8: the 8 old rows are unchanged and Call Munshi is the 9th, last row', () => {
+  const rows = listOf(menuReply('en', OWNER)).rows;
+  assertEquals(
+    rows.slice(0, 8).map((row) => [row.id, row.title, row.description]),
+    M7_ROWS_EN,
+  );
+  assertEquals(rows[8], {
+    id: 'mn:munshi:en',
+    title: '📞 Call Munshi',
+    description: 'Talk to your book: ask, add, mark paid',
+  });
+  assertEquals(listOf(menuReply('hi', OWNER)).rows[8]?.title, '📞 मुंशी को कॉल करें');
+  assertEquals(listOf(menuReply('te', OWNER)).rows[8]?.title, '📞 మున్షీకి కాల్');
 });

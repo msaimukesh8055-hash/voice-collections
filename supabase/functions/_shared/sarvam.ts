@@ -11,6 +11,13 @@ export const CALL_TOKEN_HEADER = 'x-call-token';
 /** Agent variable holding the call token; Sarvam puts it in every tool request body. */
 export const CALL_TOKEN_VARIABLE = 'call_token';
 
+/** Munshi's agent variable (M8, ADR-0018): the owner call id, resolved only in owner_calls by
+ * munshi-tools. A different name from Asha's, so neither agent's body fits the other's tools. */
+export const OWNER_CALL_TOKEN_VARIABLE = 'owner_call_token';
+
+/** GET <tool function>/warm wakes a tool function before the first tool call (cold start). */
+export const WARM_TOOLS_PATH = 'warm';
+
 /** calls-api route prefix the SDK's baseUrl points at (it appends orgs/…/url). */
 export const SARVAM_PROXY_PATH = '/v1/sarvam/';
 

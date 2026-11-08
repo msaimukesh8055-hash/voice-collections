@@ -8,7 +8,8 @@
 //   ra:<lang>                                     remind everyone due (a Yes/No card comes first)
 //   nc:<lang>                                     [Cancel] on a "Call Ramesh now?" card: no call
 //   mn:<item>:<lang>                              M7: a Menu row or a [Menu]/[Pending]/[Due today]
-//                                                 button; same as typing that command
+//                                                 button; same as typing that command. M8:
+//                                                 mn:munshi sends a single-use Munshi call link
 //   pf:<shopkeeper id>:<lang>                     M7: [Paid in full]; the amount is worked out at
 //                                                 tap time and shown on a payment card (never in
 //                                                 the id)
@@ -36,7 +37,8 @@ export type Tap =
   | { readonly kind: 'full_payment'; readonly shopkeeperId: string; readonly language: Language }
   | { readonly kind: 'part_payment'; readonly shopkeeperId: string; readonly language: Language };
 
-/** The Menu's rows (M7 Decision 7) and "menu" itself (the [📋 Menu] button). */
+/** The Menu's rows (M7 Decision 7) and "menu" itself (the [📋 Menu] button). M8: "munshi" is
+ * the 9th row, after the others, so no existing row moves. */
 export const MENU_TARGETS = [
   'pending',
   'due',
@@ -47,6 +49,7 @@ export const MENU_TARGETS = [
   'dashboard',
   'remind_all',
   'menu',
+  'munshi',
 ] as const;
 export type MenuTarget = (typeof MENU_TARGETS)[number];
 

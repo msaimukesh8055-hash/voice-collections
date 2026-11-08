@@ -7,7 +7,7 @@
 // how to use them is in her prompt. The LLM-written follow-up note is never read here (CP2 M2):
 // everything in the reply is built in code from the shop's own records. M7 B1: the same read
 // round also loads the last 3 calls; their history follows the memory lines (Decision 2).
-import { addDays, istDate } from '../clock.ts';
+import { istDate } from '../clock.ts';
 import { buildCallHistory, type CallHistory } from '../calls/call-history.ts';
 import { describeHistoryForAsha, historyData } from '../calls/call-history-asha.ts';
 import { buildMemory, describeMemory, memoryData } from '../calls/memory.ts';
@@ -20,7 +20,7 @@ import {
 } from '../calls/tone.ts';
 import { formatDay, formatRupees } from '../format.ts';
 import { computeDues, type Dues } from '../ledger/dues.ts';
-import { HISTORY_DAYS } from '../ledger/history.ts';
+import { historyStart } from '../ledger/history.ts';
 import {
   applyPromiseChanges,
   checkPromises,
@@ -103,11 +103,6 @@ function assess(
     changes,
     tone: { level, consequence: consequenceFor(level, history.ownerText) },
   };
-}
-
-/** Start of the six-month window (India midnight), the same window as the tone ladder. */
-function historyStart(today: string): Date {
-  return new Date(`${addDays(today, -HISTORY_DAYS)}T00:00:00+05:30`);
 }
 
 function pastLines(memory: string, history: CallHistory): string {

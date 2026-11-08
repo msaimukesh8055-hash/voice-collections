@@ -180,10 +180,22 @@ function balanceLines(dues: Dues, phrases: Phrases): readonly string[] {
   return [balance, overdue, next].filter((line): line is string => line !== null);
 }
 
-function entryLine(entry: BookEntry, phrases: Phrases): string {
+/** M8: an entry Munshi deleted (reversed) is gone from the lookup; the record is kept. */
+type ShownStatus = Exclude<BookEntry['status'], 'reversed'>;
+type ShownEntry = BookEntry & { readonly status: ShownStatus };
+
+function isShown(entry: BookEntry): entry is ShownEntry {
+  return entry.status !== 'reversed';
+}
+
+function entryLine(entry: ShownEntry, phrases: Phrases): string {
   const kind = entry.kind === 'credit' ? phrases.credit : phrases.payment;
   const due = entry.dueDate ? ` · ${phrases.due} ${formatShortDay(entry.dueDate)}` : '';
-  const marks = { confirmed: '', claimed: ` ${phrases.claimed}`, rejected: ` ${phrases.rejected}` };
+  const marks: Readonly<Record<ShownStatus, string>> = {
+    confirmed: '',
+    claimed: ` ${phrases.claimed}`,
+    rejected: ` ${phrases.rejected}`,
+  };
   return `• ${formatShortDay(entry.entryDate)} · ${kind} ${formatInr(entry.amount)}${due}${
     marks[entry.status]
   }`;
@@ -284,7 +296,7 @@ function lookupText(view: ShopkeeperView): string {
   const phrases = phrasesFor(view.language);
   const { shopkeeper } = view;
   const claims = view.entries.filter((entry) => entry.status === 'claimed');
-  const recent = [...view.entries].sort(newestFirst).slice(0, LAST_ENTRIES);
+  const recent = view.entries.filter(isShown).sort(newestFirst).slice(0, LAST_ENTRIES);
   return blocks(
     [
       `👤 *${shopkeeper.name}* · ${shopkeeper.shopName}, ${shopkeeper.area}`,

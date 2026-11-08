@@ -1,12 +1,15 @@
 // web/src/features/phone/CallVisual.tsx
-// Two avatars, Asha on the left and the shopkeeper on the right, with an arrow between them that
-// flows from whoever is speaking (Saim's call-screen idea). While connecting, the arrow waits.
+// Two avatars, the agent (Asha, or Munshi on /munshi) on the left and the person on the right,
+// with an arrow between them that flows from whoever is speaking (Saim's call-screen idea). While
+// connecting, the arrow waits.
 import type { Speaker } from '../../lib/sarvamClient.ts';
 
 interface CallVisualProps {
   readonly speaker: Speaker | null;
   readonly connecting: boolean;
   readonly shopkeeperName: string;
+  /** The agent's name; Asha unless the page says otherwise (Munshi, M8). */
+  readonly agentName?: string;
 }
 
 interface AvatarProps {
@@ -17,6 +20,7 @@ interface AvatarProps {
 }
 
 const DOT_DELAYS = ['0s', '0.35s', '0.7s'] as const;
+const ASHA = 'Asha';
 
 function Avatar({ label, caption, speaking, tone }: AvatarProps): React.JSX.Element {
   const colours = tone === 'brand' ? 'bg-brand text-white' : 'bg-ink-muted text-white';
@@ -37,9 +41,16 @@ function Avatar({ label, caption, speaking, tone }: AvatarProps): React.JSX.Elem
   );
 }
 
-function statusText(speaker: Speaker | null, connecting: boolean, shopkeeperName: string): string {
+interface StatusInput {
+  readonly speaker: Speaker | null;
+  readonly connecting: boolean;
+  readonly shopkeeperName: string;
+  readonly agentName: string;
+}
+
+function statusText({ speaker, connecting, shopkeeperName, agentName }: StatusInput): string {
   if (connecting) return 'Connecting…';
-  if (speaker === 'asha') return 'Asha is speaking';
+  if (speaker === 'asha') return `${agentName} is speaking`;
   if (speaker === 'shopkeeper') return `${shopkeeperName} is speaking`;
   return 'Listening';
 }
@@ -72,11 +83,17 @@ export function CallVisual({
   speaker,
   connecting,
   shopkeeperName,
+  agentName = ASHA,
 }: CallVisualProps): React.JSX.Element {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="flex w-full items-center gap-2">
-        <Avatar label="Asha" caption="AI assistant" speaking={speaker === 'asha'} tone="brand" />
+        <Avatar
+          label={agentName}
+          caption="AI assistant"
+          speaking={speaker === 'asha'}
+          tone="brand"
+        />
         <Flow speaker={connecting ? null : speaker} />
         <Avatar
           label={shopkeeperName}
@@ -86,7 +103,7 @@ export function CallVisual({
         />
       </div>
       <p role="status" className="text-sm font-medium text-ink-muted">
-        {statusText(speaker, connecting, shopkeeperName)}
+        {statusText({ speaker, connecting, shopkeeperName, agentName })}
       </p>
     </div>
   );

@@ -67,14 +67,15 @@ function menuItems(reply: Reply | undefined): string[] {
   });
 }
 
-const EIGHT_ROWS = MENU_TARGETS.filter((item) => item !== 'menu');
+/** The Menu's rows: M7's 8 plus M8's Call Munshi. */
+const MENU_ROWS = MENU_TARGETS.filter((item) => item !== 'menu');
 
 Deno.test('menu route › every help word opens the Menu, in the language of the word', async () => {
   for (const word of HELP_WORDS) {
     const outcome = await route(botSetup(), text(word));
     assertEquals(outcome.command, 'help', word);
     assertEquals(outcome.replies.length, 1, word);
-    assertEquals(menuItems(outcome.replies[0]), EIGHT_ROWS, word);
+    assertEquals(menuItems(outcome.replies[0]), MENU_ROWS, word);
   }
   const telugu = await send(botSetup(), text('నమస్కారం'));
   assertStringIncludes(replyText(telugu), 'Srinivas గారు');
@@ -85,7 +86,7 @@ Deno.test("menu route › the LLM's help intent opens the Menu too", async () =>
     suggestion: { intent: 'help' },
     path: 'sarvam',
   });
-  assertEquals(menuItems(outcome.replies[0]), EIGHT_ROWS);
+  assertEquals(menuItems(outcome.replies[0]), MENU_ROWS);
 });
 
 Deno.test('menu route › "Sorry, I didn\'t get that" comes with the Menu', async () => {
@@ -93,7 +94,7 @@ Deno.test('menu route › "Sorry, I didn\'t get that" comes with the Menu', asyn
   assertEquals(outcome.command, 'unknown');
   assertEquals(outcome.replies.length, 1);
   assert(replyText(outcome.replies).startsWith("Sorry, I didn't get that.\n\n👋"));
-  assertEquals(menuItems(outcome.replies[0]), EIGHT_ROWS);
+  assertEquals(menuItems(outcome.replies[0]), MENU_ROWS);
 });
 
 Deno.test('menu route › each row gives the same replies as typing the command', async () => {
@@ -129,7 +130,7 @@ Deno.test('menu route › Add credit and Mark paid rows give hints; [Menu] gives
   const paid = await send(botSetup(), tap(menuRowId('paid', 'hi')));
   assertStringIncludes(replyText(paid), 'भुगतान दर्ज करें');
   const menu = await send(botSetup(), tap(menuRowId('menu', 'te')));
-  assertEquals(menuItems(menu[0]), EIGHT_ROWS);
+  assertEquals(menuItems(menu[0]), MENU_ROWS);
   assertStringIncludes(replyText(menu), 'మెనూ');
 });
 
