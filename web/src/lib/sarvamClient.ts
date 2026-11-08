@@ -27,6 +27,8 @@ export interface AgentCallbacks {
   readonly onState: (state: SdkState) => void;
   /** Microphone level (0..1); the SDK only reports it while Asha is not speaking. */
   readonly onInputLevel: (rms: number) => void;
+  /** Sarvam's server event type, e.g. "server.event.user_speech_start" (M7 B2). */
+  readonly onServerEvent: (type: string) => void;
   readonly onEnd: () => void;
 }
 
@@ -141,17 +143,64 @@ function isMicError(error: unknown): boolean {
   );
 }
 
-/** Turns SDK callbacks into phase / speaker / transcript events, each change sent once. */
-function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks {
+/** Sarvam's speech events for the person on the page (SDK ServerMsgType values). */
+export const USER_SPEECH_START = 'server.event.user_speech_start';
+export const USER_SPEECH_END = 'server.event.user_speech_end';
+export const USER_INTERRUPT = 'server.event.user_interrupt';
+
+type SpeakerCallbacks = Pick<AgentCallbacks, 'onState' | 'onInputLevel' | 'onServerEvent'>;
+
+/**
+ * Who is speaking, each change sent once. The agent: the SDK's `speaking` state. The person:
+ * Sarvam's speech events once any has arrived (they also show the person talking over the
+ * agent, and then the person wins), otherwise the mic level as before (M7 B2).
+ */
+function createSpeakerTracker(
+  events: CallEvents,
+  now: () => number,
+): SpeakerCallbacks & { readonly clear: () => void } {
   const detector = createSpeechDetector();
   let speaker: Speaker | null = null;
-  let ended = false;
+  let agentTalking = false;
+  let personTalking = false;
+  let speechEventsSeen = false;
 
   function setSpeaker(next: Speaker | null): void {
     if (next === speaker) return;
     speaker = next;
     events.onSpeaking(next);
   }
+
+  return {
+    onState(state) {
+      agentTalking = state === 'speaking';
+      if (agentTalking) {
+        if (!personTalking) setSpeaker('asha');
+      } else if (speaker === 'asha') {
+        detector.reset();
+        setSpeaker(null);
+      }
+    },
+    onInputLevel(rms) {
+      if (speechEventsSeen) return;
+      setSpeaker(detector.update(rms, now()) ? 'shopkeeper' : null);
+    },
+    onServerEvent(type) {
+      if (type !== USER_SPEECH_START && type !== USER_INTERRUPT && type !== USER_SPEECH_END) return;
+      speechEventsSeen = true;
+      personTalking = type !== USER_SPEECH_END;
+      setSpeaker(personTalking ? 'shopkeeper' : agentTalking ? 'asha' : null);
+    },
+    clear() {
+      setSpeaker(null);
+    },
+  };
+}
+
+/** Turns SDK callbacks into phase / speaker / transcript events, each change sent once. */
+function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks {
+  const speakers = createSpeakerTracker(events, now);
+  let ended = false;
 
   return {
     onTranscript(role, text) {
@@ -161,19 +210,14 @@ function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks 
     },
     onState(state) {
       if (state === 'error') events.onPhase('error');
-      if (state === 'speaking') setSpeaker('asha');
-      else if (speaker === 'asha') {
-        detector.reset();
-        setSpeaker(null);
-      }
+      speakers.onState(state);
     },
-    onInputLevel(rms) {
-      setSpeaker(detector.update(rms, now()) ? 'shopkeeper' : null);
-    },
+    onInputLevel: speakers.onInputLevel,
+    onServerEvent: speakers.onServerEvent,
     onEnd() {
       if (ended) return;
       ended = true;
-      setSpeaker(null);
+      speakers.clear();
       events.onPhase('ended');
     },
   };

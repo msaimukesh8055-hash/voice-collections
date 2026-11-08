@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-08 · M7 Build B2 — Call screen + beige/brown/gold theme · ✅ Built (awaiting gate, deploy, smoke, commit)**
+Dialling screen, drawn faces (female Asha, male Munshi, shopkeepers from an explicit fake-name list, neutral when unknown) with an AI tag, two-lane gold arrows, "…" bubble, Sarvam speech events first for the person's arrow; beige / cream / brown theme with light-brown card borders and gold accents, faint centred logo, favicon. Munshi's read-backs no longer say "his" about women shopkeepers.
+Deno 1370 + root 204 + web 227, `npm run check` green; contrast + raw-colour scan in theme.test.ts · Details → [`milestones/M7.md`](milestones/M7.md)
+
 **2026-11-07 · M7 Build B2 — Call screen + beige/brown/gold theme · 🟡 Planned**
 Dialling screen, two avatars, two-lane who-is-speaking arrows and live transcript on the phone page and Munshi; one warm theme (beige #F5EDE0, brown #4A2E1A text, gold #C9A227 borders only, faint logo) on every screen, contrast checked by a test.
 ~2.5–3 h, web only; 3 look decisions for Saim · Details → [`milestones/M7.md`](milestones/M7.md)

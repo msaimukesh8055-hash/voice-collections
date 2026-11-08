@@ -109,12 +109,20 @@ export interface FakeVoice {
   startError: Error | null;
   /** Which start was used: 'asha' or 'munshi'. */
   started: string[];
+  /** When true, the call stays connecting until release() (the dialling screen, M7 B2). */
+  hold: boolean;
+  release: () => void;
 }
 
 async function fakeStart(fake: FakeVoice, events: CallEvents): Promise<VoiceSession> {
   fake.events = events;
   events.onPhase('connecting');
   if (fake.startError) throw fake.startError;
+  if (fake.hold) {
+    await new Promise<void>(function waitForRelease(resolve) {
+      fake.release = resolve;
+    });
+  }
   events.onPhase('live');
   return {
     async stop() {
@@ -130,6 +138,10 @@ export function fakeVoice(): FakeVoice {
     stops: 0,
     startError: null,
     started: [],
+    hold: false,
+    release: function nothingHeld() {
+      // Replaced by fakeStart while a call is held.
+    },
     client: {
       start(_call, _proxy, events) {
         fake.started.push('asha');

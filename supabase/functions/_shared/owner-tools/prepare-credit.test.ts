@@ -34,7 +34,7 @@ Deno.test('prepare_credit › reads back person, amount, default due date and bo
 
   assert(result.ok);
   assertStringIncludes(result.say, 'add a credit of 5,000 rupees for Ramesh, due Tue 17 Nov.');
-  assertStringIncludes(result.say, 'His balance goes from 8,500 rupees to 13,500 rupees.');
+  assertStringIncludes(result.say, 'Balance goes from 8,500 rupees to 13,500 rupees.');
   assertStringIncludes(result.say, 'action_ref r1');
   assertEquals(result.data['due_date'], '2026-11-17');
   assertEquals(context.book.entries.length, 8, 'nothing is saved before the yes');
@@ -147,5 +147,5 @@ Deno.test('confirm credit › the reply balance equals computeDues after the wri
   assert(result.ok);
   assertEquals(result.data['outstanding'], rameshOutstanding(context));
   assertEquals(rameshOutstanding(context), 9734.5);
-  assertStringIncludes(result.say, 'His balance is now 9,734.50 rupees.');
+  assertStringIncludes(result.say, 'Balance is now 9,734.50 rupees.');
 });

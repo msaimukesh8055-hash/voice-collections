@@ -132,6 +132,46 @@ describe('MunshiPage', () => {
     expect(screen.getByText('Pending entha?')).toBeInTheDocument();
   });
 
+  it('the ready screen shows Munshi as the AI agent (M7 B2)', async () => {
+    await setup();
+    expect(screen.getByRole('img', { name: 'Munshi, AI assistant' })).toBeInTheDocument();
+  });
+
+  it('dials ("Calling Munshi…") until Sarvam connects, then shows the call screen (M7 B2)', async () => {
+    const { voice } = await setup();
+    voice.hold = true;
+    await click('Start call');
+    expect(screen.getByTestId('dialling')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Calling Munshi…');
+    expect(screen.queryByRole('button', { name: 'End call' })).not.toBeInTheDocument();
+    await act(async function connect() {
+      voice.release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByTestId('dialling')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'End call' })).toBeInTheDocument();
+    const faces = Array.from(document.querySelectorAll('[data-face]')).map((face) =>
+      face.getAttribute('data-face'),
+    );
+    expect(faces).toEqual(['male', 'male']);
+  });
+
+  it('a "…" bubble waits on the side of whoever is talking, outside the live list (M7 B2)', async () => {
+    const { voice } = await setup();
+    await click('Start call');
+    act(function ownerTalks() {
+      voice.events?.onTranscript({ speaker: 'asha', text: 'Cheppandi' });
+      voice.events?.onSpeaking('shopkeeper');
+    });
+    const typing = screen.getByTestId('typing');
+    expect(typing).toHaveAttribute('data-side', 'right');
+    expect(typing.closest('[aria-live]')).toBeNull();
+    act(function nobody() {
+      voice.events?.onSpeaking(null);
+    });
+    expect(screen.queryByTestId('typing')).not.toBeInTheDocument();
+  });
+
   it('shows "1 minute left" from 7:00 and hangs up at 8:00', async () => {
     const { api, voice } = await setup();
     await click('Start call');

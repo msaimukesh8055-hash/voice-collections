@@ -1,7 +1,8 @@
 // web/src/features/dashboard/Donut.tsx
 // This month's credit as a ring chart (SPEC §12): collected / not yet due / overdue, in the same
 // colours as the WhatsApp chart and its 🟩 🟦 🟧 caption (palette checked for colour-blind
-// separation on the light-blue canvas). A small surface-coloured gap separates the segments;
+// separation; kept on the beige theme to match WhatsApp, Saim's M7 B2 Decision 3 (a)). A small
+// surface-coloured gap separates the segments;
 // each segment has a hover tooltip; the legend names every part with its amount and share, so
 // nothing depends on colour alone.
 import { formatInr } from './format.ts';

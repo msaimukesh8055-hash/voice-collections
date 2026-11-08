@@ -54,7 +54,7 @@ function claimFacts(entry: BookEntry): string {
 
 function whichClaim(claims: readonly BookEntry[]): OwnerToolOutcome {
   return ownerOk(
-    `He has more than one payment claim: ${topLines(claims.map(claimFacts))}. Ask him which ` +
+    `There is more than one payment claim: ${topLines(claims.map(claimFacts))}. Ask him which ` +
       'one, by the amount or the date. Nothing is ready yet.',
     { choice_count: claims.length },
   );
@@ -89,7 +89,7 @@ export async function prepareClaim(
         amount: claimed.amount,
         decision: args.decision,
       },
-      readBack: `${label} told Asha he paid ${claimFacts(claimed)}. Mark it as ${mark}. ` +
+      readBack: `${label} told Asha they paid ${claimFacts(claimed)}. Mark it as ${mark}. ` +
         balanceChange(before, after),
       data: { shopkeeper: shopkeeper.name, decision: args.decision, balance_after: after },
     },

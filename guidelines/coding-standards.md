@@ -79,7 +79,7 @@ Applies to all code in this repo — frontend (React + Vite + Tailwind), backend
 - **Routes:** only add a route after its component file exists and passes lint + typecheck. A bad route import breaks the whole app.
 - Explicit return types on all service/data functions (functions that call APIs or Supabase).
 - **i18n:** dashboard is English-only in v1. Agent language content (greetings, fallback lines, few-shot examples) must exist for **every** supported language (EN, HI) — a missing language version is a bug.
-- One light theme: beige background, dark brown text, thin gold borders and accents (gold never for body text), faint logo watermark, across all screens (Saim, 2026-11-07; was very light blue). Use the shared Tailwind tokens, no ad-hoc colours; text must meet WCAG AA contrast on the beige background.
+- One light theme: beige background, dark brown text, thin gold borders and accents (gold never for body text), faint logo watermark, across all screens (Saim, 2026-11-07; was very light blue). Use the shared Tailwind tokens (`web/src/index.css`), no ad-hoc colours; light-brown (`border`) card borders, gold (`gold`, `gold-deep`) only for accents and active states; text on brown buttons is `on-brand`, never `text-white`. Text must meet WCAG AA contrast on every background; `web/src/theme.test.ts` checks the tokens and scans the screens (Saim, 2026-11-08).
 
 ## Performance
 

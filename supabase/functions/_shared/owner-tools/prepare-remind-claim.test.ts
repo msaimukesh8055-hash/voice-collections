@@ -116,7 +116,7 @@ Deno.test('prepare_claim › one open claim: reads back amount, date, mode and t
   assert(result.ok);
   assertStringIncludes(
     result.say,
-    'Ramesh told Asha he paid 2,000 rupees on Sun 1 Nov by upi.',
+    'Ramesh told Asha they paid 2,000 rupees on Sun 1 Nov by upi.',
   );
   assertStringIncludes(result.say, 'Mark it as received.');
   assertStringIncludes(result.say, 'from 8,500 rupees to 6,500 rupees');
@@ -130,7 +130,7 @@ Deno.test('prepare_claim › not received: the balance stays', async () => {
 
   assert(result.ok);
   assertStringIncludes(result.say, 'Mark it as not received.');
-  assertStringIncludes(result.say, 'His balance stays 8,500 rupees.');
+  assertStringIncludes(result.say, 'Balance stays 8,500 rupees.');
 });
 
 Deno.test('prepare_claim › no open claim → NO_OPEN_CLAIM; names unclear or unknown store nothing', async () => {
@@ -170,7 +170,7 @@ Deno.test('prepare_claim › several claims → which one; the amount or date th
 
   assertStringIncludes(several.result.say, 'more than one payment claim');
   assertEquals(several.result.ok && several.result.data['choice_count'], 2);
-  assertStringIncludes(byAmount.result.say, 'he paid 500 rupees on Mon 2 Nov by cash');
+  assertStringIncludes(byAmount.result.say, 'they paid 500 rupees on Mon 2 Nov by cash');
   assertStringIncludes(byDay.result.say, '2,000 rupees');
 });
 

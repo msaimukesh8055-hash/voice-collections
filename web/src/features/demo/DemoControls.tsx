@@ -120,7 +120,7 @@ export function DemoControls({ api }: DemoControlsProps): React.JSX.Element {
   return (
     <section
       aria-labelledby="demo-heading"
-      className="rounded-2xl bg-surface p-5 shadow-sm ring-1 ring-border"
+      className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border"
     >
       <h2 id="demo-heading" className="text-lg font-semibold">
         Demo call
@@ -136,7 +136,7 @@ export function DemoControls({ api }: DemoControlsProps): React.JSX.Element {
         type="button"
         onClick={handleRingClick}
         disabled={!name || ring.kind === 'busy'}
-        className="mt-4 h-11 rounded-full bg-brand px-6 font-semibold text-white hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
+        className="mt-4 h-11 rounded-full bg-brand px-6 font-semibold text-on-brand hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
       >
         {ring.kind === 'busy' ? 'Ringing…' : `Ring ${name ?? ''}`.trim()}
       </button>
