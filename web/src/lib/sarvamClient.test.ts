@@ -12,6 +12,9 @@ import {
   createSarvamClient,
   DAILY_LIMIT_ERROR,
   MIC_ERROR,
+  USER_INTERRUPT,
+  USER_SPEECH_END,
+  USER_SPEECH_START,
 } from './sarvamClient.ts';
 
 const PROXY: SarvamProxy = { baseUrl: 'https://x/v1/sarvam/', headers: { 'x-call-token': TOKEN } };
@@ -122,6 +125,51 @@ describe('createSarvamClient', () => {
       'speaking:shopkeeper',
       'speaking:none',
     ]);
+  });
+
+  describe("Sarvam's speech events for the person (M7 B2)", () => {
+    it('speech start → the person speaks; speech end → nobody', async () => {
+      const fake = fakeAgent();
+      const { log } = await startCall(fake);
+      fake.callbacks?.onServerEvent(USER_SPEECH_START);
+      fake.callbacks?.onServerEvent(USER_SPEECH_END);
+      expect(log.slice(2)).toEqual(['speaking:shopkeeper', 'speaking:none']);
+    });
+
+    it('an interrupt while the agent speaks: the person wins at once, the agent comes back after', async () => {
+      const fake = fakeAgent();
+      const { log } = await startCall(fake);
+      fake.callbacks?.onState('speaking');
+      fake.callbacks?.onServerEvent(USER_INTERRUPT);
+      fake.callbacks?.onState('speaking');
+      fake.callbacks?.onServerEvent(USER_SPEECH_END);
+      fake.callbacks?.onState('listening');
+      expect(log.slice(2)).toEqual([
+        'speaking:asha',
+        'speaking:shopkeeper',
+        'speaking:asha',
+        'speaking:none',
+      ]);
+    });
+
+    it('once speech events have arrived, the mic level is ignored', async () => {
+      const fake = fakeAgent();
+      let clock = 0;
+      const { log } = await startCall(fake, () => clock);
+      fake.callbacks?.onServerEvent(USER_SPEECH_END);
+      fake.callbacks?.onInputLevel(0.3);
+      clock = 2000;
+      fake.callbacks?.onInputLevel(0.3);
+      expect(log.slice(2)).toEqual([]);
+    });
+
+    it('other server events change nothing, and the mic level still works without speech events', async () => {
+      const fake = fakeAgent();
+      const { log } = await startCall(fake);
+      fake.callbacks?.onServerEvent('server.event.something_else');
+      fake.callbacks?.onInputLevel(0.3);
+      expect(log.slice(2)).toEqual(['speaking:shopkeeper']);
+    });
   });
 
   it('reports an SDK error and a server-side end only once', async () => {

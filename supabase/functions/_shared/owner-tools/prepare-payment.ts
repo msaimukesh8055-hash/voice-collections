@@ -1,8 +1,8 @@
 // supabase/functions/_shared/owner-tools/prepare-payment.ts
 // prepare_payment(name, amount?, full?) and its executor (M8 B2, money, 100% tested). "Paid in
-// full" is his outstanding now (computeDues, as WhatsApp's Paid in full); a part payment needs
-// an amount. More than he owes is allowed with a warning in the read-back (as WhatsApp's card).
-// On confirm, a full payment is checked again: if his outstanding changed since the read-back,
+// full" is their outstanding now (computeDues, as WhatsApp's Paid in full); a part payment needs
+// an amount. More than they owe is allowed with a warning in the read-back (as WhatsApp's card).
+// On confirm, a full payment is checked again: if their outstanding changed since the read-back,
 // nothing is saved and Munshi reads the new figure back (he said yes to that amount, not to
 // "whatever it is now"). Saved as a confirmed payment, source 'munshi'.
 // Rounds: prepare ① name + ref ② his entries ③ store; confirm ② claim + entries ③ insert.
@@ -32,7 +32,7 @@ function paymentOf(amount: number, today: string): EntryChange {
   return wouldAdd({ kind: 'payment', amount, dueDate: null }, today);
 }
 
-/** What he said: everything he owes, or an amount. */
+/** What he said: everything they owe, or an amount. */
 type Requested = { readonly full: true } | { readonly full: false; readonly amount: number };
 
 function requestedOf(args: OwnerToolArgs<'prepare_payment'>): Requested | null {
@@ -69,7 +69,7 @@ function readBackOf({ label, amount, full, before, after }: PaymentChange): stri
     ? `mark ${label} as paid in full: a payment of ${formatRupees(amount)}.`
     : `mark a payment of ${formatRupees(amount)} from ${label}.`;
   const over = amount > before
-    ? ` That is more than he owes (${formatRupees(before)}); the extra shows as paid in advance.`
+    ? ` That is more than they owe (${formatRupees(before)}); the extra shows as paid in advance.`
     : '';
   return `${what} ${balanceChange(before, after)}${over}`;
 }

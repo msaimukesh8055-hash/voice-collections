@@ -1,12 +1,16 @@
 // web/src/features/munshi/MunshiPage.tsx
 // /munshi — the owner's call line (M8 A7, ADR-0018). Opened from the one-time "📞 Call Munshi"
 // link on WhatsApp (#t=<token>). Start call talks to Munshi, who answers from the book; a
-// countdown shows the 8 minutes, with "1 minute left" from 7:00. Same light theme as the phone.
+// countdown shows the 8 minutes, with "1 minute left" from 7:00. Same beige / brown / gold theme
+// and call screen as the phone (M7 B2): a dialling screen while Sarvam connects, then Munshi's
+// drawn face on the left and the owner's on the right.
 import { useEffect, useState } from 'react';
 import type { AppApi } from '../../lib/appApi.ts';
 import { MIC_ERROR, type VoiceClient } from '../../lib/sarvamClient.ts';
+import { Avatar } from '../phone/Avatar.tsx';
 import { formatDuration } from '../phone/CallTimer.tsx';
 import { CallVisual } from '../phone/CallVisual.tsx';
+import { DiallingScreen } from '../phone/DiallingScreen.tsx';
 import { LiveTranscript } from '../phone/LiveTranscript.tsx';
 import {
   IN_APP_HINT,
@@ -28,8 +32,11 @@ interface MunshiPageProps {
 }
 
 const BUTTON =
-  'h-12 w-full rounded-full font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2';
+  'h-12 w-full rounded-full font-semibold text-on-brand focus-visible:outline-2 focus-visible:outline-offset-2';
 const BRAND_BUTTON = `${BUTTON} bg-brand hover:bg-brand-strong focus-visible:outline-brand`;
+/** Munshi is a man; the person on this page is the owner, Srinivas (Saim's Decision 1). */
+const MUNSHI_GENDER = 'male';
+const OWNER_GENDER = 'male';
 
 function Message({ text }: { readonly text: string }): React.JSX.Element {
   return (
@@ -50,7 +57,7 @@ function ReadyScreen({
 }): React.JSX.Element {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-      <div aria-hidden="true" className="h-16 w-16 rounded-full bg-brand-soft" />
+      <Avatar name={MUNSHI} gender={MUNSHI_GENDER} role="agent" size="lg" />
       <h2 className="text-xl font-semibold">Talk to Munshi</h2>
       <p className="text-sm text-ink-muted">
         Ask about your book: who owes what, who is overdue, what Asha heard. Up to 8 minutes.
@@ -96,10 +103,10 @@ function Countdown({ startedAt }: { readonly startedAt: number }): React.JSX.Ele
   );
 }
 
-function InCallScreen({ call }: { readonly call: MunshiCall }): React.JSX.Element {
+function InCallScreen({ call }: { readonly call: MunshiCall }): React.JSX.Element | null {
   const { view, hangUp } = call;
   const { screen } = view;
-  const live = screen.phase === 'live';
+  if (screen.phase !== 'live') return null;
 
   function handleHangUp(): void {
     void hangUp();
@@ -109,20 +116,26 @@ function InCallScreen({ call }: { readonly call: MunshiCall }): React.JSX.Elemen
     <div className="flex flex-1 flex-col gap-5">
       <header className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">{MUNSHI}</h2>
-        {live ? <Countdown startedAt={screen.startedAt} /> : null}
+        <Countdown startedAt={screen.startedAt} />
       </header>
       <CallVisual
         speaker={view.speaker}
-        connecting={!live}
+        connecting={false}
         shopkeeperName={YOU}
         agentName={MUNSHI}
+        agentGender={MUNSHI_GENDER}
+        personGender={OWNER_GENDER}
       />
-      <LiveTranscript lines={view.transcript} shopkeeperName={YOU} agentName={MUNSHI} />
+      <LiveTranscript
+        lines={view.transcript}
+        shopkeeperName={YOU}
+        agentName={MUNSHI}
+        speaker={view.speaker}
+      />
       <button
         type="button"
         onClick={handleHangUp}
-        disabled={!live}
-        className={`${BUTTON} bg-danger hover:bg-danger-strong focus-visible:outline-danger disabled:opacity-50`}
+        className={`${BUTTON} bg-danger hover:bg-danger-strong focus-visible:outline-danger`}
       >
         End call
       </button>
@@ -184,6 +197,13 @@ function MunshiScreenView({
     case 'ready':
       return <ReadyScreen onStart={handleStart} inAppBrowser={inAppBrowser} />;
     case 'connecting':
+      return (
+        <DiallingScreen
+          agentName={MUNSHI}
+          agentGender={MUNSHI_GENDER}
+          label={`Calling ${MUNSHI}`}
+        />
+      );
     case 'live':
       return <InCallScreen call={call} />;
     case 'ended':
@@ -199,8 +219,8 @@ export function MunshiPage({ api, voice, token, userAgent }: MunshiPageProps): R
   const call = useMunshiCall(api, voice, token);
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="flex min-h-[640px] w-full max-w-sm flex-col rounded-[2.5rem] bg-surface p-6 shadow-xl ring-1 ring-border">
-        <h1 className="mb-4 text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
+      <div className="flex min-h-[640px] w-full max-w-sm flex-col rounded-[2.5rem] bg-surface/95 p-6 shadow-xl ring-1 ring-border">
+        <h1 className="mb-4 border-b border-gold pb-3 text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Munshi · Easy Recovery AI demo
         </h1>
         <MunshiScreenView call={call} inAppBrowser={isInAppBrowser(userAgent)} />

@@ -33,7 +33,7 @@ function Tile({
   readonly note?: string | undefined;
 }): React.JSX.Element {
   return (
-    <div className="rounded-2xl bg-surface p-4 shadow-sm ring-1 ring-border">
+    <div className="rounded-2xl bg-surface/95 p-4 shadow-sm ring-1 ring-border">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
       {note ? <p className="mt-1 text-xs text-ink-muted">{note}</p> : null}

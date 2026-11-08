@@ -12,15 +12,18 @@ export function askForYes(readBack: string, ref: string): string {
     `answer. Only if he says yes to this, call confirm_action with action_ref ${ref}.`;
 }
 
-/** "His balance goes from 8,500 rupees to 13,500 rupees." / "His balance stays …". */
+/**
+ * "Balance goes from 8,500 rupees to 13,500 rupees." / "Balance stays …". No "his" or "her":
+ * shopkeepers are women and men, and the read-back already names the person.
+ */
 export function balanceChange(before: number, after: number): string {
-  if (before === after) return `His balance stays ${formatRupees(before)}.`;
-  return `His balance goes from ${formatRupees(before)} to ${formatRupees(after)}.`;
+  if (before === after) return `Balance stays ${formatRupees(before)}.`;
+  return `Balance goes from ${formatRupees(before)} to ${formatRupees(after)}.`;
 }
 
-/** "His balance is now 13,500 rupees." */
+/** "Balance is now 13,500 rupees." */
 export function balanceNow(outstanding: number): string {
-  return `His balance is now ${formatRupees(outstanding)}.`;
+  return `Balance is now ${formatRupees(outstanding)}.`;
 }
 
 /** "credit of 5,000 rupees on Tue 6 Oct" */

@@ -20,7 +20,7 @@ export function RingingScreen({
     <div className="flex flex-1 flex-col items-center justify-between gap-8 py-6">
       <div className="flex flex-col items-center gap-3 text-center">
         <p className="text-sm font-medium uppercase tracking-wide text-ink-muted">Incoming call</p>
-        <div className="flex h-24 w-24 animate-ring items-center justify-center rounded-full bg-brand text-4xl font-semibold text-white shadow-lg">
+        <div className="flex h-24 w-24 animate-ring items-center justify-center rounded-full bg-brand text-4xl font-semibold text-on-brand shadow-lg ring-2 ring-gold ring-offset-2 ring-offset-surface">
           {callerName.charAt(0)}
         </div>
         <h2 className="text-2xl font-semibold">{callerName}</h2>
@@ -33,14 +33,14 @@ export function RingingScreen({
         <button
           type="button"
           onClick={onDecline}
-          className="h-14 w-32 rounded-full bg-danger font-semibold text-white hover:bg-danger-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
+          className="h-14 w-32 rounded-full bg-danger font-semibold text-on-brand hover:bg-danger-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
         >
           Decline
         </button>
         <button
           type="button"
           onClick={onAccept}
-          className="h-14 w-32 rounded-full bg-success font-semibold text-white hover:bg-success-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success"
+          className="h-14 w-32 rounded-full bg-success font-semibold text-on-brand hover:bg-success-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success"
         >
           Accept
         </button>

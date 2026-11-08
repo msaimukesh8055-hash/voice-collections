@@ -67,16 +67,17 @@ export const OWNER_TOOL_ERRORS = {
   TOO_SOON: 'He has not answered the read-back yet, so nothing was changed and that change was ' +
     'dropped. Call the prepare tool again, read it back, ask "correct?" and wait for his answer.',
   ALREADY_DONE: 'That change is already done. Do not do it again; tell him it is done.',
-  NOTHING_TO_DELETE: 'No live entry of his matches that, so nothing was changed. Ask him which ' +
+  NOTHING_TO_DELETE:
+    'No live entry of theirs matches that, so nothing was changed. Ask him which ' +
     'entry: the amount or the date.',
-  NO_OPEN_CLAIM: 'He has no payment claim waiting, so nothing was changed.',
-  CALL_BLOCKED: 'Asha cannot call him now, so no call was set up. Tell him simply.',
+  NO_OPEN_CLAIM: 'There is no payment claim waiting, so nothing was changed.',
+  CALL_BLOCKED: 'Asha cannot call them now, so no call was set up. Tell the owner simply.',
   AMOUNT_OUT_OF_RANGE: 'That amount cannot be right. Nothing was changed. Ask him for the ' +
     'amount again.',
   DATE_IN_PAST: 'That due date is already past. Nothing was changed. Ask him for a due date ' +
     'from today on.',
-  NOTHING_OWED: 'He owes nothing right now, so there is nothing to mark paid.',
-  BOOK_CHANGED: 'His balance changed since the read-back, so nothing was changed. Call the ' +
+  NOTHING_OWED: 'They owe nothing right now, so there is nothing to mark paid.',
+  BOOK_CHANGED: 'The balance changed since the read-back, so nothing was changed. Call the ' +
     'prepare tool again and read the new figures back.',
 } as const satisfies Record<string, string>;
 

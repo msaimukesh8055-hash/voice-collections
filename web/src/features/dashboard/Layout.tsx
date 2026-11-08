@@ -1,6 +1,7 @@
 // web/src/features/dashboard/Layout.tsx
 // The dashboard's frame (M6, SPEC §12): title, navigation between the three pages, and the
-// shared loading / error / "open from WhatsApp" states. One light theme (light-blue canvas).
+// shared loading / error / "open from WhatsApp" states. One light theme: beige page, cream cards with
+// light-brown borders, a thin gold rule under the header (M7 B2).
 import { type ReactNode, useEffect, useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { Loaded } from './useLoad.ts';
@@ -38,8 +39,8 @@ function useLocalDemo(dashboard: Pick<DashboardApi, 'localDemo'>): boolean {
 export function Layout({ current, dashboard, children }: LayoutProps): React.JSX.Element {
   const localDemo = useLocalDemo(dashboard);
   return (
-    <div className="min-h-screen bg-canvas text-ink">
-      <header className="border-b border-border bg-surface">
+    <div className="min-h-screen text-ink">
+      <header className="border-b border-gold bg-surface/95">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-brand">
@@ -61,7 +62,7 @@ export function Layout({ current, dashboard, children }: LayoutProps): React.JSX
                 key={page.path}
                 href={page.path}
                 aria-current={page.path === current ? 'page' : undefined}
-                className="rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-brand-soft aria-[current=page]:bg-brand aria-[current=page]:text-white"
+                className="rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-brand-soft aria-[current=page]:bg-brand aria-[current=page]:text-on-brand aria-[current=page]:ring-1 aria-[current=page]:ring-gold focus-visible:outline-2 focus-visible:outline-brand"
               >
                 {page.label}
               </a>
@@ -82,7 +83,7 @@ export function Card({
   readonly children: ReactNode;
 }): React.JSX.Element {
   return (
-    <section className="rounded-2xl bg-surface p-5 shadow-sm ring-1 ring-border">
+    <section className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border">
       {title ? <h2 className="mb-3 text-base font-semibold">{title}</h2> : null}
       {children}
     </section>

@@ -52,6 +52,16 @@ describe('App', () => {
     expect(await screen.findByText(NO_LINK_MESSAGE)).toBeInTheDocument();
   });
 
+  it.each(['/', '/phone', '/munshi'])(
+    'shows the faint logo watermark on %s, hidden from readers',
+    (path) => {
+      renderAt(path);
+      const watermark = screen.getByTestId('watermark');
+      expect(watermark).toHaveAttribute('aria-hidden', 'true');
+      expect(watermark.querySelector('img')).toHaveAttribute('src', '/brand/logo.svg');
+    },
+  );
+
   it('routeOf drops trailing slashes', () => {
     expect([routeOf('/munshi/'), routeOf('/'), routeOf('')]).toEqual(['/munshi', '/', '/']);
   });

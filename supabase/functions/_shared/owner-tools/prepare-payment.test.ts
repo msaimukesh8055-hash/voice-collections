@@ -37,7 +37,7 @@ Deno.test('prepare_payment › a part payment reads back amount and both balance
 
   assert(result.ok);
   assertStringIncludes(result.say, 'mark a payment of 2,000 rupees from Ramesh.');
-  assertStringIncludes(result.say, 'His balance goes from 8,500 rupees to 6,500 rupees.');
+  assertStringIncludes(result.say, 'Balance goes from 8,500 rupees to 6,500 rupees.');
   assertEquals([result.data['full'], result.data['balance_after']], [false, 6500]);
 });
 
@@ -95,7 +95,7 @@ Deno.test('prepare_payment › more than he owes is allowed, with the overpaid w
   const { result } = await prepare(ownerContext(), { amount: 9000 });
 
   assert(result.ok);
-  assertStringIncludes(result.say, 'That is more than he owes (8,500 rupees)');
+  assertStringIncludes(result.say, 'That is more than they owe (8,500 rupees)');
   assertEquals(result.data['balance_after'], 0);
 });
 
@@ -126,7 +126,7 @@ Deno.test('confirm payment › saves a confirmed payment, source munshi; balance
   ]);
   assertEquals(saved ? context.book.sources[saved.id] : null, 'munshi');
   assertEquals(result.data['outstanding'], outstandingOf(context));
-  assertStringIncludes(result.say, 'His balance is now 6,500 rupees.');
+  assertStringIncludes(result.say, 'Balance is now 6,500 rupees.');
 });
 
 Deno.test('confirm payment › paid in full clears him to 0', async () => {

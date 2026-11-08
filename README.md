@@ -75,7 +75,7 @@ The daily alert goes out once per demo day. If the owner hasn't messaged the bot
 ## Repository layout
 
 ```
-web/          demo controls, shopkeeper phone page, Munshi call page (Vite + React + Tailwind, light-blue theme)
+web/          demo controls, shopkeeper phone page, Munshi call page (Vite + React + Tailwind, beige / brown / gold theme)
 supabase/     migrations, seed, Edge Functions (_shared core, sarvam-tools, calls-api, whatsapp-webhook, followup-worker, munshi-tools)
 voice-agents/ voice agents as code (prompt, greetings, voice, languages, tools) — pushed to Sarvam
 scripts/      seed generator, deploy, smoke tests, agent build/record

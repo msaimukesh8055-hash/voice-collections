@@ -1,13 +1,16 @@
 // web/src/features/phone/PhonePage.tsx
 // /phone — the shopkeeper's phone (SPEC §7.1). Open it in a second window; a one-person Remind on
 // WhatsApp (any shopkeeper) or "Ring" on the home page makes it ring like a real phone, showing
-// who to answer as; Accept starts the Sarvam call with Asha.
+// who to answer as; Accept shows the dialling screen and starts the Sarvam call with Asha.
+// Beige / brown / gold theme, drawn faces (M7 B2).
+import { genderOf } from '@shared/gender.ts';
 import type { AppApi } from '../../lib/appApi.ts';
 import type { VoiceClient } from '../../lib/sarvamClient.ts';
 import { CallTimer, formatDuration } from './CallTimer.tsx';
 import { CallVisual } from './CallVisual.tsx';
+import { DiallingScreen } from './DiallingScreen.tsx';
 import { LiveTranscript } from './LiveTranscript.tsx';
-import { type PhoneView, YOU } from './phoneState.ts';
+import type { PhoneView } from './phoneState.ts';
 import { RingingScreen } from './RingingScreen.tsx';
 import { type PhoneCall, usePhoneCall } from './usePhoneCall.ts';
 
@@ -17,7 +20,7 @@ interface PhonePageProps {
 }
 
 const BUTTON =
-  'h-12 w-full rounded-full font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2';
+  'h-12 w-full rounded-full font-semibold text-on-brand focus-visible:outline-2 focus-visible:outline-offset-2';
 
 function WaitingScreen({ notice }: { readonly notice: string | null }): React.JSX.Element {
   return (
@@ -36,10 +39,12 @@ function WaitingScreen({ notice }: { readonly notice: string | null }): React.JS
   );
 }
 
-function InCallScreen({ call }: { readonly call: PhoneCall }): React.JSX.Element {
+const ASHA = 'Asha';
+
+function InCallScreen({ call }: { readonly call: PhoneCall }): React.JSX.Element | null {
   const { view, hangUp } = call;
   const { screen } = view;
-  const live = screen.phase === 'live';
+  if (screen.phase !== 'live') return null;
 
   function handleHangUp(): void {
     void hangUp();
@@ -48,20 +53,26 @@ function InCallScreen({ call }: { readonly call: PhoneCall }): React.JSX.Element
   return (
     <div className="flex flex-1 flex-col gap-5">
       <header className="flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold">{'call' in screen ? screen.call.callerName : ''}</h2>
-        {live ? <CallTimer startedAt={screen.startedAt} /> : null}
+        <h2 className="text-lg font-semibold">{screen.call.callerName}</h2>
+        <CallTimer startedAt={screen.startedAt} />
       </header>
       <CallVisual
         speaker={view.speaker}
-        connecting={!live}
-        shopkeeperName={live ? screen.shopkeeperName : YOU}
+        connecting={false}
+        shopkeeperName={screen.shopkeeperName}
+        agentName={ASHA}
+        agentGender="female"
+        personGender={genderOf(screen.call.shopkeeperName)}
       />
-      <LiveTranscript lines={view.transcript} shopkeeperName={live ? screen.shopkeeperName : YOU} />
+      <LiveTranscript
+        lines={view.transcript}
+        shopkeeperName={screen.shopkeeperName}
+        speaker={view.speaker}
+      />
       <button
         type="button"
         onClick={handleHangUp}
-        disabled={!live}
-        className={`${BUTTON} bg-danger hover:bg-danger-strong focus-visible:outline-danger disabled:opacity-50`}
+        className={`${BUTTON} bg-danger hover:bg-danger-strong focus-visible:outline-danger`}
       >
         End call
       </button>
@@ -152,6 +163,9 @@ function PhoneScreen({ call }: { readonly call: PhoneCall }): React.JSX.Element 
         />
       );
     case 'connecting':
+      return (
+        <DiallingScreen agentName={ASHA} agentGender="female" label={`Connecting to ${ASHA}`} />
+      );
     case 'live':
       return <InCallScreen call={call} />;
     case 'ended':
@@ -165,8 +179,8 @@ export function PhonePage({ api, voice }: PhonePageProps): React.JSX.Element {
   const call = usePhoneCall(api, voice);
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="flex min-h-[640px] w-full max-w-sm flex-col rounded-[2.5rem] bg-surface p-6 shadow-xl ring-1 ring-border">
-        <h1 className="mb-4 text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
+      <div className="flex min-h-[640px] w-full max-w-sm flex-col rounded-[2.5rem] bg-surface/95 p-6 shadow-xl ring-1 ring-border">
+        <h1 className="mb-4 border-b border-gold pb-3 text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Shopkeeper&apos;s phone · Easy Recovery AI demo
         </h1>
         <PhoneScreen call={call} />

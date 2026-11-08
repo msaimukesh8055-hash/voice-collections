@@ -115,6 +115,57 @@ describe('PhonePage', () => {
     expect(waitingHeading()).toBeInTheDocument();
   });
 
+  it('dials ("Connecting to Asha…") after Accept until Sarvam connects (M7 B2)', async () => {
+    const { api, voice } = setup();
+    voice.hold = true;
+    await ring(api);
+    await click('Accept');
+    expect(screen.getByTestId('dialling')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Connecting to Asha…');
+    await act(async function connect() {
+      voice.release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByTestId('dialling')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Listening');
+    const faces = Array.from(document.querySelectorAll('[data-face]')).map((face) =>
+      face.getAttribute('data-face'),
+    );
+    expect(faces).toEqual(['female', 'male']);
+  });
+
+  it('draws a woman shopkeeper with the female face (M7 B2)', async () => {
+    const { api } = setup();
+    api.incoming = { ...RINGING_CALL, shopkeeperName: 'Radha', shopName: 'Radha Bakery' };
+    await advance(POLL_MS);
+    await click('Accept');
+    const person = screen.getByTestId('avatar-person');
+    expect(person.querySelector('[data-face]')).toHaveAttribute('data-face', 'female');
+  });
+
+  it('a failed connect still ends on the error screen, not the dialling screen', async () => {
+    const { api, voice } = setup();
+    voice.startError = new VoiceCallError('Could not connect the call. Please try again.');
+    await ring(api);
+    await click('Accept');
+    expect(screen.queryByTestId('dialling')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not connect the call.');
+  });
+
+  it('shows the "…" bubble on the side of whoever is talking (M7 B2)', async () => {
+    const { api, voice } = setup();
+    await ring(api);
+    await click('Accept');
+    act(function ashaTalks() {
+      voice.events?.onSpeaking('asha');
+    });
+    expect(screen.getByTestId('typing')).toHaveAttribute('data-side', 'left');
+    act(function nobody() {
+      voice.events?.onSpeaking(null);
+    });
+    expect(screen.queryByTestId('typing')).not.toBeInTheDocument();
+  });
+
   it('closes the call once when Sarvam ends it, with a note if it dropped', async () => {
     const { api, voice } = setup();
     await ring(api);

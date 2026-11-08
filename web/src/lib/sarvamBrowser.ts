@@ -53,6 +53,11 @@ export function createBrowserAgent(request: AgentRequest, callbacks: AgentCallba
     audioLevelCallback(level) {
       if (level.direction === 'input') callbacks.onInputLevel(level.rms);
     },
+    // Sarvam's own speech detection (user_speech_start / _end / user_interrupt): the first source
+    // for the person's arrow on the call screen (M7 B2); the mic level stays as the fallback.
+    async eventCallback(event) {
+      callbacks.onServerEvent(`${event.type}`);
+    },
     async endCallback() {
       callbacks.onEnd();
     },

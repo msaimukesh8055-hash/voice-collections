@@ -174,7 +174,7 @@ Deno.test('confirm delete › reversed (kept), one ledger_reversals row with thi
   assertEquals(context.book.entries.find((entry) => entry.id === id)?.status, 'reversed');
   assertEquals(context.book.reversals, [{ entryId: id, ownerCallId: FAKE_OWNER_CALL_ID }]);
   assertEquals([result.data['outstanding'], outstanding(context)], [5000, 5000]);
-  assertStringIncludes(result.say, 'His balance is now 5,000 rupees.');
+  assertStringIncludes(result.say, 'Balance is now 5,000 rupees.');
 });
 
 Deno.test('confirm delete › a reversed payment raises the balance', async () => {
