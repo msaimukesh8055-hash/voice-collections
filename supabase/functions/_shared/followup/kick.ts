@@ -61,6 +61,13 @@ export function createFollowupKicker(config: KickerConfig): FollowupKicker {
 export const SIMULATION_NEXT_PATH = '/simulations/next';
 export const SWEEP_PATH = '/sweep';
 
+/** M8 B5: the worker sends what the owner asked Munshi to send on WhatsApp (one voice action). */
+export const OWNER_SEND_PREFIX = '/owner-send/';
+
+export function ownerSendPath(actionId: string): string {
+  return `${OWNER_SEND_PREFIX}${actionId}`;
+}
+
 /** Wakes the worker on a fixed path, `times` times (each wake is its own background run). */
 export type JobKicker = (path: string, times?: number) => void;
 

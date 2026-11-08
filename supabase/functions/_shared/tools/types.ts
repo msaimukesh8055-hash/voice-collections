@@ -31,13 +31,14 @@ export type ToolErrorCode = keyof typeof TOOL_ERRORS;
 
 export type ToolData = Readonly<Record<string, string | number | boolean | null>>;
 
-export type ToolResult =
+/** `C` is the registry's refusal codes: Asha's by default, Munshi's in owner-tools (M8). */
+export type ToolResult<C extends string = ToolErrorCode> =
   | { readonly ok: true; readonly say: string; readonly data: ToolData }
-  | { readonly ok: false; readonly code: ToolErrorCode; readonly say: string };
+  | { readonly ok: false; readonly code: C; readonly say: string };
 
-/** A tool's result plus the updated session when the tool changed it. */
-export interface ToolOutcome {
-  readonly result: ToolResult;
+/** A tool's result plus the updated session when the tool changed it (Asha's tools only). */
+export interface ToolOutcome<C extends string = ToolErrorCode> {
+  readonly result: ToolResult<C>;
   readonly session?: CallSession;
 }
 
@@ -51,7 +52,7 @@ export function fail(code: ToolErrorCode, detail?: string): ToolOutcome {
 }
 
 /** The flat JSON body Sarvam receives: `{ ok, say, ...data }` or `{ ok: false, code, say }`. */
-export function toReplyBody(result: ToolResult): Record<string, unknown> {
+export function toReplyBody(result: ToolResult<string>): Record<string, unknown> {
   if (!result.ok) return { ok: false, code: result.code, say: result.say };
   return { ...result.data, ok: true, say: result.say };
 }

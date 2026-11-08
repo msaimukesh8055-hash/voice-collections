@@ -3,8 +3,11 @@
 // script renders the JSON the coordinator pushes with the Sarvam MCP connector.
 import { z } from 'zod';
 
-/** Credit guard: no call runs past 4 minutes, demo day included (Saim, M2). */
+/** Credit guard: no Asha call runs past 4 minutes, demo day included (Saim, M2). */
 export const MAX_CALL_SECONDS = 240;
+/** Munshi's cap (M8, ADR-0018 amendment 5): 8 minutes, the owner's own calls. The schema allows
+ * up to this; Asha's config test still holds her to MAX_CALL_SECONDS. */
+export const MAX_OWNER_CALL_SECONDS = 480;
 
 export const SARVAM_LANGUAGES = ['Telugu', 'Hindi', 'English'] as const;
 export const SarvamLanguageSchema = z.enum(SARVAM_LANGUAGES);
@@ -36,8 +39,9 @@ export const ApiToolSchema = z.object({
   name: VariableName,
   description: NonEmptyText,
   method: z.literal('POST'),
-  /** Path under the Supabase functions URL, e.g. /sarvam-tools/get_dues. */
-  path: z.string().regex(/^\/sarvam-tools\/[a-z_]+$/),
+  /** Path under the Supabase functions URL: /sarvam-tools/<tool> (Asha) or
+   * /munshi-tools/<tool> (Munshi, M8). */
+  path: z.string().regex(/^\/(sarvam-tools|munshi-tools)\/[a-z_]+$/),
   body: z.array(BodyFieldSchema).min(1),
   /** Jinja template over our JSON reply; every reply carries a ready-made `say`. */
   respTemplate: NonEmptyText,
@@ -53,7 +57,7 @@ export const AgentConfigSchema = z.object({
   languages: z.array(SarvamLanguageSchema).min(1),
   initialLanguage: SarvamLanguageSchema,
   voice: z.object({ name: NonEmptyText, internalId: z.uuid() }),
-  maxCallSeconds: z.number().int().positive().max(MAX_CALL_SECONDS),
+  maxCallSeconds: z.number().int().positive().max(MAX_OWNER_CALL_SECONDS),
   agentVariables: z.array(AgentVariableSchema).min(1),
   tools: z.array(ApiToolSchema).min(1),
   /** Name of the bearer-token secret in Sarvam's Secrets vault (attached in the console). */

@@ -4,13 +4,20 @@
 // Meta's error code only: Meta's messages can quote the recipient, and the token must never leak.
 import { z } from 'zod';
 import type { Logger } from '../log.ts';
-import { type Button, type ListRow, MAX_BUTTONS, MAX_LIST_ROWS, type Reply } from './replies.ts';
+import {
+  type Button,
+  type ListRow,
+  MAX_BUTTONS,
+  MAX_INTERACTIVE_BODY,
+  MAX_LIST_ROWS,
+  type Reply,
+} from './replies.ts';
 
 export const GRAPH_API_BASE = 'https://graph.facebook.com/v25.0';
 const SEND_TIMEOUT_MS = 10_000;
 const LIMITS = {
   text: 4096,
-  interactiveBody: 1024,
+  interactiveBody: MAX_INTERACTIVE_BODY,
   caption: 1024,
   buttonTitle: 20,
   rowTitle: 24,

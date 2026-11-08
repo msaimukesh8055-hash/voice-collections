@@ -9,3 +9,9 @@ export const HISTORY_DAYS = 182;
 export function isWithinHistory(date: string, today: string): boolean {
   return date > addDays(today, -HISTORY_DAYS) && date <= today;
 }
+
+/** Start of the six-month window (India midnight), for reading past calls (get_dues, and
+ * Munshi's lookup since M8). */
+export function historyStart(today: string): Date {
+  return new Date(`${addDays(today, -HISTORY_DAYS)}T00:00:00+05:30`);
+}

@@ -4,8 +4,14 @@
 // just accepted on the phone page, only one URL per token, only our own org/workspace/app.
 // One token = one Sarvam session = at most one billed call (capped at 4 minutes by Sarvam).
 // On top, an always-on daily cap on issued URLs bounds the spend (CP2 M3, ADR-0012).
+// M8 (ADR-0018): the app id picks the session table. Asha's app takes a shopkeeper call token
+// (`calls`); Munshi's app takes a signed owner-call token (`owner_calls`). Neither token works for
+// the other app. The daily cap counts both tables, with at most 6 Munshi sessions inside it.
 import { z } from 'zod';
+import { verifyOwnerCallToken } from '../_shared/auth/owner-call-link.ts';
+import { MAX_MUNSHI_SESSIONS_PER_DAY } from '../_shared/calls/owner-call-limits.ts';
 import { istMidnight } from '../_shared/clock.ts';
+import type { OwnerCallRepository } from '../_shared/db/owner-call-repository.ts';
 import type { Repository } from '../_shared/db/repository.ts';
 import type { ErrorCode } from '../_shared/errors.ts';
 import { errorResponse, jsonResponse } from '../_shared/http.ts';
@@ -17,7 +23,7 @@ export const CALL_URL_WINDOW_MS = 2 * 60 * 1000;
 /**
  * Budget guard (CP2 M3): at most this many Sarvam call URLs (billed live sessions) a day, counted
  * on the real clock from IST midnight. Always on: no demo switch turns it off (like do-not-call).
- * 20 sessions × 4 min × ₹3.50 ≈ ₹280 a day at worst.
+ * 20 sessions × 4 min × ₹3.50 ≈ ₹280 a day at worst. Since M8 it counts Asha and Munshi together.
  */
 export const MAX_LIVE_SESSIONS_PER_DAY = 20;
 const UPSTREAM_TIMEOUT_MS = 10_000;
@@ -30,6 +36,14 @@ export interface SarvamSettings {
   readonly workspaceId: string;
   /** Null until Asha's Sarvam app exists. */
   readonly appId: string | null;
+  /** Null until Munshi's Sarvam app exists (M8). */
+  readonly munshiAppId: string | null;
+}
+
+/** Munshi's side of the line (M8): owner call rows and the link secret (null = not set up). */
+export interface MunshiLine {
+  readonly ownerCalls: OwnerCallRepository;
+  readonly linkSecret: string | null;
 }
 
 export interface ProxyDeps {
@@ -38,6 +52,7 @@ export interface ProxyDeps {
   readonly log: Logger;
   readonly sarvam: SarvamSettings;
   readonly fetchImpl: typeof fetch;
+  readonly munshi: MunshiLine;
 }
 
 /** What the SDK needs; any extra fields Sarvam sends are passed through untouched. */
@@ -58,9 +73,15 @@ export interface ProxyRequest {
   readonly cors?: HeadersInit;
 }
 
-function isOwnApp(params: readonly string[], sarvam: SarvamSettings): boolean {
+type Target = 'asha' | 'munshi';
+
+/** Which of our two agents the path names; null for anything else (another org, workspace or
+ * app, or an agent that is not set up yet). */
+function targetOf(params: readonly string[], sarvam: SarvamSettings): Target | null {
   const [org, workspace, app] = params;
-  return org === sarvam.orgId && workspace === sarvam.workspaceId && app === sarvam.appId;
+  if (org !== sarvam.orgId || workspace !== sarvam.workspaceId || app === undefined) return null;
+  if (app === sarvam.appId) return 'asha';
+  return app === sarvam.munshiAppId ? 'munshi' : null;
 }
 
 function upstreamUrl(req: Request, params: readonly string[]): string {
@@ -76,23 +97,69 @@ function upstreamUrl(req: Request, params: readonly string[]): string {
   return target.toString();
 }
 
-/** Marks the call in progress with its URL issued; null when it may not have one. */
+interface SessionCounts {
+  readonly all: number;
+  readonly munshi: number;
+}
+
+/** Sessions issued today (real clock, IST midnight), Asha's and Munshi's, in one round trip.
+ * Counted just before the claim; parallel claims can overshoot by at most the few in flight. */
+async function sessionsToday(deps: ProxyDeps, now: Date): Promise<SessionCounts> {
+  const since = istMidnight(now);
+  const [calls, munshi] = await Promise.all([
+    deps.repo.countCallUrlsIssuedSince(since),
+    deps.munshi.ownerCalls.countOwnerUrlsIssuedSince(since),
+  ]);
+  return { all: calls + munshi, munshi };
+}
+
+/** 'accepted' only: once a URL is issued the call is in_progress, so a second URL is refused. */
+function acceptedRefusal(
+  row: { readonly status: string; readonly acceptedAt: string | null },
+  now: Date,
+): Refusal | null {
+  if (row.status !== 'accepted' || row.acceptedAt === null) return 'not_accepted';
+  return now.getTime() - Date.parse(row.acceptedAt) > CALL_URL_WINDOW_MS ? 'stale' : null;
+}
+
+/** Asha: marks the shopkeeper call in progress with its URL issued; null when it may have one. */
 async function claimCallUrl(req: Request, deps: ProxyDeps): Promise<Refusal | null> {
   const token = z.uuid().safeParse(req.headers.get(CALL_TOKEN_HEADER));
   if (!token.success) return 'missing_token';
   const session = await deps.repo.getCallSession(token.data);
   if (!session) return 'unknown_token';
-  // 'accepted' only: once a URL is issued the call is in_progress, so a second URL is refused.
-  if (session.status !== 'accepted' || session.acceptedAt === null) return 'not_accepted';
   const now = deps.clock();
-  if (now.getTime() - Date.parse(session.acceptedAt) > CALL_URL_WINDOW_MS) return 'stale';
-  // Counted just before the claim; parallel claims can overshoot by at most the few in flight.
-  const issuedToday = await deps.repo.countCallUrlsIssuedSince(istMidnight(now));
-  if (issuedToday >= MAX_LIVE_SESSIONS_PER_DAY) return 'daily_cap';
+  const refusal = acceptedRefusal(session, now);
+  if (refusal) return refusal;
+  if ((await sessionsToday(deps, now)).all >= MAX_LIVE_SESSIONS_PER_DAY) return 'daily_cap';
   const patch = { status: 'in_progress', urlIssuedAt: now.toISOString() } as const;
   const claimed = await deps.repo.transitionCall(session.callId, ['accepted'], patch);
   return claimed ? null : 'race';
 }
+
+function isOverMunshiCap(sessions: SessionCounts): boolean {
+  return sessions.all >= MAX_LIVE_SESSIONS_PER_DAY ||
+    sessions.munshi >= MAX_MUNSHI_SESSIONS_PER_DAY;
+}
+
+/** Munshi (M8): the same rules, on the owner call named by a signed link token. */
+async function claimOwnerCallUrl(req: Request, deps: ProxyDeps): Promise<Refusal | null> {
+  const { linkSecret, ownerCalls } = deps.munshi;
+  if (linkSecret === null) return 'missing_token';
+  const ownerCallId = await verifyOwnerCallToken(linkSecret, req.headers.get(CALL_TOKEN_HEADER));
+  if (ownerCallId === null) return 'missing_token';
+  const call = await ownerCalls.getOwnerCall(ownerCallId);
+  if (!call) return 'unknown_token';
+  const now = deps.clock();
+  const refusal = acceptedRefusal(call, now);
+  if (refusal) return refusal;
+  if (isOverMunshiCap(await sessionsToday(deps, now))) return 'daily_cap';
+  const patch = { status: 'in_progress', urlIssuedAt: now.toISOString() } as const;
+  return (await ownerCalls.transitionOwnerCall(call.id, ['accepted'], patch)) ? null : 'race';
+}
+
+type Claim = (req: Request, deps: ProxyDeps) => Promise<Refusal | null>;
+const CLAIMS: Readonly<Record<Target, Claim>> = { asha: claimCallUrl, munshi: claimOwnerCallUrl };
 
 type SignedUrl = z.infer<typeof SignedUrlSchema>;
 
@@ -122,10 +189,12 @@ export async function proxyCallUrl(
   deps: ProxyDeps,
   { params, cors = {} }: ProxyRequest,
 ): Promise<Response> {
-  if (deps.sarvam.appId === null) return errorResponse('VOICE_NOT_CONFIGURED', cors);
-  const refusal = isOwnApp(params, deps.sarvam) ? await claimCallUrl(req, deps) : 'bad_target';
+  const { appId, munshiAppId } = deps.sarvam;
+  if (appId === null && munshiAppId === null) return errorResponse('VOICE_NOT_CONFIGURED', cors);
+  const target = targetOf(params, deps.sarvam);
+  const refusal = target === null ? 'bad_target' : await CLAIMS[target](req, deps);
   if (refusal !== null) {
-    deps.log('warn', 'call_url_refused', { reason: refusal });
+    deps.log('warn', 'call_url_refused', { reason: refusal, target });
     return errorResponse(refusal === 'daily_cap' ? 'RATE_LIMITED' : 'FORBIDDEN', cors);
   }
   const result = await fetchSignedUrl(upstreamUrl(req, params), deps);

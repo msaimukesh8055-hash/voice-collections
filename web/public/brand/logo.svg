@@ -1,0 +1,26 @@
+<!-- web/public/brand/logo.svg -->
+<!-- Easy Recovery AI logo (M7 Decision 5, draft for Saim): an open ledger book with a gold rupee
+     on the right page and a gold tick rising from it ("credit recovered"). Shapes only, no text,
+     so it renders the same everywhere; everything sits inside the centre 80% because WhatsApp
+     crops the profile photo to a circle. Palette: beige #F5EDE0, dark brown #4A2E1A, mid brown
+     #7A4E2D, gold #C9A227. PNG: npm run brand:png. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <rect width="640" height="640" fill="#F5EDE0"/>
+  <path d="M136 262 Q232 240 320 282 Q408 240 504 262 L504 486 Q408 466 320 506 Q232 466 136 486 Z"
+        fill="#4A2E1A"/>
+  <path d="M156 262 Q244 246 314 284 L314 484 Q244 450 156 466 Z" fill="#F5EDE0"/>
+  <path d="M326 284 Q396 246 484 262 L484 466 Q396 450 326 484 Z" fill="#F5EDE0"/>
+  <g stroke="#7A4E2D" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M186 318 Q240 308 288 330"/>
+    <path d="M186 360 Q240 350 288 372"/>
+    <path d="M186 402 Q240 392 288 414"/>
+    <path d="M186 444 Q228 436 262 450"/>
+  </g>
+  <g stroke="#C9A227" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M362 330 L446 330"/>
+    <path d="M362 360 L446 360"/>
+    <path d="M378 330 Q428 330 428 360 Q428 392 378 392 L436 448"/>
+  </g>
+  <path d="M396 214 L432 250 L506 160" stroke="#C9A227" stroke-width="22" stroke-linecap="round"
+        stroke-linejoin="round" fill="none"/>
+</svg>

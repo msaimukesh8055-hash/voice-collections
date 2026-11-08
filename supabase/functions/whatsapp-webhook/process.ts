@@ -7,7 +7,7 @@
 // never the text. Errors go through describeFailure: database operation + code, or the error's
 // name only, never its message (CP2 L1).
 import type { BrainLlm } from '../_shared/brain/llm.ts';
-import type { BotContext, WebDeps } from '../_shared/cards/context.ts';
+import type { BotContext, MunshiLinkDeps, WebDeps } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
@@ -17,6 +17,7 @@ import { DAILY_VOICE_CAP, hear, type HearDeps } from '../_shared/speech/hear.ts'
 import type { Speaker } from '../_shared/speech/tts.ts';
 import type { Upload } from '../_shared/whatsapp/media.ts';
 import { spokenText } from '../_shared/whatsapp/spoken.ts';
+import type { SpokenSummarizer } from '../_shared/whatsapp/spoken-summary.ts';
 import type { Language } from '../_shared/schemas/shopkeeper.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
 import type { WhatsAppClient } from '../_shared/whatsapp/client.ts';
@@ -46,8 +47,12 @@ export interface ProcessDeps {
   readonly listen: Pick<HearDeps, 'download' | 'transcribe'>;
   /** Insights chart upload and the dashboard link (M6). */
   readonly web: WebDeps;
-  /** Voice replies (M6): Bulbul, then upload to Meta. */
+  /** "📞 Call Munshi" (M8): owner call rows and the signed link. */
+  readonly munshi: MunshiLinkDeps;
+  /** Voice replies (M6): Bulbul, then upload to Meta. M7: the words come from the spoken
+   * summary (sarvam-105b, checked), falling back to spokenText. */
   readonly voice: {
+    readonly summarize: SpokenSummarizer;
     readonly speak: Speaker;
     readonly upload: (file: Upload) => Promise<string | null>;
   };
@@ -80,6 +85,24 @@ async function sendAll(
   }
 }
 
+/** The summary never throws by design; if it ever did, the flat version is still correct. */
+async function wordsToSpeak(
+  outcome: Outcome & { speakIn: Language },
+  deps: ProcessDeps,
+): Promise<string> {
+  const input = {
+    replies: outcome.replies,
+    language: outcome.speakIn,
+    names: outcome.speakNames ?? [],
+  };
+  try {
+    return await deps.voice.summarize(input);
+  } catch (error) {
+    deps.log('warn', 'spoken_summary_failed', { error: describeFailure(error) });
+    return spokenText(outcome.replies, outcome.speakIn);
+  }
+}
+
 /** Voice replies sent per India day (M6 Decision 10). */
 export const DAILY_VOICE_REPLY_CAP = 50;
 
@@ -102,7 +125,7 @@ async function sendVoiceReply(
     return;
   }
   // Nothing to say ('') gives no audio: the speaker returns null without calling Bulbul.
-  const mp3 = await deps.voice.speak(spokenText(outcome.replies, language), language);
+  const mp3 = await deps.voice.speak(await wordsToSpeak(outcome, deps), language);
   if (!mp3) return;
   const mediaId = await deps.voice.upload({
     bytes: mp3,
@@ -138,6 +161,7 @@ async function loadContext(deps: ProcessDeps): Promise<{ ctx: BotContext; demoNo
     log: deps.log,
     reminder: deps.reminder,
     web: deps.web,
+    munshi: deps.munshi,
   };
   return { ctx, demoNow };
 }

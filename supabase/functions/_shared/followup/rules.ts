@@ -27,7 +27,9 @@ export interface AgentReason {
   readonly ownerReason?: string;
 }
 
-export type MixedSignal = 'no_promise' | 'hardship' | 'dispute_with_promise' | 'angry';
+/** The fixed list stored in followup_runs.actions.signals (read back by the call history). */
+export const MIXED_SIGNALS = ['no_promise', 'hardship', 'dispute_with_promise', 'angry'] as const;
+export type MixedSignal = (typeof MIXED_SIGNALS)[number];
 
 export type RuleResult =
   | { readonly kind: 'rule'; readonly step: NextStep }
@@ -83,15 +85,35 @@ export function findMixedSignals(facts: CallFacts): readonly MixedSignal[] {
   return checks.filter(([, found]) => found).map(([signal]) => signal);
 }
 
+/** What a call left behind, as plain flags: shared by the follow-up rules and Asha's call
+ * history (M7 B1), so both label a call the same way. */
+export interface OutcomeFlags {
+  readonly connected: boolean;
+  readonly declined: boolean;
+  readonly identity: CallFacts['identity'];
+  readonly hasClaim: boolean;
+  readonly hasPromise: boolean;
+  readonly callbackCount: number;
+}
+
+export function outcomeFrom(flags: OutcomeFlags): Outcome {
+  if (!flags.connected) return flags.declined ? 'declined' : 'no_answer';
+  if (flags.identity === 'denied') return 'wrong_person';
+  if (flags.identity !== 'confirmed') return flags.callbackCount > 0 ? 'callback' : 'ended_early';
+  if (flags.hasClaim) return 'claim';
+  if (flags.hasPromise) return 'promise';
+  return flags.callbackCount > 0 ? 'callback' : 'no_promise';
+}
+
 export function outcomeOf(facts: CallFacts): Outcome {
-  if (!facts.connected) return facts.declined ? 'declined' : 'no_answer';
-  if (facts.identity === 'denied') return 'wrong_person';
-  if (facts.identity !== 'confirmed') {
-    return facts.callbacks.length > 0 ? 'callback' : 'ended_early';
-  }
-  if (facts.claim) return 'claim';
-  if (facts.promise) return 'promise';
-  return facts.callbacks.length > 0 ? 'callback' : 'no_promise';
+  return outcomeFrom({
+    connected: facts.connected,
+    declined: facts.declined,
+    identity: facts.identity,
+    hasClaim: facts.claim !== null,
+    hasPromise: facts.promise !== null,
+    callbackCount: facts.callbacks.length,
+  });
 }
 
 /** Steps for outcomes that never need the agent. */

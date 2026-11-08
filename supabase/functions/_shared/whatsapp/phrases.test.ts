@@ -1,6 +1,5 @@
 // supabase/functions/_shared/whatsapp/phrases.test.ts
 import { assert, assertEquals } from '@std/assert';
-import { parseCommand } from '../brain/commands.ts';
 import { SUPPORTED_LANGUAGES } from '../schemas/shopkeeper.ts';
 import { PHRASES, phrasesFor } from './phrases.ts';
 
@@ -14,6 +13,13 @@ const BUTTON_KEYS = [
   'notReceived',
   'choose',
   'tryAgain',
+  'remindShort',
+  'paidInFull',
+  'partPayment',
+  'menuButton',
+  'pendingButton',
+  'dueButton',
+  'openButton',
 ] as const;
 /** Meta cuts button titles at 20 characters; ours must fit uncut. */
 const MAX_BUTTON_TITLE = 20;
@@ -51,26 +57,29 @@ Deno.test('phrases › every line renders to non-empty text in every language', 
   }
 });
 
-/** Each bold example in the help message, e.g. "*remind all*". */
-function helpExamples(help: string): string[] {
-  return [...help.matchAll(/\*([^*]+)\*/g)].map((found) => found[1] ?? '');
-}
+/** M7 Decision 8: these titles start with their one emoji, in every language. */
+const TITLE_EMOJI = [
+  ['closedTitle', '✅ '],
+  ['addCreditTitle', '🧾 '],
+  ['paymentTitle', '💰 '],
+  ['cancelled', '✖️ '],
+] as const;
 
-Deno.test('phrases › help is short: five commands, the same in every language, no sample names', () => {
-  const english = helpExamples(phrasesFor('en').help);
-  assertEquals(english, ['pending', 'due', 'closed', 'insights', 'dashboard']);
+Deno.test('phrases › M7: each changed title starts with its emoji in every language', () => {
   for (const language of SUPPORTED_LANGUAGES) {
-    const help = phrasesFor(language).help;
-    assertEquals(helpExamples(help), english, language);
-    assert(!help.includes('Ramesh'), language);
-    assert(help.includes('🎤'), language);
-    assert(help.includes('Save'), language);
+    const phrases = phrasesFor(language);
+    for (const [key, emoji] of TITLE_EMOJI) assert(phrases[key].startsWith(emoji), key);
+    assert(phrases.pendingTitle(2, '₹10').startsWith('📒 *'), language);
+    assert(phrases.saved('Ramesh', '₹1').startsWith('✅ '), language);
   }
 });
 
-Deno.test('phrases › every help example really is a command the bot understands', () => {
-  const kinds = helpExamples(phrasesFor('en').help).map((example) =>
-    parseCommand(example, '2026-11-02')?.kind ?? `not understood: ${example}`
-  );
-  assertEquals(kinds, ['pending', 'due_alert', 'closed', 'insights', 'dashboard']);
+Deno.test('phrases › M7: next-step lines keep the name and the example in English letters', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const phrases = phrasesFor(language);
+    assert(phrases.nextFor('Ramesh').includes('Ramesh'), language);
+    assert(phrases.partHint('Ramesh').includes('*Ramesh paid 2000*'), language);
+    assert(phrases.owesNothing('Ramesh').includes('Ramesh'), language);
+    assert(phrases.dayCount(12).includes('12'), language);
+  }
 });

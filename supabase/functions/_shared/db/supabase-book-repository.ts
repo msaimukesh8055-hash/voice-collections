@@ -1,6 +1,7 @@
 // supabase/functions/_shared/db/supabase-book-repository.ts
 // BookRepository on Supabase's HTTP API (service role). The API returns at most 1,000 rows per
-// request (project setting), and the book holds ~2,200 entries, so listEntries reads in pages.
+// request (project setting), and the book holds ~2,200 entries, so listEntries reads in pages,
+// three at a time in parallel (M8 Decision 4: Munshi's book_summary must answer in < 0.5 s).
 // Card buttons use compare-and-set updates (filter on the expected status), so a double tap
 // updates no row the second time.
 import { z } from 'zod';
@@ -29,6 +30,8 @@ import { firstRow, IdRow } from './supabase-rows.ts';
 export const PAGE_SIZE = 1000;
 /** 20 pages = 20,000 entries: far above the demo book; stops a runaway loop. */
 const MAX_PAGES = 20;
+/** Pages asked for in one round trip (offsets 0, 1000, 2000 at once). */
+export const PAGES_AT_ONCE = 3;
 const SHOPKEEPER_LIMIT = 1000;
 const SHOPKEEPER_ENTRY_LIMIT = 1000;
 
@@ -58,13 +61,19 @@ function readQueries(
     async listEntries(ownerId): Promise<readonly BookEntry[]> {
       const base = `ledger_entries?select=${ENTRY_COLUMNS},shopkeepers!inner(owner_id)` +
         `&shopkeepers.owner_id=eq.${id(ownerId)}&order=entry_date,id&limit=${PAGE_SIZE}`;
-      let all: BookEntry[] = [];
-      for (let page = 0; page < MAX_PAGES; page += 1) {
-        const rows = z.array(ENTRY_ROW).parse(
-          (await query('listEntries', `${base}&offset=${page * PAGE_SIZE}`)).rows,
+      async function page(index: number): Promise<readonly BookEntry[]> {
+        const reply = await query('listEntries', `${base}&offset=${index * PAGE_SIZE}`);
+        return z.array(ENTRY_ROW).parse(reply.rows);
+      }
+      let all: readonly BookEntry[] = [];
+      // M8 Decision 4: PAGES_AT_ONCE pages per round trip (the demo book fits in one round).
+      for (let first = 0; first < MAX_PAGES; first += PAGES_AT_ONCE) {
+        const count = Math.min(PAGES_AT_ONCE, MAX_PAGES - first);
+        const pages = await Promise.all(
+          Array.from({ length: count }, (_, offset) => page(first + offset)),
         );
-        all = [...all, ...rows];
-        if (rows.length < PAGE_SIZE) return all;
+        all = [...all, ...pages.flat()];
+        if (pages.some((rows) => rows.length < PAGE_SIZE)) return all;
       }
       throw new RepositoryError('listEntries', 'too many pages');
     },
@@ -112,7 +121,7 @@ function bookWrites(
         entry_date: entry.entryDate,
         due_date: entry.dueDate,
         status: 'confirmed',
-        source: 'text',
+        source: entry.source ?? 'text',
         note: entry.note,
       };
       const request = { method: 'POST', body, prefer: RETURN_ROW } as const;
@@ -128,6 +137,18 @@ function bookWrites(
         `&select=${ENTRY_COLUMNS}`;
       const request = { method: 'PATCH', body: { status }, prefer: RETURN_ROW } as const;
       return firstRow(ENTRY_ROW, (await query('settleClaim', path, request)).rows);
+    },
+  };
+}
+
+/** M8 delete by voice: one atomic database call (confirmed → reversed + ledger_reversals). */
+function reversalWrites(query: PostgrestClient): Pick<BookRepository, 'reverseEntry'> {
+  return {
+    async reverseEntry(entryId, ownerCallId): Promise<boolean> {
+      const body = { entry_id: entryId, owner_call_id: ownerCallId };
+      const request = { method: 'POST', body } as const;
+      const reply = await query('reverseEntry', 'rpc/reverse_ledger_entry', request);
+      return z.boolean().parse(reply.rows);
     },
   };
 }
@@ -217,6 +238,7 @@ export function createSupabaseBookRepository(query: PostgrestClient): BookReposi
   return {
     ...readQueries(query),
     ...bookWrites(query),
+    ...reversalWrites(query),
     ...actionQueries(query),
     ...messageQueries(query),
     ...countQueries(query),

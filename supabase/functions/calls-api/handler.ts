@@ -8,6 +8,7 @@ import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { DASHBOARD_TOKEN_HEADER } from '../_shared/auth/dashboard-link.ts';
 import { DASHBOARD_ROUTES } from './dashboard-routes.ts';
 import { getDemo, ringLiveShopkeeper } from './demo-routes.ts';
+import { acceptMunshi, endMunshi, getMunshiSession } from './munshi-routes.ts';
 import { acceptCall, declineCall, endCall, getIncomingCall } from './phone-routes.ts';
 import { proxyCallUrl } from './sarvam-proxy.ts';
 import type { CallsApiDeps, RouteContext, RouteHandler } from './types.ts';
@@ -31,6 +32,10 @@ const ROUTES: readonly Route[] = [
   { pattern: /^\/v1\/calls\/([^/]+)\/accept$/, methods: { POST: acceptCall } },
   { pattern: /^\/v1\/calls\/([^/]+)\/decline$/, methods: { POST: declineCall } },
   { pattern: /^\/v1\/calls\/([^/]+)\/ended$/, methods: { POST: endCall } },
+  // M8: the /munshi page, bound to the signed owner-call token in x-call-token.
+  { pattern: /^\/v1\/munshi\/session$/, methods: { GET: getMunshiSession } },
+  { pattern: /^\/v1\/munshi\/accept$/, methods: { POST: acceptMunshi } },
+  { pattern: /^\/v1\/munshi\/ended$/, methods: { POST: endMunshi } },
   // M6: the web dashboard, behind the signed link.
   { pattern: /^\/v1\/dashboard\/overview$/, methods: { GET: DASHBOARD_ROUTES.overview } },
   { pattern: /^\/v1\/dashboard\/shopkeepers$/, methods: { GET: DASHBOARD_ROUTES.shopkeepers } },

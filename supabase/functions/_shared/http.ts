@@ -15,6 +15,14 @@ export function errorResponse(code: ErrorCode, headers: HeadersInit = {}): Respo
   return jsonResponse({ error: { code, message } }, status, headers);
 }
 
+/** What follows `prefix` in the request path, e.g. the tool name after "/sarvam-tools/";
+ * '' when the prefix is not in the path. */
+export function pathAfter(req: Request, prefix: string): string {
+  const { pathname } = new URL(req.url);
+  const start = pathname.indexOf(prefix);
+  return start === -1 ? '' : pathname.slice(start + prefix.length);
+}
+
 /** Request JSON body, or null when it is not valid JSON. */
 export async function readJson(req: Request): Promise<unknown> {
   try {

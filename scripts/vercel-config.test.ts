@@ -23,7 +23,15 @@ const rootScripts = z
   .object({ scripts: z.record(z.string(), z.string()) })
   .parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))).scripts;
 
-const PAGE_PATHS = ['/', '/phone', '/phone/', '/shopkeepers', '/calls', '/anything/else'];
+const PAGE_PATHS = [
+  '/',
+  '/phone',
+  '/phone/',
+  '/munshi',
+  '/shopkeepers',
+  '/calls',
+  '/anything/else',
+];
 const ASSET_PATH = '/assets/index-AbC123.js';
 
 function matches(source: string, path: string): boolean {

@@ -9,7 +9,17 @@ import type { BookShopkeeper } from '../db/book-repository.ts';
 import { formatInr } from '../format.ts';
 import { summaryPhrasesFor } from '../followup/summary-phrases.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
-import { blocks, type Reply, textIn, textReply, withEnglish } from '../whatsapp/replies.ts';
+import { menuRowId } from '../cards/ids.ts';
+import { phrasesFor } from '../whatsapp/phrases.ts';
+import {
+  blocks,
+  type Button,
+  type Reply,
+  textIn,
+  textReply,
+  withButtons,
+  withEnglish,
+} from '../whatsapp/replies.ts';
 import type { Insights } from './insights.ts';
 import { type InsightsPhrases, insightsPhrasesFor, monthName } from './insights-phrases.ts';
 import type { ScoreTag } from './views.ts';
@@ -91,9 +101,19 @@ function insightsIn(view: InsightsView): readonly Reply[] {
     topLines(view, phrases),
     view.dashboardLink ? phrases.fullDetail(view.dashboardLink) : null,
   );
-  if (!view.chartId) return [textReply(text)];
+  const last = withButtons(textReply(text), nextButtons(view.language));
+  if (!view.chartId) return [last];
   const caption = blocks(phrases.captionTitle(insights.percentCollected), slices);
-  return [{ kind: 'image', mediaId: view.chartId, text: caption }, textReply(text)];
+  return [{ kind: 'image', mediaId: view.chartId, text: caption }, last];
+}
+
+/** M7 Decision 9: the next step after insights. */
+function nextButtons(language: Language): readonly Button[] {
+  const phrases = phrasesFor(language);
+  return [
+    { id: menuRowId('due', language), title: phrases.dueButton },
+    { id: menuRowId('menu', language), title: phrases.menuButton },
+  ];
 }
 
 /** The "dashboard" command's reply. */

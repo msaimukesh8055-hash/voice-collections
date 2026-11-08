@@ -41,7 +41,8 @@ Deno.test('insights reply › chart with caption, then the text with top 5 and l
   assertEquals(
     replies[1],
     {
-      kind: 'text',
+      kind: 'buttons',
+      buttons: [{ id: 'mn:due:en', title: '🔔 Due today' }, { id: 'mn:menu:en', title: '📋 Menu' }],
       text: '📊 *Insights · November*\n\n' +
         'Collected this month: *30%* (▲ 6 points vs last week)\nTotal outstanding: *₹1,84,000*\n\n' +
         '*Top 5 overdue*\n' +
@@ -137,4 +138,37 @@ Deno.test('insights reply › every language has both caption titles and the emp
       assert(line.length > 5, `${language}: ${line}`);
     }
   }
+});
+
+Deno.test('insights reply › M7: the last text gets [Due today] [Menu] in the owner language', () => {
+  const replies = insightsReplies({
+    insights: INSIGHTS,
+    scores: SCORES,
+    language: 'te',
+    chartId: null,
+    dashboardLink: LINK,
+  });
+  const last = replies.at(-1);
+  assertEquals(last?.kind === 'buttons' ? last.buttons.map((button) => button.id) : [], [
+    'mn:due:te',
+    'mn:menu:te',
+  ]);
+  assert((last?.kind === 'buttons' ? last.text : '').length <= 1024);
+  assertStringIncludes(last?.kind === 'buttons' ? last.english ?? '' : '', 'Full detail: ');
+});
+
+Deno.test('insights reply › M7: a body over 1,024 characters stays plain text (no cut link)', () => {
+  const long = { ...RAMESH, name: 'R'.repeat(200), shopName: 'S'.repeat(200) };
+  const top = Array.from(
+    { length: 5 },
+    () => ({ shopkeeper: long, overdueAmount: 1, daysOverdue: 1 }),
+  );
+  const replies = insightsReplies({
+    insights: { ...INSIGHTS, top },
+    scores: new Map(),
+    language: 'en',
+    chartId: null,
+    dashboardLink: LINK,
+  });
+  assertEquals(replies.at(-1)?.kind, 'text');
 });

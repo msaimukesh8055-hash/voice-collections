@@ -1,9 +1,9 @@
 // web/src/test/fakes.ts
 // Fake calls-api and voice client for page tests: they record what the page asked for, and let
 // the test play the server's and Sarvam's side.
-import type { AppApi, IncomingCall } from '../lib/appApi.ts';
-import type { CallEvents, VoiceClient } from '../lib/sarvamClient.ts';
-import { ACCEPTED_CALL, TOKEN } from './fixtures.ts';
+import type { AppApi, IncomingCall, MunshiLinkState } from '../lib/appApi.ts';
+import type { CallEvents, VoiceClient, VoiceSession } from '../lib/sarvamClient.ts';
+import { ACCEPTED_CALL, ACCEPTED_MUNSHI_CALL, TOKEN } from './fixtures.ts';
 
 export const RINGING_CALL: IncomingCall = {
   callToken: TOKEN,
@@ -18,6 +18,10 @@ export interface FakeApi {
   incoming: IncomingCall | null;
   failure: Error | null;
   alreadyQueued: boolean;
+  /** What /v1/munshi/session answers (M8). */
+  munshiState: MunshiLinkState;
+  /** Thrown by munshiAccept only (e.g. CALL_STATE_CONFLICT). */
+  munshiAcceptFailure: Error | null;
 }
 
 function check(fake: FakeApi, request: string): void {
@@ -31,6 +35,8 @@ export function fakeApi(): FakeApi {
     incoming: null,
     failure: null,
     alreadyQueued: false,
+    munshiState: 'ready',
+    munshiAcceptFailure: null,
     api: {
       async getDemo() {
         check(fake, 'demo');
@@ -61,9 +67,39 @@ export function fakeApi(): FakeApi {
       sarvamProxy(token) {
         return { baseUrl: 'https://proxy/', headers: { 'x-call-token': token } };
       },
+      ...fakeMunshiSteps(function self() {
+        return fake;
+      }),
     },
   };
   return fake;
+}
+
+/** The /munshi page's steps (M8); `self` returns the fake once it exists. */
+function fakeMunshiSteps(
+  self: () => FakeApi,
+): Pick<AppApi, 'munshiSession' | 'munshiAccept' | 'munshiEnded' | 'warmMunshiTools'> {
+  return {
+    async munshiSession(linkToken) {
+      check(self(), `munshi-session:${linkToken}`);
+      return self().munshiState;
+    },
+    async munshiAccept(linkToken) {
+      check(self(), `munshi-accept:${linkToken}`);
+      const failure = self().munshiAcceptFailure;
+      if (failure) throw failure;
+      return ACCEPTED_MUNSHI_CALL;
+    },
+    async munshiEnded(linkToken, report) {
+      const seconds = Math.round(report.seconds);
+      self().requests.push(
+        `munshi-ended:${linkToken}:${report.interactionId ?? 'none'}:${seconds}`,
+      );
+    },
+    warmMunshiTools() {
+      self().requests.push('munshi-warm');
+    },
+  };
 }
 
 export interface FakeVoice {
@@ -71,6 +107,21 @@ export interface FakeVoice {
   events: CallEvents | null;
   stops: number;
   startError: Error | null;
+  /** Which start was used: 'asha' or 'munshi'. */
+  started: string[];
+}
+
+async function fakeStart(fake: FakeVoice, events: CallEvents): Promise<VoiceSession> {
+  fake.events = events;
+  events.onPhase('connecting');
+  if (fake.startError) throw fake.startError;
+  events.onPhase('live');
+  return {
+    async stop() {
+      fake.stops += 1;
+      return 'interaction-1';
+    },
+  };
 }
 
 export function fakeVoice(): FakeVoice {
@@ -78,18 +129,15 @@ export function fakeVoice(): FakeVoice {
     events: null,
     stops: 0,
     startError: null,
+    started: [],
     client: {
-      async start(_call, _proxy, events) {
-        fake.events = events;
-        events.onPhase('connecting');
-        if (fake.startError) throw fake.startError;
-        events.onPhase('live');
-        return {
-          async stop() {
-            fake.stops += 1;
-            return 'interaction-1';
-          },
-        };
+      start(_call, _proxy, events) {
+        fake.started.push('asha');
+        return fakeStart(fake, events);
+      },
+      startMunshi(_call, _proxy, events) {
+        fake.started.push('munshi');
+        return fakeStart(fake, events);
       },
     },
   };

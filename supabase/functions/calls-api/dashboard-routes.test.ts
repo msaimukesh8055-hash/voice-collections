@@ -1,6 +1,7 @@
 // supabase/functions/calls-api/dashboard-routes.test.ts
 // The dashboard's API (M6 Decision 9) through the real router: no valid link → 401 and no data
 // (security, 100%); the overview, shopkeepers, calls and the one setting it can change.
+import { munshiSetup } from './__fixtures__/munshi.ts';
 import { assert, assertEquals } from '@std/assert';
 import { DASHBOARD_TOKEN_HEADER, signDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import type { DashboardCallDetail } from '../_shared/db/dashboard-repository.ts';
@@ -40,10 +41,11 @@ function deps(
     clock: () => FAKE_NOW,
     log: () => {},
     allowedOrigins: [ORIGIN],
-    sarvam: { apiKey: 'k', orgId: 'o', workspaceId: 'w', appId: 'a' },
+    sarvam: { apiKey: 'k', orgId: 'o', workspaceId: 'w', appId: 'a', munshiAppId: null },
     fetchImpl: () => Promise.reject(new Error('no network in tests')),
     kickFollowup: () => 0,
     dashboard: setup.dashboard,
+    munshi: munshiSetup().munshi,
   };
   return { all, setup };
 }

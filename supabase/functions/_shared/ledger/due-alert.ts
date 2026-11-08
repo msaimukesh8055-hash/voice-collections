@@ -41,7 +41,8 @@ export interface DueAlertInput {
   readonly today: string;
 }
 
-function groupBy<T extends { readonly shopkeeperId: string }>(
+/** Items keyed by shopkeeper id (also used by Munshi's book_summary, M8). */
+export function groupBy<T extends { readonly shopkeeperId: string }>(
   items: readonly T[],
 ): ReadonlyMap<string, readonly T[]> {
   const groups = new Map<string, T[]>();

@@ -6,7 +6,12 @@ import { assertEquals } from '@std/assert';
 import { fakeCall } from '../db/fake-repository.ts';
 import type { CallSession } from '../db/repository.ts';
 import { lineState } from './live-line.ts';
-import { LIVE_CALL_MAX_MS, QUEUE_TIMEOUT_MS, RING_TIMEOUT_MS } from './ringing.ts';
+import {
+  LIVE_CALL_MAX_MS,
+  OWNER_CALL_MAX_MS,
+  QUEUE_TIMEOUT_MS,
+  RING_TIMEOUT_MS,
+} from './ringing.ts';
 
 const NOW = new Date('2026-11-02T06:30:00.000Z');
 const ago = (ms: number): string => new Date(NOW.getTime() - ms).toISOString();
@@ -70,4 +75,23 @@ Deno.test('live line › a call queued behind a full-length call can still ring 
   assertEquals(QUEUE_TIMEOUT_MS > LIVE_CALL_MAX_MS, true);
   const behind = queued('b1', LIVE_CALL_MAX_MS + 30_000);
   assertEquals(lineState([behind], NOW).kind, 'ring');
+});
+
+Deno.test('live line › M8: an active Munshi call holds the line; the queue waits', () => {
+  const waiting = queued('b1', 30_000);
+  assertEquals(lineState([waiting], NOW, true), { kind: 'busy' });
+  assertEquals(lineState([], NOW, true), { kind: 'busy' });
+  assertEquals(lineState([waiting], NOW, false), { kind: 'ring', call: waiting });
+});
+
+Deno.test('live line › M8: a Remind asked for 30 s into an 8-minute Munshi call still rings', () => {
+  assertEquals(QUEUE_TIMEOUT_MS, OWNER_CALL_MAX_MS + 120_000);
+  const askedEarly = queued('b1', OWNER_CALL_MAX_MS - 30_000);
+  assertEquals(lineState([askedEarly], NOW).kind, 'ring');
+  assertEquals(lineState([queued('b2', QUEUE_TIMEOUT_MS + 1)], NOW).kind, 'stale');
+});
+
+Deno.test('live line › M8: the owner call holds the line 9 minutes; the queue waits 11', () => {
+  assertEquals([OWNER_CALL_MAX_MS, QUEUE_TIMEOUT_MS], [9 * 60_000, 11 * 60_000]);
+  assertEquals(lineState([queued('b1', QUEUE_TIMEOUT_MS)], NOW).kind, 'ring');
 });

@@ -46,7 +46,7 @@ const EN: InsightsPhrases = {
   daysOverdue: (days) => `${days} days overdue`,
   noneOverdue: 'Nobody is overdue. 🎉',
   fullDetail: (link) => `Full detail: ${link}`,
-  dashboardLink: (link) => `Your dashboard (the link works for 24 hours):\n${link}`,
+  dashboardLink: (link) => `🖥️ Your dashboard (the link works for 24 hours):\n${link}`,
   noDashboard: 'The dashboard is not set up yet.',
 };
 
@@ -65,7 +65,7 @@ const HI: InsightsPhrases = {
   daysOverdue: (days) => `${days} दिन बकाया`,
   noneOverdue: 'किसी का बकाया नहीं है। 🎉',
   fullDetail: (link) => `पूरी जानकारी: ${link}`,
-  dashboardLink: (link) => `आपका डैशबोर्ड (लिंक 24 घंटे चलेगा):\n${link}`,
+  dashboardLink: (link) => `🖥️ आपका डैशबोर्ड (लिंक 24 घंटे चलेगा):\n${link}`,
   noDashboard: 'डैशबोर्ड अभी तैयार नहीं है।',
 };
 
@@ -84,7 +84,7 @@ const TE: InsightsPhrases = {
   daysOverdue: (days) => `${days} రోజులు ఆలస్యం`,
   noneOverdue: 'ఎవరూ ఆలస్యం లేరు. 🎉',
   fullDetail: (link) => `పూర్తి వివరాలు: ${link}`,
-  dashboardLink: (link) => `మీ డ్యాష్‌బోర్డ్ (లింక్ 24 గంటలు పని చేస్తుంది):\n${link}`,
+  dashboardLink: (link) => `🖥️ మీ డ్యాష్‌బోర్డ్ (లింక్ 24 గంటలు పని చేస్తుంది):\n${link}`,
   noDashboard: 'డ్యాష్‌బోర్డ్ ఇంకా సిద్ధంగా లేదు.',
 };
 

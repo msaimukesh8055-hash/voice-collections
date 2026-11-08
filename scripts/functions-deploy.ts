@@ -1,5 +1,5 @@
 // scripts/functions-deploy.ts
-// Uploads function secrets and deploys the four Edge Functions to the project in .env (Mumbai).
+// Uploads function secrets and deploys the five Edge Functions to the project in .env (Mumbai).
 // Secrets go through a temporary env file (never the command line, never printed), which is
 // deleted straight after. --yes: Saim approved hosted deploys for M3.
 import { execSync } from 'node:child_process';
@@ -26,9 +26,13 @@ const REQUIRED_SECRETS = [
   // M5 follow-up worker (calls-api wakes it; it checks the secret).
   'WORKER_SECRET',
   'DASHBOARD_LINK_SECRET',
+  // M8 Munshi: signs the /munshi links (webhook + calls-api); munshi-tools' own bearer secret.
+  'MUNSHI_LINK_SECRET',
+  'SARVAM_OWNER_TOOL_SECRET',
 ] as const;
-/** Blank until Asha exists in Sarvam; calls-api refuses calls (503) until it is set. */
-const OPTIONAL_SECRETS = ['SARVAM_APP_ID', 'DASHBOARD_URL'] as const;
+/** Blank until the agent exists in Sarvam: calls-api refuses Asha calls (503) without
+ * SARVAM_APP_ID, and the Munshi link says "not set up yet" without SARVAM_MUNSHI_APP_ID. */
+const OPTIONAL_SECRETS = ['SARVAM_APP_ID', 'SARVAM_MUNSHI_APP_ID', 'DASHBOARD_URL'] as const;
 
 function readEnv(name: string): string {
   return process.env[name]?.trim() ?? '';
@@ -83,6 +87,10 @@ runSupabase(
 runSupabase(
   `functions deploy followup-worker --no-verify-jwt --use-api --project-ref ${projectRef} --yes`,
 );
+// Sarvam cannot send a Supabase JWT; munshi-tools checks the owner tool secret (M8, ADR-0018).
+runSupabase(
+  `functions deploy munshi-tools --no-verify-jwt --use-api --project-ref ${projectRef} --yes`,
+);
 process.stdout.write(
-  'Functions deployed: sarvam-tools, calls-api, whatsapp-webhook, followup-worker\n',
+  'Functions deployed: sarvam-tools, calls-api, whatsapp-webhook, followup-worker, munshi-tools\n',
 );

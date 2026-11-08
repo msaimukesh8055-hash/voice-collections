@@ -47,6 +47,10 @@ function setup(overrides: Partial<WorkerDeps> = {}): WorkerSetup {
       jobs.push('promiseCheck');
       return Promise.resolve(0);
     },
+    ownerSend: (actionId) => {
+      jobs.push(`ownerSend:${actionId}`);
+      return Promise.resolve('sent');
+    },
     log: (_level, event, fields = {}) => logs.push({ event, fields }),
     ...overrides,
   };
@@ -140,4 +144,20 @@ Deno.test('worker › an unknown path is not found', async () => {
   const { deps, tasks } = setup();
   assertEquals((await handleWorkerRequest(post('/constructor'), deps)).status, 404);
   assertEquals(tasks.length, 0);
+});
+
+Deno.test('worker › /owner-send/<id> runs the send job once in the background (M8 B5)', async () => {
+  const { deps, tasks, jobs } = setup();
+  const response = await handleWorkerRequest(post(`/owner-send/${CALL_ID}`), deps);
+  await Promise.all(tasks);
+  assertEquals([response.status, jobs], [202, [`ownerSend:${CALL_ID}`]]);
+});
+
+Deno.test('worker › /owner-send needs the secret and a uuid', async () => {
+  const noSecret = setup();
+  const refused = await handleWorkerRequest(post(`/owner-send/${CALL_ID}`, 'wrong'), noSecret.deps);
+  const badId = setup();
+  const notFound = await handleWorkerRequest(post('/owner-send/not-a-uuid'), badId.deps);
+  assertEquals([refused.status, notFound.status], [401, 404]);
+  assertEquals([...noSecret.jobs, ...badId.jobs], []);
 });

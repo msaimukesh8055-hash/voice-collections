@@ -48,7 +48,7 @@ export interface SimulatorDeps {
 
 export type SimulationOutcome = 'done' | 'idle' | 'not_found' | 'failed';
 
-function chatFn(
+export function chatFn(
   providers: readonly ChatProvider[],
   prompt: { side: string; system: string; temperature: number; tools?: readonly ChatTool[] },
   log: Logger,

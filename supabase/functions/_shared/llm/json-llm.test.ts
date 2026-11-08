@@ -1,7 +1,7 @@
 // supabase/functions/_shared/llm/json-llm.test.ts
 // Multi-turn chat requests (M5 simulated calls): exact request bodies, with a fake fetch only.
 import { assertEquals, assertRejects } from '@std/assert';
-import { askGeminiChat, askSarvamChat, type ChatRequest } from './json-llm.ts';
+import { askGeminiChat, askSarvamChat, type ChatRequest, type JsonLlmConfig } from './json-llm.ts';
 
 interface Captured {
   url: string;
@@ -12,7 +12,7 @@ interface Captured {
 function config(
   reply: unknown,
   status = 200,
-): { config: Parameters<typeof askSarvamChat>[0]; seen: Captured[] } {
+): { config: JsonLlmConfig; seen: Captured[] } {
   const seen: Captured[] = [];
   function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     seen.push({

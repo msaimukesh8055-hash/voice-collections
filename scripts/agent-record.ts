@@ -1,14 +1,12 @@
 // scripts/agent-record.ts
-// npm run agent:record — after a version of Asha is committed in Sarvam and its app id and
-// version are put in voice-agents/asha/sarvam-agent.json, writes the `publishes` row
-// (Sarvam version <-> config hash). Prints ids only, never keys.
+// npm run agent:record [-- --agent munshi] — after a version of the agent (asha by default) is
+// committed in Sarvam and its app id and version are put in voice-agents/<agent>/sarvam-agent.json,
+// writes the `publishes` row (Sarvam version <-> config hash). Prints ids only, never keys.
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
-import { ashaAgent } from '../voice-agents/asha/agent.config.ts';
+import { chooseAgent } from './lib/agent-choice.ts';
 import { buildPublishRow } from './lib/agent-record.ts';
 import { renderAgent } from './lib/agent-render.ts';
-
-const RECORD_FILE = 'voice-agents/asha/sarvam-agent.json';
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -16,10 +14,11 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const agent = chooseAgent(process.argv.slice(2));
 const supabaseUrl = requireEnv('SUPABASE_URL').replace(/\/$/, '');
-const rendered = renderAgent(ashaAgent, `${supabaseUrl}/functions/v1`);
-const record: unknown = JSON.parse(readFileSync(RECORD_FILE, 'utf8'));
-const row = buildPublishRow('asha', record, rendered.configHash);
+const rendered = renderAgent(agent.config, `${supabaseUrl}/functions/v1`);
+const record: unknown = JSON.parse(readFileSync(agent.recordFile, 'utf8'));
+const row = buildPublishRow(agent.name, record, rendered.configHash);
 const admin = createClient(supabaseUrl, requireEnv('SUPABASE_SERVICE_ROLE_KEY'));
 const { error } = await admin
   .from('publishes')

@@ -7,7 +7,6 @@ import type { Language } from '../schemas/shopkeeper.ts';
 import type { HearingProblem } from '../speech/hear.ts';
 
 export interface Phrases {
-  readonly help: string;
   readonly sorry: string;
   readonly textOnly: string;
   /** M6: the line above a voice note's reply, showing what Saaras heard. */
@@ -24,8 +23,10 @@ export interface Phrases {
   readonly clearedOn: (day: string) => string;
   readonly nothingClosed: string;
   readonly balance: string;
-  readonly overdueSince: (amount: string, days: number) => string;
-  readonly nextDue: (amount: string, day: string) => string;
+  /** M7: the lookup balance in short lines ("Overdue: ₹3,000 · 12 days"). */
+  readonly overdueLabel: string;
+  readonly nextDueLabel: string;
+  readonly dayCount: (days: number) => string;
   readonly lastEntries: string;
   readonly credit: string;
   readonly payment: string;
@@ -70,6 +71,18 @@ export interface Phrases {
   readonly notFound: (name: string) => string;
   readonly claimConfirmed: (name: string, balance: string) => string;
   readonly claimRejected: (name: string) => string;
+  /** M7 Decision 9: the next step after a lookup, Save and insights. */
+  readonly nextFor: (name: string) => string;
+  readonly remindShort: string;
+  readonly paidInFull: string;
+  readonly partPayment: string;
+  readonly menuButton: string;
+  readonly pendingButton: string;
+  readonly dueButton: string;
+  readonly partHint: (name: string) => string;
+  readonly owesNothing: (name: string) => string;
+  readonly openShopkeeper: string;
+  readonly openButton: string;
 }
 
 /** Strangers' language is unknown, so this one line is English only. */
@@ -77,12 +90,6 @@ export const NOT_REGISTERED =
   'This number is not registered with Easy Recovery AI. Please contact the shop owner.';
 
 const EN: Phrases = {
-  help: 'Namaste! I keep your credit book.\n\n' +
-    '• *pending* — who owes you\n• *due* — who is due or overdue\n' +
-    '• *closed* — paid off this month\n• *insights* — pie chart, % collected, top 5\n' +
-    '• *dashboard* — link to the web dashboard\n\n' +
-    '🎤 Voice notes work too.\n\n' +
-    'Nothing is saved until you tap Save.',
   sorry: "Sorry, I didn't get that.",
   textOnly: 'I can read text messages and voice notes. Please send one of those.',
   heard: '🎤 Heard',
@@ -96,17 +103,18 @@ const EN: Phrases = {
     cap: 'Voice notes are paused for today (daily limit). Please type the message.',
   },
   somethingWrong: 'Something went wrong. Please send that again.',
-  pendingTitle: (people, total) => `*Pending:* ${people} people owe you ${total}`,
+  pendingTitle: (people, total) => `📒 *Pending:* ${people} people owe you ${total}`,
   daysOverdue: (days) => `${days} days overdue`,
   notDueYet: 'not due yet',
   andMore: (count) => `…and ${count} more`,
   nothingPending: 'Nobody owes you anything right now.',
-  closedTitle: '*Paid off this month*',
+  closedTitle: '✅ *Paid off this month*',
   clearedOn: (day) => `cleared ${day}`,
   nothingClosed: 'No credit has been paid off this month yet.',
   balance: 'Balance',
-  overdueSince: (amount, days) => `${amount} overdue ${days} days`,
-  nextDue: (amount, day) => `next ${amount} on ${day}`,
+  overdueLabel: 'Overdue',
+  nextDueLabel: 'Next due',
+  dayCount: (days) => `${days} days`,
   lastEntries: 'Last entries',
   credit: 'Credit',
   payment: 'Payment',
@@ -120,8 +128,8 @@ const EN: Phrases = {
   openClaims: (count) => `Open claims: ${count}`,
   claimQuestion: (name, amount, day) =>
     `${name} says he paid ${amount} on ${day}. Did you receive it?`,
-  addCreditTitle: '*Add credit*',
-  paymentTitle: '*Payment received*',
+  addCreditTitle: '🧾 *Add credit*',
+  paymentTitle: '💰 *Payment received*',
   defaultDue: '(15 days, default)',
   balanceAfter: 'Balance after',
   overpaid: (owed) => `⚠️ More than he owes (${owed})`,
@@ -135,10 +143,10 @@ const EN: Phrases = {
   notReceived: 'Not received',
   choose: 'Choose',
   tryAgain: 'Try again',
-  saved: (name, balance) => `Saved. ${name} now owes ${balance}.`,
+  saved: (name, balance) => `✅ Saved. ${name} now owes ${balance}.`,
   viewInBooks: (link) => `📒 View in books: ${link}`,
   alreadySaved: 'Already saved.',
-  cancelled: 'Cancelled. Nothing saved.',
+  cancelled: '✖️ Cancelled. Nothing saved.',
   editHint: 'Send the corrected line, e.g. *Ramesh 5000 due 20th*',
   expired: 'This card has expired. Please send it again.',
   alreadyHandled: 'Already done.',
@@ -149,15 +157,20 @@ const EN: Phrases = {
   notFound: (name) => `No shopkeeper called ${name}. Send *pending* to see who owes you.`,
   claimConfirmed: (name, balance) => `Confirmed. ${name} now owes ${balance}.`,
   claimRejected: (name) => `Marked not received. Asha will ask ${name} about it on the next call.`,
+  nextFor: (name) => `What next for ${name}?`,
+  remindShort: '📞 Remind',
+  paidInFull: '✅ Paid in full',
+  partPayment: '💰 Part payment',
+  menuButton: '📋 Menu',
+  pendingButton: '📒 Pending',
+  dueButton: '🔔 Due today',
+  partHint: (name) => `How much did ${name} pay? Send e.g. *${name} paid 2000*`,
+  owesNothing: (name) => `${name} owes nothing right now.`,
+  openShopkeeper: 'Tap a name to open their account.',
+  openButton: 'Open…',
 };
 
 const HI: Phrases = {
-  help: 'नमस्ते! मैं आपका उधार खाता रखता हूँ।\n\n' +
-    '• *pending* — किसका कितना बाकी है\n• *due* — किसका देय या बकाया है\n' +
-    '• *closed* — इस महीने चुकता\n• *insights* — पाई चार्ट, % वसूली, टॉप 5\n' +
-    '• *dashboard* — वेब डैशबोर्ड का लिंक\n\n' +
-    '🎤 वॉइस नोट भी भेज सकते हैं।\n\n' +
-    'Save दबाने तक कुछ सेव नहीं होता।',
   sorry: 'माफ़ कीजिए, मैं समझ नहीं पाया।',
   textOnly: 'मैं टेक्स्ट मैसेज और वॉइस नोट समझ सकता हूँ। कृपया इनमें से एक भेजें।',
   heard: '🎤 सुना',
@@ -170,17 +183,18 @@ const HI: Phrases = {
     cap: 'आज के लिए वॉइस नोट बंद हैं (रोज़ की सीमा)। कृपया मैसेज टाइप करें।',
   },
   somethingWrong: 'कुछ गड़बड़ हो गई। कृपया फिर से भेजें।',
-  pendingTitle: (people, total) => `*बाकी:* ${people} लोगों पर ${total} बाकी`,
+  pendingTitle: (people, total) => `📒 *बाकी:* ${people} लोगों पर ${total} बाकी`,
   daysOverdue: (days) => `${days} दिन से बकाया`,
   notDueYet: 'अभी देय नहीं',
   andMore: (count) => `…और ${count}`,
   nothingPending: 'अभी किसी पर कुछ बाकी नहीं है।',
-  closedTitle: '*इस महीने चुकता*',
+  closedTitle: '✅ *इस महीने चुकता*',
   clearedOn: (day) => `${day} को चुकता`,
   nothingClosed: 'इस महीने अभी तक कोई उधार चुकता नहीं हुआ।',
   balance: 'बाकी',
-  overdueSince: (amount, days) => `${amount} ${days} दिन से बकाया`,
-  nextDue: (amount, day) => `अगला ${amount} ${day} को`,
+  overdueLabel: 'बकाया',
+  nextDueLabel: 'अगला देय',
+  dayCount: (days) => `${days} दिन`,
   lastEntries: 'पिछली एंट्री',
   credit: 'उधार',
   payment: 'भुगतान',
@@ -194,8 +208,8 @@ const HI: Phrases = {
   openClaims: (count) => `खुले दावे: ${count}`,
   claimQuestion: (name, amount, day) =>
     `${name} कहते हैं उन्होंने ${day} को ${amount} दिए। क्या आपको मिले?`,
-  addCreditTitle: '*उधार जोड़ें*',
-  paymentTitle: '*भुगतान मिला*',
+  addCreditTitle: '🧾 *उधार जोड़ें*',
+  paymentTitle: '💰 *भुगतान मिला*',
   defaultDue: '(15 दिन, अपने आप)',
   balanceAfter: 'बाद में बाकी',
   overpaid: (owed) => `⚠️ बाकी से ज़्यादा (${owed})`,
@@ -209,10 +223,10 @@ const HI: Phrases = {
   notReceived: 'नहीं मिला',
   choose: 'चुनें',
   tryAgain: 'फिर से कोशिश',
-  saved: (name, balance) => `सेव हो गया। ${name} पर अब ${balance} बाकी।`,
+  saved: (name, balance) => `✅ सेव हो गया। ${name} पर अब ${balance} बाकी।`,
   viewInBooks: (link) => `📒 खाते में देखें: ${link}`,
   alreadySaved: 'पहले ही सेव हो चुका है।',
-  cancelled: 'रद्द। कुछ सेव नहीं हुआ।',
+  cancelled: '✖️ रद्द। कुछ सेव नहीं हुआ।',
   editHint: 'सही लाइन भेजें, जैसे *Ramesh 5000 due 20th*',
   expired: 'यह कार्ड पुराना हो गया। कृपया फिर से भेजें।',
   alreadyHandled: 'पहले ही हो चुका है।',
@@ -223,15 +237,20 @@ const HI: Phrases = {
   notFound: (name) => `${name} नाम का कोई दुकानदार नहीं। *pending* भेजें।`,
   claimConfirmed: (name, balance) => `पुष्टि हो गई। ${name} पर अब ${balance} बाकी।`,
   claimRejected: (name) => `नहीं मिला दर्ज किया। अगली कॉल पर Asha ${name} से पूछेंगी।`,
+  nextFor: (name) => `${name} के लिए आगे क्या?`,
+  remindShort: '📞 याद दिलाएँ',
+  paidInFull: '✅ पूरा चुकाया',
+  partPayment: '💰 कुछ चुकाया',
+  menuButton: '📋 मेनू',
+  pendingButton: '📒 बाकी',
+  dueButton: '🔔 आज देय',
+  partHint: (name) => `${name} ने कितना दिया? ऐसे भेजें: *${name} paid 2000*`,
+  owesNothing: (name) => `${name} पर अभी कुछ बाकी नहीं है।`,
+  openShopkeeper: 'खाता खोलने के लिए नाम चुनें।',
+  openButton: 'खोलें…',
 };
 
 const TE: Phrases = {
-  help: 'నమస్కారం! నేను మీ అప్పు పుస్తకం చూసుకుంటాను.\n\n' +
-    '• *pending* — ఎవరు ఎంత ఇవ్వాలి\n• *due* — ఎవరి గడువు వచ్చింది, ఎవరు ఆలస్యం\n' +
-    '• *closed* — ఈ నెల తీరినవి\n• *insights* — పై చార్ట్, % వసూలు, టాప్ 5\n' +
-    '• *dashboard* — వెబ్ డ్యాష్‌బోర్డ్ లింక్\n\n' +
-    '🎤 వాయిస్ నోట్‌లు కూడా పంపవచ్చు.\n\n' +
-    'Save నొక్కే వరకు ఏదీ సేవ్ కాదు.',
   sorry: 'క్షమించండి, నాకు అర్థం కాలేదు.',
   textOnly: 'నేను టెక్స్ట్ మెసేజ్‌లు, వాయిస్ నోట్‌లు అర్థం చేసుకోగలను. దయచేసి వాటిలో ఒకటి పంపండి.',
   heard: '🎤 విన్నది',
@@ -244,17 +263,18 @@ const TE: Phrases = {
     cap: 'ఈ రోజుకు వాయిస్ నోట్‌లు ఆపబడ్డాయి (రోజువారీ పరిమితి). దయచేసి మెసేజ్ టైప్ చేయండి.',
   },
   somethingWrong: 'ఏదో పొరపాటు జరిగింది. దయచేసి మళ్ళీ పంపండి.',
-  pendingTitle: (people, total) => `*బాకీ:* ${people} మంది ${total} ఇవ్వాలి`,
+  pendingTitle: (people, total) => `📒 *బాకీ:* ${people} మంది ${total} ఇవ్వాలి`,
   daysOverdue: (days) => `${days} రోజులు ఆలస్యం`,
   notDueYet: 'ఇంకా గడువు రాలేదు',
   andMore: (count) => `…ఇంకా ${count}`,
   nothingPending: 'ప్రస్తుతం ఎవరూ బాకీ లేరు.',
-  closedTitle: '*ఈ నెల తీరినవి*',
+  closedTitle: '✅ *ఈ నెల తీరినవి*',
   clearedOn: (day) => `${day} న తీరింది`,
   nothingClosed: 'ఈ నెల ఇంకా ఏ అప్పూ తీరలేదు.',
   balance: 'బాకీ',
-  overdueSince: (amount, days) => `${amount} ${days} రోజులుగా ఆలస్యం`,
-  nextDue: (amount, day) => `తర్వాత ${amount} ${day} న`,
+  overdueLabel: 'ఆలస్యం',
+  nextDueLabel: 'తర్వాతి గడువు',
+  dayCount: (days) => `${days} రోజులు`,
   lastEntries: 'చివరి ఎంట్రీలు',
   credit: 'అప్పు',
   payment: 'చెల్లింపు',
@@ -267,8 +287,8 @@ const TE: Phrases = {
   promiseStatus: { open: 'ఉంది', kept: 'నిలబెట్టారు', broken: 'తప్పారు', replaced: 'మార్చారు' },
   openClaims: (count) => `నిర్ధారించాల్సినవి: ${count}`,
   claimQuestion: (name, amount, day) => `${name} ${day} న ${amount} కట్టానని చెప్పారు. మీకు అందిందా?`,
-  addCreditTitle: '*అప్పు జోడించండి*',
-  paymentTitle: '*చెల్లింపు అందింది*',
+  addCreditTitle: '🧾 *అప్పు జోడించండి*',
+  paymentTitle: '💰 *చెల్లింపు అందింది*',
   defaultDue: '(15 రోజులు, ఆటోమేటిక్)',
   balanceAfter: 'తర్వాత బాకీ',
   overpaid: (owed) => `⚠️ బాకీ కంటే ఎక్కువ (${owed})`,
@@ -282,10 +302,10 @@ const TE: Phrases = {
   notReceived: 'అందలేదు',
   choose: 'ఎంచుకోండి',
   tryAgain: 'మళ్ళీ ప్రయత్నించు',
-  saved: (name, balance) => `సేవ్ అయింది. ${name} ఇప్పుడు ${balance} ఇవ్వాలి.`,
+  saved: (name, balance) => `✅ సేవ్ అయింది. ${name} ఇప్పుడు ${balance} ఇవ్వాలి.`,
   viewInBooks: (link) => `📒 ఖాతాలో చూడండి: ${link}`,
   alreadySaved: 'ఇప్పటికే సేవ్ అయింది.',
-  cancelled: 'రద్దు చేశాం. ఏదీ సేవ్ కాలేదు.',
+  cancelled: '✖️ రద్దు చేశాం. ఏదీ సేవ్ కాలేదు.',
   editHint: 'సరైన లైన్ పంపండి, ఉదా. *Ramesh 5000 due 20th*',
   expired: 'ఈ కార్డ్ గడువు ముగిసింది. దయచేసి మళ్ళీ పంపండి.',
   alreadyHandled: 'ఇప్పటికే అయిపోయింది.',
@@ -296,6 +316,17 @@ const TE: Phrases = {
   notFound: (name) => `${name} పేరుతో ఎవరూ లేరు. *pending* పంపండి.`,
   claimConfirmed: (name, balance) => `నిర్ధారించాం. ${name} ఇప్పుడు ${balance} ఇవ్వాలి.`,
   claimRejected: (name) => `అందలేదని నమోదు చేశాం. తర్వాతి కాల్‌లో Asha ${name} ను అడుగుతుంది.`,
+  nextFor: (name) => `${name} కి తర్వాత ఏం చేయాలి?`,
+  remindShort: '📞 గుర్తుచేయి',
+  paidInFull: '✅ పూర్తిగా కట్టారు',
+  partPayment: '💰 కొంత కట్టారు',
+  menuButton: '📋 మెనూ',
+  pendingButton: '📒 బాకీ',
+  dueButton: '🔔 ఈరోజు గడువు',
+  partHint: (name) => `${name} ఎంత కట్టారు? ఇలా పంపండి: *${name} paid 2000*`,
+  owesNothing: (name) => `${name} ప్రస్తుతం ఏమీ బాకీ లేరు.`,
+  openShopkeeper: 'ఖాతా చూడటానికి పేరు ఎంచుకోండి.',
+  openButton: 'చూడండి…',
 };
 
 export const PHRASES: Readonly<Record<Language, Phrases>> = { en: EN, hi: HI, te: TE };

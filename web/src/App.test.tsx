@@ -1,10 +1,12 @@
 // web/src/App.test.tsx
 import { render, screen } from '@testing-library/react';
-import { App } from './App.tsx';
+import { App, routeOf } from './App.tsx';
+import { NO_LINK_MESSAGE } from './features/munshi/munshiState.ts';
+import { LINK_TOKEN } from './test/fixtures.ts';
 import { fakeApi, fakeVoice } from './test/fakes.ts';
 import { fakeDashboard } from './test/dashboardFakes.ts';
 
-function renderAt(path: string, search = ''): void {
+function renderAt(path: string, search = '', hash = ''): void {
   render(
     <App
       api={fakeApi().api}
@@ -12,6 +14,7 @@ function renderAt(path: string, search = ''): void {
       voice={fakeVoice().client}
       path={path}
       search={search}
+      hash={hash}
     />,
   );
 }
@@ -37,5 +40,19 @@ describe('App', () => {
   it('renders the phone page on /phone', async () => {
     renderAt('/phone/');
     expect(await screen.findByRole('heading', { name: 'Waiting for a call…' })).toBeInTheDocument();
+  });
+
+  it('renders the Munshi page on /munshi with the link token from the hash (M8)', async () => {
+    renderAt('/munshi/', '', `#t=${LINK_TOKEN}`);
+    expect(await screen.findByRole('button', { name: 'Start call' })).toBeInTheDocument();
+  });
+
+  it('on /munshi without a valid token, says to use the WhatsApp link', async () => {
+    renderAt('/munshi', '', '#t=not-a-token');
+    expect(await screen.findByText(NO_LINK_MESSAGE)).toBeInTheDocument();
+  });
+
+  it('routeOf drops trailing slashes', () => {
+    expect([routeOf('/munshi/'), routeOf('/'), routeOf('')]).toEqual(['/munshi', '/', '/']);
   });
 });

@@ -1,15 +1,15 @@
 // scripts/check-seed.ts
 // Smoke test of the deployed database (npm run db:check-seed): every table exists, the seed rows
 // are there (counts come from the generator itself, so they cannot drift), Ramesh's figures are
-// right, and the browser (anon key) is blocked from every table. Prints counts and fake demo
-// figures only; never keys.
+// right, Ramesh's 2 seeded past calls and the 5 stories' calls are there (M7 B1), and the browser (anon key) is blocked
+// from every table. Prints counts and fake demo figures only; never keys.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { istDate } from '../supabase/functions/_shared/clock.ts';
 import { computeDues } from '../supabase/functions/_shared/ledger/dues.ts';
 import { LedgerEntrySchema } from '../supabase/functions/_shared/schemas/ledger.ts';
 import { generateSeed, shopkeeperId } from './seed/generate-seed.ts';
 import { OWNER } from './seed/names.ts';
-import { RAMESH_STORY } from './seed/ramesh.ts';
+import { RAMESH_HARDSHIP_CALL_ID, RAMESH_PROMISE_CALL_ID, RAMESH_STORY } from './seed/ramesh.ts';
 
 const TABLES = [
   'owners',
@@ -39,6 +39,7 @@ interface SeedCheck {
 
 const seed = generateSeed();
 const RAMESH_ID = shopkeeperId(0);
+const PAST_CALL_IDS = seed.pastCalls.map((call) => call.id);
 
 const SEED_CHECKS: readonly SeedCheck[] = [
   { label: 'owner', table: 'owners', expected: 1, filter: (q) => q.eq('id', OWNER.id) },
@@ -57,8 +58,51 @@ const SEED_CHECKS: readonly SeedCheck[] = [
   {
     label: 'seeded promises',
     table: 'promises',
-    expected: seed.promises.length,
+    expected: seed.promises.filter((promise) => promise.callId === undefined).length,
     filter: (q) => q.is('call_id', null),
+  },
+  // M7 B1 (Decision 4): Ramesh's 2 earlier calls behind Asha's call history.
+  {
+    label: "Ramesh's past calls",
+    table: 'calls',
+    expected: seed.pastCalls.filter((call) => call.shopkeeperId === RAMESH_ID).length,
+    filter: (q) =>
+      q.in('id', PAST_CALL_IDS).eq('shopkeeper_id', RAMESH_ID).eq('status', 'completed'),
+  },
+  // Saim 2026-11-07: five more shopkeepers with earlier calls (scripts/seed/stories.ts).
+  {
+    label: 'all seeded past calls',
+    table: 'calls',
+    expected: seed.pastCalls.length,
+    filter: (q) => q.in('id', PAST_CALL_IDS).in('status', ['completed', 'missed', 'declined']),
+  },
+  {
+    label: 'story promises on calls',
+    table: 'promises',
+    expected: seed.promises.filter((p) => p.callId !== undefined).length,
+    filter: (q) => q.in('call_id', PAST_CALL_IDS),
+  },
+  {
+    label: '₹3,000 promise on call 1',
+    table: 'promises',
+    expected: 1,
+    filter: (q) => q.eq('call_id', RAMESH_PROMISE_CALL_ID).eq('status', 'broken'),
+  },
+  {
+    label: 'hardship callback on call 2',
+    table: 'followups',
+    expected: 1,
+    filter: (q) =>
+      q
+        .eq('call_id', RAMESH_HARDSHIP_CALL_ID)
+        .eq('kind', 'owner_callback')
+        .eq('reason', 'hardship'),
+  },
+  {
+    label: 'follow-up runs for every past call',
+    table: 'followup_runs',
+    expected: seed.pastCalls.length,
+    filter: (q) => q.in('call_id', PAST_CALL_IDS),
   },
   {
     label: 'live shopkeeper = Ramesh',

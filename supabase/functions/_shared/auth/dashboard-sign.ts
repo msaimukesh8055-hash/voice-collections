@@ -25,9 +25,15 @@ function base64url(bytes: Uint8Array): string {
   );
 }
 
+/** HMAC-SHA256 of `message`, base64url without padding (43 characters). Also signs Munshi's
+ * owner-call links (owner-call-link.ts, M8), with their own secret and message prefix. */
+export function signMessage(secret: string, message: string): Promise<string> {
+  return hmac(secret, message).then(base64url);
+}
+
 /** The HMAC of one expiry, as it appears after the "." in a token. */
 export function signatureFor(secret: string, expires: string): Promise<string> {
-  return hmac(secret, `${VERSION}.${expires}`).then(base64url);
+  return signMessage(secret, `${VERSION}.${expires}`);
 }
 
 /** "<expiry, unix seconds>.<signature>", valid for 24 hours from `now`. */

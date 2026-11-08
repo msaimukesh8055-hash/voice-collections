@@ -9,9 +9,15 @@ import { z } from 'zod';
 import { hasBearerSecret } from '../_shared/auth/bearer.ts';
 import { resolveNow } from '../_shared/clock.ts';
 import type { CallSession, Repository } from '../_shared/db/repository.ts';
-import { errorResponse, jsonResponse, readJson, withErrorBoundary } from '../_shared/http.ts';
+import {
+  errorResponse,
+  jsonResponse,
+  pathAfter,
+  readJson,
+  withErrorBoundary,
+} from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
-import { CALL_TOKEN_VARIABLE } from '../_shared/sarvam.ts';
+import { CALL_TOKEN_VARIABLE, WARM_TOOLS_PATH } from '../_shared/sarvam.ts';
 import type { CallStatus } from '../_shared/schemas/shopkeeper.ts';
 import { AUDIT_MARKERS, runTool, type ToolRun } from '../_shared/tools/registry.ts';
 import { auditToolRun } from '../_shared/tools/audit.ts';
@@ -23,7 +29,7 @@ const ACTIVE_STATUSES: readonly CallStatus[] = ['accepted', 'in_progress'];
 const FUNCTION_PREFIX = '/sarvam-tools/';
 /** GET /sarvam-tools/warm wakes the function before Asha's first tool call (cold start gave a 503
  * in M3 testing). The phone page calls it when a call starts ringing; it reads and returns nothing. */
-export const WARM_PATH = 'warm';
+export const WARM_PATH = WARM_TOOLS_PATH;
 
 export interface ToolsDeps {
   readonly repo: Repository;
@@ -45,9 +51,7 @@ type Authorisation =
 
 /** The tool name comes from our URL (set in the agent config), not from the LLM. */
 function toolNameOf(req: Request): string {
-  const { pathname } = new URL(req.url);
-  const start = pathname.indexOf(FUNCTION_PREFIX);
-  return start === -1 ? '' : pathname.slice(start + FUNCTION_PREFIX.length);
+  return pathAfter(req, FUNCTION_PREFIX);
 }
 
 function isExpired(session: CallSession, realNow: Date): boolean {

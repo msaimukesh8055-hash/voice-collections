@@ -8,7 +8,9 @@ import type { PaymentMode } from '../../supabase/functions/_shared/schemas/ledge
 import type { Language } from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
 import { AREAS, FIRST_NAMES, RAMESH, SHOP_WORDS } from './names.ts';
 import { createRandom, type Random } from './random.ts';
-import { rameshBook } from './ramesh.ts';
+import { rameshBook, rameshPastCalls } from './ramesh.ts';
+import { STORIES, storyBook, storyPastCalls } from './stories.ts';
+import type { CALLBACK_REASONS } from '../../supabase/functions/_shared/tools/schemas.ts';
 
 export const SEED_NUMBER = 20261102;
 export const SHOPKEEPER_COUNT = 100;
@@ -62,6 +64,34 @@ export interface SeedPromise {
   readonly day: PromiseDay;
   readonly createdDay: number;
   readonly status: 'open' | 'kept' | 'broken';
+  /** The seeded past call the promise was made on (M7 B1 Decision 4); none for the rest. */
+  readonly callId?: string;
+}
+
+/** A finished call in the demo history (M7 B1 Decision 4): Asha's memory on the first call. */
+export interface SeedPastCall {
+  readonly id: string;
+  readonly shopkeeperId: string;
+  readonly day: number;
+  readonly language: Language;
+  readonly durationSeconds: number;
+  /** How the call ended (default 'completed'); a 'missed' call was never answered. */
+  readonly status?: 'completed' | 'missed' | 'declined';
+  /** Identity check on the call (default 'confirmed'). */
+  readonly identity?: 'confirmed' | 'unknown';
+  /** Asha's request_owner_callback row: a fixed reason and her one-line summary. */
+  readonly callback: {
+    readonly reason: (typeof CALLBACK_REASONS)[number];
+    readonly summary: string;
+  } | null;
+  /** The follow-up worker's run row for the call. */
+  readonly run: {
+    readonly path: 'rule' | 'agent';
+    readonly decision: string;
+    readonly reasoning: string;
+    readonly outcome: string;
+    readonly signals: readonly string[];
+  };
 }
 
 export interface Book {
@@ -71,6 +101,7 @@ export interface Book {
 
 export interface SeedData extends Book {
   readonly shopkeepers: readonly SeedShopkeeper[];
+  readonly pastCalls: readonly SeedPastCall[];
 }
 
 const LATENESS: Readonly<Record<Profile, readonly [number, number]>> = {
@@ -303,14 +334,25 @@ export function generateSeed(seed: number = SEED_NUMBER): SeedData {
   const random = createRandom(seed);
   const shopkeepers = buildShopkeepers(random);
   const [ramesh, ...others] = shopkeepers;
+  const rameshId = ramesh?.id ?? shopkeeperId(0);
   const books = [
-    rameshBook(ramesh?.id ?? shopkeeperId(0)),
-    ...others.map((shopkeeper) => generateBook(shopkeeper, random)),
+    rameshBook(rameshId),
+    ...others.map((shopkeeper, i) => {
+      // Always draw the random book, so the stories never shift anyone else's numbers.
+      const generated = generateBook(shopkeeper, random);
+      const story = STORIES.find((candidate) => candidate.index === i + 1);
+      return story ? storyBook(story, shopkeeper.id) : generated;
+    }),
   ];
+  const storyCalls = STORIES.flatMap((story) => {
+    const shopkeeper = shopkeepers[story.index];
+    return shopkeeper ? storyPastCalls(story, shopkeeper) : [];
+  });
   const entries = books.flatMap((book) => book.entries);
   return {
     shopkeepers,
     entries: [...entries, ...claims(shopkeepers, entries)],
     promises: books.flatMap((book) => book.promises),
+    pastCalls: [...rameshPastCalls(rameshId), ...storyCalls],
   };
 }

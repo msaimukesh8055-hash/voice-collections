@@ -3,8 +3,10 @@
 // Today: ₹8,500 outstanding = ₹5,000 overdue 12 days + ₹3,500 due in 3 days, and a ₹3,000
 // promise for "last Friday" that was broken (M5's memory line). One earlier promise was kept,
 // so the tone ladder starts at level 2 (one broken promise), not 3.
+// M7 B1 (Decision 4): two earlier calls, so Asha's first demo call already has a history: day -10
+// (the ₹3,000 promise was made on it) and day -4 (money is tight: a hardship callback).
 import type { PaymentMode } from '../../supabase/functions/_shared/schemas/ledger.ts';
-import type { Book, SeedEntry, SeedPromise } from './generate-seed.ts';
+import type { Book, SeedEntry, SeedPastCall, SeedPromise } from './generate-seed.ts';
 
 const TERM_DAYS = 15;
 
@@ -28,6 +30,14 @@ const CREDITS: ReadonlyArray<
   [-27, 5000, []],
   [-12, 3500, []],
 ];
+
+/** Fixed ids so the broken promise can point at its call. */
+export const RAMESH_PROMISE_CALL_ID = 'ca5eed00-0000-4000-8000-000000000001';
+export const RAMESH_HARDSHIP_CALL_ID = 'ca5eed00-0000-4000-8000-000000000002';
+/** Asha's callback summary on day -4. It must not name the owner or a figure, or the
+ * their-words sanitiser drops it (M7 B1 Decision 1). */
+export const RAMESH_HARDSHIP_SUMMARY = 'Said harvest money comes next week';
+const CALL_SECONDS = 150;
 
 export const RAMESH_STORY = {
   outstanding: 8500,
@@ -67,7 +77,43 @@ export function rameshBook(id: string): Book {
       day: 'last_friday',
       createdDay: -10,
       status: 'broken',
+      callId: RAMESH_PROMISE_CALL_ID,
     },
   ];
   return { entries, promises };
+}
+
+export function rameshPastCalls(id: string): readonly SeedPastCall[] {
+  return [
+    {
+      id: RAMESH_PROMISE_CALL_ID,
+      shopkeeperId: id,
+      day: -10,
+      language: 'te',
+      durationSeconds: CALL_SECONDS,
+      callback: null,
+      run: {
+        path: 'rule',
+        decision: 'check_promise',
+        reasoning: 'Promise logged: check it on the promise date.',
+        outcome: 'promise',
+        signals: [],
+      },
+    },
+    {
+      id: RAMESH_HARDSHIP_CALL_ID,
+      shopkeeperId: id,
+      day: -4,
+      language: 'te',
+      durationSeconds: CALL_SECONDS,
+      callback: { reason: 'hardship', summary: RAMESH_HARDSHIP_SUMMARY },
+      run: {
+        path: 'agent',
+        decision: 'owner_should_call',
+        reasoning: 'Money is tight until the harvest is sold; a call from the owner may help.',
+        outcome: 'callback',
+        signals: ['hardship'],
+      },
+    },
+  ];
 }

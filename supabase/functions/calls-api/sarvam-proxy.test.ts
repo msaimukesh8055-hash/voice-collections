@@ -15,6 +15,7 @@ import {
   type ProxyDeps,
   type SarvamSettings,
 } from './sarvam-proxy.ts';
+import { munshiSetup } from './__fixtures__/munshi.ts';
 
 const API_KEY = 'sarvam-agents-key-value';
 const SARVAM: SarvamSettings = {
@@ -22,6 +23,7 @@ const SARVAM: SarvamSettings = {
   orgId: 'org-1',
   workspaceId: 'ws-1',
   appId: 'Asha-Easy-Recovery-1',
+  munshiAppId: null,
 };
 const SIGNED = {
   url: 'wss://apps.sarvam.ai/ws?sig=abc',
@@ -64,7 +66,8 @@ function setup(
     return respond();
   };
   const sarvam = { ...SARVAM, ...options.sarvam };
-  const deps: ProxyDeps = { repo, clock: () => FAKE_NOW, log, sarvam, fetchImpl };
+  const munshi = munshiSetup().munshi;
+  const deps: ProxyDeps = { repo, clock: () => FAKE_NOW, log, sarvam, fetchImpl, munshi };
   return { deps, calls: () => state.calls, upstream, logs };
 }
 

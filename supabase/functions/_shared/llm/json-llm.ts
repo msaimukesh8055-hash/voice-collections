@@ -29,6 +29,9 @@ export interface JsonLlmConfig {
   readonly log: Logger;
 }
 
+/** What a Sarvam-only caller needs (M7 spoken summary): no Gemini key, so no Gemini call. */
+export type SarvamChatConfig = Omit<JsonLlmConfig, 'geminiApiKey'>;
+
 export interface JsonRequest<T> {
   /** Log event name, e.g. "brain_llm". */
   readonly event: string;
@@ -89,7 +92,7 @@ export function extractJson<T>(content: string, schema: z.ZodType<T>): T | null 
 }
 
 async function postJson(
-  config: JsonLlmConfig,
+  config: Pick<JsonLlmConfig, 'fetchImpl'>,
   request: { url: string; headers: Record<string, string>; body: unknown },
 ): Promise<unknown> {
   const response = await config.fetchImpl(request.url, {
@@ -174,7 +177,10 @@ function sarvamText(message: SarvamMessage): string {
 
 /** Raw text of one multi-turn answer from sarvam-105b (reasoning off). Throws on an HTTP error,
  * a timeout or an unexpected body; the caller decides what a failure means. */
-export async function askSarvamChat(config: JsonLlmConfig, request: ChatRequest): Promise<string> {
+export async function askSarvamChat(
+  config: SarvamChatConfig,
+  request: ChatRequest,
+): Promise<string> {
   const body = {
     model: SARVAM_MODEL,
     messages: [{ role: 'system', content: request.system }, ...request.messages.map(sarvamMessage)],

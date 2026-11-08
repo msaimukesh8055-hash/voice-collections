@@ -13,8 +13,15 @@ import {
   type SeedEntry,
   shopkeeperId,
 } from './generate-seed.ts';
-import { RAMESH_STORY } from './ramesh.ts';
+import {
+  RAMESH_HARDSHIP_CALL_ID,
+  RAMESH_HARDSHIP_SUMMARY,
+  RAMESH_PROMISE_CALL_ID,
+  RAMESH_STORY,
+} from './ramesh.ts';
+import { theirWords } from '../../supabase/functions/_shared/calls/their-words.ts';
 import { createRandom } from './random.ts';
+import { STORIES } from './stories.ts';
 import { dayExpression, renderSeedSql } from './render-sql.ts';
 
 const data = generateSeed();
@@ -108,6 +115,44 @@ describe('seed generator', () => {
     );
   });
 
+  it('gives Ramesh 2 earlier calls (day -10 and -4) (M7 B1)', () => {
+    const rameshCalls = data.pastCalls.filter((call) => call.shopkeeperId === shopkeeperId(0));
+    expect(rameshCalls.map((call) => [call.id, call.day])).toEqual([
+      [RAMESH_PROMISE_CALL_ID, -10],
+      [RAMESH_HARDSHIP_CALL_ID, -4],
+    ]);
+    expect(sql).toContain(`('${RAMESH_PROMISE_CALL_ID}'::uuid, '${shopkeeperId(0)}'::uuid, 'te'`);
+    expect(sql).toContain("v.duration_seconds, 'done'");
+  });
+
+  it("links Ramesh's broken ₹3,000 promise to his first call, and only that promise", () => {
+    const linked = data.promises.filter(
+      (p) => p.callId !== undefined && p.shopkeeperId === shopkeeperId(0),
+    );
+    expect(linked).toEqual([
+      expect.objectContaining({ amount: 3000, status: 'broken', callId: RAMESH_PROMISE_CALL_ID }),
+    ]);
+    expect(sql).toContain(`'${RAMESH_PROMISE_CALL_ID}'::uuid, 3000,`);
+    expect(sql.indexOf('insert into public.calls')).toBeLessThan(
+      sql.indexOf('insert into public.promises'),
+    );
+  });
+
+  it("the day -4 hardship callback passes Asha's their-words sanitiser", () => {
+    const hardship = data.pastCalls.find((call) => call.id === RAMESH_HARDSHIP_CALL_ID);
+    expect(hardship?.callback).toEqual({ reason: 'hardship', summary: RAMESH_HARDSHIP_SUMMARY });
+    expect(
+      theirWords(RAMESH_HARDSHIP_SUMMARY, { reason: 'hardship', identityConfirmed: true }),
+    ).toBe('harvest money comes next week');
+    expect(sql).toContain(`'hardship', '${RAMESH_HARDSHIP_SUMMARY}'`);
+  });
+
+  it('writes a follow-up run per seeded call with the fixed signal list', () => {
+    expect(sql.match(/insert into public\.followup_runs/g)).toHaveLength(1);
+    expect(sql).toContain('"outcome":"promise","signals":[]');
+    expect(sql).toContain('"outcome":"callback","signals":["hardship"]');
+  });
+
   it('makes Ramesh the live shopkeeper for the phone page', () => {
     expect(sql).toContain(
       `insert into public.demo_settings (id, live_shopkeeper_id) values (1, '${shopkeeperId(0)}')`,
@@ -166,5 +211,61 @@ describe('seeded random numbers', () => {
 
   it('refuses to pick from an empty list', () => {
     expect(() => createRandom(1).pick([])).toThrow('at least one item');
+  });
+
+  describe('five more shopkeepers with earlier calls (Saim, 2026-11-07)', () => {
+    const storyIds = STORIES.map((story) => shopkeeperId(story.index));
+
+    it('gives each story shopkeeper calls, and nobody else besides Ramesh any', () => {
+      const owners = new Set(data.pastCalls.map((call) => call.shopkeeperId));
+      expect([...owners].sort()).toEqual([shopkeeperId(0), ...storyIds].sort());
+      expect(data.pastCalls).toHaveLength(2 + STORIES.flatMap((story) => story.calls).length);
+    });
+
+    it("uses the shopkeeper's own language for the calls", () => {
+      for (const story of STORIES) {
+        const shopkeeper = data.shopkeepers[story.index];
+        const calls = data.pastCalls.filter((call) => call.shopkeeperId === shopkeeper?.id);
+        expect(calls.every((call) => call.language === shopkeeper?.language)).toBe(true);
+      }
+    });
+
+    it('every callback summary passes the their-words sanitiser', () => {
+      const callbacks = data.pastCalls.flatMap((call) => (call.callback ? [call.callback] : []));
+      expect(callbacks.length).toBeGreaterThan(2);
+      for (const callback of callbacks) {
+        const phrase = theirWords(callback.summary, {
+          reason: callback.reason,
+          identityConfirmed: true,
+        });
+        expect(phrase, callback.summary).not.toBeNull();
+      }
+    });
+
+    it('every story promise points at a seeded call of the same shopkeeper', () => {
+      const linked = data.promises.filter((p) => p.callId !== undefined);
+      for (const promise of linked) {
+        const call = data.pastCalls.find((candidate) => candidate.id === promise.callId);
+        expect(call?.shopkeeperId).toBe(promise.shopkeeperId);
+        expect(promise.createdDay).toBe(call?.day);
+      }
+    });
+
+    it('kept promises are covered by payments on the promise day; nobody is overpaid', () => {
+      for (const promise of data.promises.filter((p) => p.callId && p.status === 'kept')) {
+        const paid = data.entries
+          .filter((e) => e.shopkeeperId === promise.shopkeeperId && e.kind === 'payment')
+          .filter((e) => e.day === promise.day)
+          .reduce((sum, e) => sum + e.amount, 0);
+        expect(paid).toBeGreaterThanOrEqual(promise.amount);
+      }
+      for (const id of storyIds) expect(outstandingOf(data.entries, id)).toBeGreaterThan(0);
+    });
+
+    it('renders the missed call with no answer time, and statuses from the story', () => {
+      expect(sql).toContain("'missed', 'unknown'");
+      expect(sql).toContain('null::timestamptz');
+      expect(sql).toContain('v.status, v.language, v.identity_status');
+    });
   });
 });

@@ -5,6 +5,8 @@ const MIN_TOOL_SECRET_LENGTH = 32;
 const MIN_WORKER_SECRET_LENGTH = 32;
 /** Dashboard link secret: random, 32+ characters (M6). */
 const MIN_DASHBOARD_SECRET_LENGTH = 32;
+/** Munshi's link secret (M8): random, 32+ characters, not the dashboard secret. */
+const MIN_MUNSHI_SECRET_LENGTH = 32;
 /** Country code + subscriber number; anything shorter is a typo in the secret. */
 const MIN_PHONE_DIGITS = 10;
 
@@ -26,6 +28,22 @@ const OptionalText = z
   .trim()
   .optional()
   .transform((value) => (value ? value : null));
+
+/** Optional Munshi link secret: blank means "Munshi is not set up yet" (M8). */
+const OptionalMunshiSecret = OptionalText.pipe(z.string().min(MIN_MUNSHI_SECRET_LENGTH).nullable());
+
+/** munshi-tools (M8, ADR-0018): its own bearer secret, never Asha's. Supabase gives every function
+ * every secret, so Asha's is usually present too and is checked to differ. */
+const OwnerToolsEnvSchema = ServerEnvSchema.extend({
+  /** Bearer secret Sarvam sends on Munshi's tool calls (vault: easy-recovery-owner-tool-secret). */
+  SARVAM_OWNER_TOOL_SECRET: z.string().trim().min(MIN_TOOL_SECRET_LENGTH),
+  SARVAM_TOOL_SECRET: OptionalText,
+  /** Bearer secret for followup-worker: confirm_action kicks /owner-send with it (M8 B5). */
+  WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
+}).refine((env) => env.SARVAM_OWNER_TOOL_SECRET !== env.SARVAM_TOOL_SECRET, {
+  path: ['SARVAM_OWNER_TOOL_SECRET'],
+  message: 'must differ from SARVAM_TOOL_SECRET',
+});
 
 const CallsApiEnvSchema = ServerEnvSchema.extend({
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
@@ -50,6 +68,10 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
   DASHBOARD_LINK_SECRET: z.string().trim().min(MIN_DASHBOARD_SECRET_LENGTH),
   /** Sarvam core key: the dashboard's transcript English (M6). Blank → no translation. */
   SARVAM_API_KEY: OptionalText,
+  /** Munshi (M8): checks the /munshi page's link token. Blank → Munshi is not set up. */
+  MUNSHI_LINK_SECRET: OptionalMunshiSecret,
+  /** Munshi's Sarvam app id; blank until the agent exists, and then Munshi calls are refused. */
+  SARVAM_MUNSHI_APP_ID: OptionalText,
 });
 
 /** WhatsApp Business numbers arrive from Meta as digits only, with the country code. */
@@ -82,12 +104,16 @@ const WhatsAppEnvSchema = ServerEnvSchema.extend({
   DASHBOARD_LINK_SECRET: OptionalText.pipe(
     z.string().min(MIN_DASHBOARD_SECRET_LENGTH).nullable(),
   ),
+  /** Munshi (M8): signs the "Call Munshi" link. Blank → the bot says Munshi is not set up. */
+  MUNSHI_LINK_SECRET: OptionalMunshiSecret,
 });
 
 /** followup-worker (M5): Sarvam transcripts + LLM, the owner's WhatsApp summary, its own secret. */
 const WorkerEnvSchema = CallsApiEnvSchema.omit({
   CORS_ALLOWED_ORIGINS: true,
   DASHBOARD_LINK_SECRET: true,
+  MUNSHI_LINK_SECRET: true,
+  SARVAM_MUNSHI_APP_ID: true,
 }).extend({
   META_ACCESS_TOKEN: NonEmpty,
   META_PHONE_NUMBER_ID: MetaPhoneNumberId,
@@ -108,6 +134,7 @@ export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;
 export type WhatsAppEnv = z.infer<typeof WhatsAppEnvSchema>;
 export type ToolsEnv = z.infer<typeof ToolsEnvSchema>;
+export type OwnerToolsEnv = z.infer<typeof OwnerToolsEnvSchema>;
 export type CallsApiEnv = z.infer<typeof CallsApiEnvSchema>;
 
 export class MissingEnvError extends Error {
@@ -131,6 +158,10 @@ export function loadServerEnv(source: Record<string, string | undefined>): Serve
 
 export function loadToolsEnv(source: Record<string, string | undefined>): ToolsEnv {
   return loadEnv(ToolsEnvSchema, source);
+}
+
+export function loadOwnerToolsEnv(source: Record<string, string | undefined>): OwnerToolsEnv {
+  return loadEnv(OwnerToolsEnvSchema, source);
 }
 
 export function loadCallsApiEnv(source: Record<string, string | undefined>): CallsApiEnv {

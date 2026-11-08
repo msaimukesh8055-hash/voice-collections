@@ -34,7 +34,7 @@ Deno.test('pending › biggest first, with days overdue or "not due yet"', () =>
   const text = replyText([pendingReply(VIEW)]);
   assertEquals(
     text,
-    '*Pending:* 2 people owe you ₹10,500\n\n' +
+    '📒 *Pending:* 2 people owe you ₹10,500\n\n' +
       '1. Ramesh (Ramesh Kirana) · ₹8,500 · 12 days overdue\n' +
       '2. Latha (Latha General Stores) · ₹2,000 · 8 days overdue',
   );
@@ -96,7 +96,7 @@ Deno.test('closed › credits paid off this month only', () => {
   const text = replyText([closedReply(VIEW)]);
   assertEquals(
     text,
-    '*Paid off this month*\n\n• Praveen (Praveen Bakery) · ₹1,500 · cleared Sun 1 Nov',
+    '✅ *Paid off this month*\n\n• Praveen (Praveen Bakery) · ₹1,500 · cleared Sun 1 Nov',
   );
 });
 
@@ -118,10 +118,14 @@ Deno.test('lookup › balance, last 5 entries, last promise and open claims', ()
     language: 'en',
   });
   const summary = replyText(replies.slice(0, 1)).split('\n');
-  assertEquals(summary[0], '*Ramesh* · Ramesh Kirana, Old Town');
-  assertEquals(summary[1], 'Balance: ₹8,500 (₹5,000 overdue 12 days; next ₹3,500 on Thu 5 Nov)');
-  assertEquals(summary[2], '');
-  assertEquals(summary[4], '• Sun 1 Nov · Payment ₹2,000 (claimed, not confirmed)');
+  assertEquals(summary.slice(0, 5), [
+    '👤 *Ramesh* · Ramesh Kirana, Old Town',
+    'Balance: ₹8,500',
+    'Overdue: ₹5,000 · 12 days',
+    'Next due: ₹3,500 · Thu 5 Nov',
+    '',
+  ]);
+  assertEquals(summary[6], '• Sun 1 Nov · Payment ₹2,000 (claimed, not confirmed)');
   assertEquals(summary.at(-3), '');
   assertEquals(summary.filter((line) => line.startsWith('• ')).length, 5);
   assertEquals(summary.at(-2), 'Last promise: ₹3,000 · Fri 30 Oct (broken)');
@@ -138,7 +142,7 @@ Deno.test('lookup › shows the score and band after the last promise (SPEC §6.
       score: { score: 42, band: 'risky' },
       today: FAKE_TODAY,
       language: 'en',
-    }),
+    }).slice(0, 1),
   ).split('\n');
   assertEquals(lines.slice(-2), [
     'Last promise: ₹3,000 · Fri 30 Oct (broken)',
@@ -184,7 +188,7 @@ Deno.test('lookup › a new shopkeeper with no entries and no claims', () => {
     today: FAKE_TODAY,
     language: 'hi',
   });
-  assertEquals(replies.length, 1);
+  assertEquals(replies.map((reply) => reply.kind), ['text', 'buttons']);
   assert(replyText(replies).includes('₹0'));
 });
 
@@ -254,10 +258,8 @@ Deno.test('lookup › shows the last call note for the owner, as its own block (
     today: FAKE_TODAY,
     language: 'en',
   });
-  assert(
-    replyText(replies).endsWith('\n\n📝 Last call note: Promised Monday; shop was busy.'),
-    replyText(replies),
-  );
+  const lookup = replyText(replies.slice(0, 1));
+  assert(lookup.endsWith('\n\n📝 Last call note: Promised Monday; shop was busy.'), lookup);
 });
 
 Deno.test('lookup › no note → no note line', () => {
@@ -284,8 +286,28 @@ Deno.test('lookup › reply links: View in books is the last line; absent or nul
     language: 'en',
   } as const;
   const link = 'https://x.example/shopkeepers?id=1#t=T';
-  const lines = replyText(shopkeeperReplies({ ...view, booksLink: link })).split('\n');
+  const lines = replyText(shopkeeperReplies({ ...view, booksLink: link }).slice(0, 1)).split('\n');
   assertEquals(lines.slice(-2), ['', `📒 View in books: ${link}`]);
   assert(!replyText(shopkeeperReplies({ ...view, booksLink: null })).includes('📒'));
   assert(!replyText(shopkeeperReplies(view)).includes('📒'));
+});
+
+Deno.test('lookup › a reversed (deleted) entry is never listed (M8)', () => {
+  const entries = [
+    bookEntry({ kind: 'credit', amount: 4321, entryDate: '2026-11-01', status: 'reversed' }),
+    bookEntry({ kind: 'payment', amount: 700, entryDate: '2026-10-30' }),
+  ];
+  const text = replyText(
+    shopkeeperReplies({
+      lastNote: null,
+      shopkeeper: RAMESH,
+      entries,
+      lastPromise: null,
+      score: null,
+      today: FAKE_TODAY,
+      language: 'en',
+    }),
+  );
+  assert(!text.includes('4,321'));
+  assertStringIncludes(text, 'Payment ₹700');
 });

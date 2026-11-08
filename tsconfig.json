@@ -4,5 +4,5 @@
     "types": ["node"],
     "erasableSyntaxOnly": true
   },
-  "include": ["scripts/**/*.ts", "voice-agents/**/*.ts", "vitest.config.ts"]
+  "include": ["scripts/**/*.ts", "voice-agents/**/*.ts", "evals/**/*.ts", "vitest.config.ts"]
 }

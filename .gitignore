@@ -12,6 +12,7 @@ coverage/
 playwright-report/
 test-results/
 voice-agents/asha/build/
+voice-agents/munshi/build/
 
 # OS / editor
 .DS_Store

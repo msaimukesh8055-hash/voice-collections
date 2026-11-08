@@ -4,9 +4,10 @@
 // in tests). The SDK fetches its call URL through our calls-api proxy with the call token; the
 // Sarvam key never reaches the browser (ADR-0012).
 import { renderGreeting } from '@voice-agents/asha/greetings.ts';
-import { CALL_TOKEN_VARIABLE } from '@shared/sarvam.ts';
+import { renderMunshiGreeting } from '@voice-agents/munshi/greetings.ts';
+import { CALL_TOKEN_VARIABLE, OWNER_CALL_TOKEN_VARIABLE } from '@shared/sarvam.ts';
 import { SARVAM_LANGUAGE_NAMES } from '@shared/schemas/shopkeeper.ts';
-import type { AcceptedCall, SarvamProxy } from './appApi.ts';
+import type { AcceptedCall, AcceptedMunshiCall, SarvamProxy } from './appApi.ts';
 import { createSpeechDetector } from './micLevel.ts';
 
 const CONNECT_TIMEOUT_SECONDS = 15;
@@ -50,6 +51,8 @@ export interface AgentHandle {
 export type AgentFactory = (request: AgentRequest, callbacks: AgentCallbacks) => AgentHandle;
 
 export type CallPhase = 'connecting' | 'live' | 'ended' | 'error';
+/** 'asha' is the agent's side of the call (Asha, or Munshi on /munshi); 'shopkeeper' is the
+ * person on the page (the shopkeeper, or the owner talking to Munshi). */
 export type Speaker = 'asha' | 'shopkeeper';
 
 export interface TranscriptLine {
@@ -71,6 +74,12 @@ export interface VoiceSession {
 export interface VoiceClient {
   readonly start: (
     call: AcceptedCall,
+    proxy: SarvamProxy,
+    events: CallEvents,
+  ) => Promise<VoiceSession>;
+  /** Munshi, the owner's call line (M8): Telugu greeting, the owner call token as a variable. */
+  readonly startMunshi: (
+    call: AcceptedMunshiCall,
     proxy: SarvamProxy,
     events: CallEvents,
   ) => Promise<VoiceSession>;
@@ -102,6 +111,26 @@ export function buildAgentRequest(call: AcceptedCall, proxy: SarvamProxy): Agent
       today: call.today,
     },
     greeting: renderGreeting(call.language, names),
+  };
+}
+
+/** Munshi always greets in Telugu and then follows the owner's language (Sarvam switches). */
+export function buildMunshiRequest(call: AcceptedMunshiCall, proxy: SarvamProxy): AgentRequest {
+  return {
+    proxy,
+    orgId: call.sarvam.orgId,
+    workspaceId: call.sarvam.workspaceId,
+    appId: call.sarvam.appId,
+    userIdentifier: call.ownerCallToken,
+    languageName: SARVAM_LANGUAGE_NAMES.te,
+    variables: {
+      [OWNER_CALL_TOKEN_VARIABLE]: call.ownerCallToken,
+      owner_short_name: call.ownerShortName,
+      owner_name: call.ownerName,
+      business_name: call.businessName,
+      today: call.today,
+    },
+    greeting: renderMunshiGreeting(call.ownerShortName),
   };
 }
 
@@ -178,22 +207,25 @@ export function createSarvamClient(
   factory: AgentFactory,
   now: () => number = Date.now,
 ): VoiceClient {
+  async function startRequest(request: AgentRequest, events: CallEvents): Promise<VoiceSession> {
+    events.onPhase('connecting');
+    const agent = factory(request, createCallbacks(events, now));
+    await connect(agent);
+    events.onPhase('live');
+    let stopped = false;
+    return {
+      async stop() {
+        if (!stopped) {
+          stopped = true;
+          await agent.stop().catch(() => undefined);
+        }
+        return agent.getInteractionId() ?? null;
+      },
+    };
+  }
+
   return {
-    async start(call, proxy, events) {
-      events.onPhase('connecting');
-      const agent = factory(buildAgentRequest(call, proxy), createCallbacks(events, now));
-      await connect(agent);
-      events.onPhase('live');
-      let stopped = false;
-      return {
-        async stop() {
-          if (!stopped) {
-            stopped = true;
-            await agent.stop().catch(() => undefined);
-          }
-          return agent.getInteractionId() ?? null;
-        },
-      };
-    },
+    start: (call, proxy, events) => startRequest(buildAgentRequest(call, proxy), events),
+    startMunshi: (call, proxy, events) => startRequest(buildMunshiRequest(call, proxy), events),
   };
 }

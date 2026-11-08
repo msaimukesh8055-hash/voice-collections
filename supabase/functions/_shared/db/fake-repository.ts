@@ -1,6 +1,7 @@
 // supabase/functions/_shared/db/fake-repository.ts
 // In-memory Repository for tests. FAKE DATA ONLY. Ramesh's book mirrors his seeded story
 // (₹8,500 outstanding: ₹5,000 overdue 12 days + ₹3,500 due in 3 days) on FAKE_TODAY.
+import { MAX_PAST_CALLS, type PastCallRow } from '../calls/call-history.ts';
 import type { ToneLevel } from '../calls/tone.ts';
 import type { PromiseRecord } from '../ledger/promise-check.ts';
 import type { LedgerEntry, PaymentMode } from '../schemas/ledger.ts';
@@ -117,6 +118,11 @@ export interface FakePromiseRecord extends PromiseRecord {
   readonly shopkeeperId: string;
 }
 
+/** An ended call with its linked rows, as listPastCalls returns it. */
+export interface FakePastCall extends PastCallRow {
+  readonly shopkeeperId: string;
+}
+
 export interface FakeNote {
   readonly shopkeeperId: string;
   readonly note: string;
@@ -133,6 +139,8 @@ export interface FakeState {
   /** Promise history read by memory and tone (listPromises), in any order. */
   promiseHistory: readonly FakePromiseRecord[];
   notes: readonly FakeNote[];
+  /** Ended calls read by the call history (listPastCalls), in any order. */
+  pastCalls: readonly FakePastCall[];
   toneLevels: Readonly<Record<string, ToneLevel>>;
   settings: DemoSettings;
   /** Stands in for the database's now() when a call row is created. */
@@ -170,6 +178,7 @@ function initialState(overrides: Partial<FakeState>): FakeState {
     toolEvents: [],
     promiseHistory: [],
     notes: [],
+    pastCalls: [],
     toneLevels: {},
     settings: {
       demoClock: null,
@@ -226,6 +235,15 @@ function fakeMemory(state: FakeState): MemoryMethods {
       ) => (p.id === promiseId ? { ...p, status } : p));
       return Promise.resolve(true);
     },
+    listPastCalls: (shopkeeperId, excludeCallId, since) =>
+      Promise.resolve(
+        state.pastCalls
+          .filter((call) => call.shopkeeperId === shopkeeperId && call.id !== excludeCallId)
+          .filter((call) => Date.parse(call.queuedAt) >= since.getTime())
+          .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt))
+          .slice(0, MAX_PAST_CALLS)
+          .map(({ shopkeeperId: _shopkeeperId, ...row }) => row),
+      ),
     setCallToneLevel: (callId, level) => {
       state.toneLevels = { ...state.toneLevels, [callId]: level };
       return Promise.resolve();

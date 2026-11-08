@@ -158,3 +158,17 @@ Deno.test('conversation › a tool sent with the goodbye still runs', async () =
   });
   assertEquals([result.end, calls], ['asha_ended', ['request_owner_callback']]);
 });
+
+Deno.test('conversation › a caller label and turn cap replace the defaults (Munshi evals)', async () => {
+  const seen: ChatMessage[][] = [];
+  const many = Array.from({ length: 20 }, (_, n) => `line ${n}`);
+  const result = await converse(GREETING, {
+    asha: scripted(many.map((line) => asha(line)), seen),
+    shopkeeper: scripted(many.map((line) => shop(line))),
+    runTool: tools([]),
+    userLabel: 'OWNER',
+    maxTurns: 12,
+  });
+  assertEquals(result.transcript.filter((t) => t.role === 'user').length, 12);
+  assertEquals(seen[0]?.at(-1)?.content, 'OWNER: line 0');
+});
