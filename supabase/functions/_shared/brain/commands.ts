@@ -305,8 +305,18 @@ function cutOut(text: string, span: { start: number; end: number } | null): stri
   return span ? `${text.slice(0, span.start)} ${text.slice(span.end)}` : text;
 }
 
+/** "Praveen gave me 1,000": money handed to the owner is a payment, not new credit (M9 brain
+ * evals, brain-10). Without "me" / "us", "gave" still means goods given on credit. */
+const GAVE_WORDS = new Set(['gave', 'given']);
+const TO_OWNER_WORDS = new Set(['me', 'us']);
+
+function gaveToOwner(all: readonly string[]): boolean {
+  return all.some((word) => GAVE_WORDS.has(word)) && all.some((word) => TO_OWNER_WORDS.has(word));
+}
+
 function isPaid(all: readonly string[]): boolean {
   if (all.some((word) => PAID_WORDS.has(word))) return true;
+  if (gaveToOwner(all)) return true;
   return all.includes(HINDI_PAYER_MARK) && all.some((word) => HINDI_GAVE.has(word));
 }
 
@@ -320,7 +330,20 @@ function isUnclearPayment(all: readonly string[], hasDueDate: boolean): boolean 
 }
 
 function isNameWord(word: string): boolean {
-  return !PAID_WORDS.has(word) && !FILLER_WORDS.has(word);
+  return !PAID_WORDS.has(word) && !FILLER_WORDS.has(word) && !TO_OWNER_WORDS.has(word);
+}
+
+/**
+ * "Ramesh will pay 5000 by 15th": a promise about money already owed. It is neither a payment
+ * nor a new credit, so it must never become a money card, whatever a model suggests (M9 brain
+ * evals, brain-19). A credit word ("... credit ichchaanu") makes it a credit with a due date,
+ * which is left to the model as before.
+ */
+export function isPromiseToPay(text: string): boolean {
+  const all = text.toLowerCase().split(/[^a-z]+/).filter((word) => word !== '');
+  const paying = all.some((word) => PAID_WORDS.has(word));
+  const stillOwed = all.some((word) => STILL_OWED_WORDS.has(word));
+  return paying && stillOwed && !all.some((word) => CREDIT_WORDS.has(word));
 }
 
 function lookupOf(text: string): Command | null {
