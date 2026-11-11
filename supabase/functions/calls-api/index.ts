@@ -45,6 +45,7 @@ const deps: CallsApiDeps = {
   kickFollowup: kick,
   dashboard: {
     linkSecret: env.DASHBOARD_LINK_SECRET,
+    publicDemo: env.DASHBOARD_PUBLIC,
     book,
     reads: createSupabaseDashboardRepository(query),
     translate: env.SARVAM_API_KEY

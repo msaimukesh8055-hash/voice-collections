@@ -25,6 +25,8 @@ export interface MunshiDeps extends MunshiLine {
 export interface DashboardDeps {
   /** Signs and checks dashboard links (DASHBOARD_LINK_SECRET). */
   readonly linkSecret: string;
+  /** DASHBOARD_PUBLIC=on: every dashboard route skips the link check (public demo). */
+  readonly publicDemo?: boolean;
   readonly book: Pick<
     BookRepository,
     'getOwner' | 'listShopkeepers' | 'listEntries' | 'listShopkeeperEntries'

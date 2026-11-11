@@ -66,6 +66,13 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
   WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
   /** Signs and checks the dashboard's 24-hour links (M6 Decision 9). */
   DASHBOARD_LINK_SECRET: z.string().trim().min(MIN_DASHBOARD_SECRET_LENGTH),
+  /** Public demo: "on" lets anyone use the dashboard (overview, customers, calls, transcripts, the switch)
+   * without the WhatsApp link. Fake data only. Blank or anything else → the link is required. */
+  DASHBOARD_PUBLIC: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => value === 'on'),
   /** Sarvam core key: the dashboard's transcript English (M6). Blank → no translation. */
   SARVAM_API_KEY: OptionalText,
   /** Munshi (M8): checks the /munshi page's link token. Blank → Munshi is not set up. */

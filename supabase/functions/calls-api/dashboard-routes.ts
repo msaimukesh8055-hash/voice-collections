@@ -1,6 +1,7 @@
 // supabase/functions/calls-api/dashboard-routes.ts
 // The web dashboard's reads (SPEC §12, M6 Decision 9). Every route first checks the signed link
-// token (x-dashboard-token) and answers 401 with no data without a valid one. Figures are worked
+// token (x-dashboard-token) and answers 401 with no data without a valid one, unless DASHBOARD_PUBLIC=on
+// (public demo, fake data: every route, the setting too, is open). Figures are worked
 // out here with the same code as WhatsApp (dues, insights, score), on the demo-clock date. The
 // one write is the "English under Telugu" demo switch.
 import { z } from 'zod';
@@ -28,6 +29,15 @@ const SettingsBody = z.object({ englishUnderTelugu: z.boolean() });
 async function todayOf(ctx: RouteContext): Promise<string> {
   const { demoClock } = await ctx.deps.repo.getDemoSettings();
   return istDate(resolveNow(demoClock, ctx.deps.clock()));
+}
+
+/** Public demo (DASHBOARD_PUBLIC=on): the route runs without the link token. */
+function openInDemo(handler: RouteHandler): RouteHandler {
+  const checked = guarded(handler);
+  return async function maybeOpen(req, ctx): Promise<Response> {
+    if (ctx.deps.dashboard.publicDemo === true) return await handler(req, ctx);
+    return await checked(req, ctx);
+  };
 }
 
 /** Runs the route only for a valid dashboard token (real time, not the demo clock). */
@@ -209,10 +219,10 @@ async function changeSettings(req: Request, ctx: RouteContext): Promise<Response
 }
 
 export const DASHBOARD_ROUTES = {
-  overview: guarded(overview),
-  shopkeepers: guarded(shopkeeperList),
-  shopkeeper: guarded(shopkeeperDetail),
-  calls: guarded(callList),
-  call: guarded(callDetail),
-  settings: guarded(changeSettings),
+  overview: openInDemo(overview),
+  shopkeepers: openInDemo(shopkeeperList),
+  shopkeeper: openInDemo(shopkeeperDetail),
+  calls: openInDemo(callList),
+  call: openInDemo(callDetail),
+  settings: openInDemo(changeSettings),
 } as const;

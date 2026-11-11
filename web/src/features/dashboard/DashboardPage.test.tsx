@@ -76,7 +76,10 @@ describe('DashboardPage on localhost with no WhatsApp link (npm run dev)', () =>
     const sentTokens: string[] = [];
     function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
       if (String(input) === '/__dev/dashboard-token') return Promise.resolve(devReply);
-      sentTokens.push(new Headers(init?.headers).get('x-dashboard-token') ?? '');
+      const token = new Headers(init?.headers).get('x-dashboard-token');
+      // A locked server (public demo off): no token → 401.
+      if (!token) return Promise.resolve(new Response('{}', { status: 401 }));
+      sentTokens.push(token);
       return Promise.resolve(Response.json(OVERVIEW));
     }
     function devToken(): Promise<string | null> {

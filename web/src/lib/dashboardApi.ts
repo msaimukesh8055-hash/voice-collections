@@ -2,7 +2,8 @@
 // Browser client for the dashboard's calls-api routes (M6, SPEC §12). The owner opens the page
 // from the WhatsApp link `/#t=<token>`; the token is moved into this tab's sessionStorage and
 // removed from the address bar, then sent as x-dashboard-token on every read. Replies are checked
-// with Zod. A missing or expired token becomes `needsLink` so the page can say "open it from
+// with Zod. With no token the reads are still sent (a public demo server answers them); a 401
+// (missing or expired token) becomes `needsLink` so the page can say "open it from
 // WhatsApp" instead of an error. On `npm run dev` only (ADR-0017 addendum), a page with no link
 // asks the local Vite server for a token instead; production builds never pass `devToken`.
 import { z } from 'zod';
@@ -271,22 +272,24 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     schema: z.ZodType<T>,
     init: RequestInit = {},
   ): Promise<T> {
+    // No link token: still ask, because a public demo server (DASHBOARD_PUBLIC=on) answers
+    // reads without one; a locked server answers 401, which becomes "open it from WhatsApp".
     const sendToken = await tokens.current();
-    if (!sendToken) throw new NeedsLinkError('No link');
-    const headers = {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
       [REGION_HEADER]: region,
-      [DASHBOARD_TOKEN_HEADER]: sendToken,
       'Content-Type': 'application/json',
     };
+    if (sendToken) headers[DASHBOARD_TOKEN_HEADER] = sendToken;
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     const response = await fetchImpl(`${baseUrl}${path}`, { ...init, headers, signal }).catch(
       () => null,
     );
     if (!response) throw new AppApiError(NETWORK_ERROR, null);
     // Dev only: a refused link token gets one retry with the localhost token.
-    if (response.status === 401 && tokens.dropLink(sendToken)) return request(path, schema, init);
+    if (response.status === 401 && sendToken && tokens.dropLink(sendToken))
+      return request(path, schema, init);
     if (!response.ok) throw await errorOf(response);
     const parsed = schema.safeParse(await response.json().catch(() => null));
     if (!parsed.success) throw new AppApiError(UNEXPECTED_ERROR, null);

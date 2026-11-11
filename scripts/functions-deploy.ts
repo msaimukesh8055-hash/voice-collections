@@ -32,7 +32,13 @@ const REQUIRED_SECRETS = [
 ] as const;
 /** Blank until the agent exists in Sarvam: calls-api refuses Asha calls (503) without
  * SARVAM_APP_ID, and the Munshi link says "not set up yet" without SARVAM_MUNSHI_APP_ID. */
-const OPTIONAL_SECRETS = ['SARVAM_APP_ID', 'SARVAM_MUNSHI_APP_ID', 'DASHBOARD_URL'] as const;
+const OPTIONAL_SECRETS = [
+  'SARVAM_APP_ID',
+  'SARVAM_MUNSHI_APP_ID',
+  'DASHBOARD_URL',
+  // "on" opens the dashboard's reads to anyone with the web address (public demo).
+  'DASHBOARD_PUBLIC',
+] as const;
 
 function readEnv(name: string): string {
   return process.env[name]?.trim() ?? '';

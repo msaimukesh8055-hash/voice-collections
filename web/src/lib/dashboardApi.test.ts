@@ -105,10 +105,22 @@ describe('createDashboardApi', () => {
     expect((init.headers as Record<string, string>)['x-dashboard-token']).toBe('T');
   });
 
-  it('no token or a 401 means "open the link from WhatsApp"', async () => {
-    const none = createDashboardApi({ ...base, token: null, fetchImpl: vi.fn() });
-    expect(none.hasToken()).toBe(false);
-    await expect(none.overview()).rejects.toBeInstanceOf(NeedsLinkError);
+  it('no token: still asks (public demo answers) and sends no token header', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(Response.json(OVERVIEW)));
+    const open = createDashboardApi({ ...base, token: null, fetchImpl });
+    expect(open.hasToken()).toBe(false);
+    expect((await open.overview()).insights.percentCollected).toBe(30);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>)['x-dashboard-token']).toBeUndefined();
+  });
+
+  it('a 401 (locked server, or an expired link) means "open the link from WhatsApp"', async () => {
+    const locked = createDashboardApi({
+      ...base,
+      token: null,
+      fetchImpl: () => Promise.resolve(new Response('{}', { status: 401 })),
+    });
+    await expect(locked.overview()).rejects.toBeInstanceOf(NeedsLinkError);
     const expired = createDashboardApi({
       ...base,
       token: 'old',
@@ -241,12 +253,12 @@ describe('localhost dev token (npm run dev only)', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
-  it('no dev token (404 or production) still means "open the link from WhatsApp"', async () => {
+  it('no dev token (404 or production) and a locked server still means "open the link"', async () => {
     const api = createDashboardApi({
       ...base,
       token: null,
       devToken: () => Promise.resolve(null),
-      fetchImpl: vi.fn(),
+      fetchImpl: () => Promise.resolve(new Response('{}', { status: 401 })),
     });
     await expect(api.overview()).rejects.toBeInstanceOf(NeedsLinkError);
     expect(await api.localDemo()).toBe(false);

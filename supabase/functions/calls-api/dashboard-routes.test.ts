@@ -1,6 +1,7 @@
 // supabase/functions/calls-api/dashboard-routes.test.ts
 // The dashboard's API (M6 Decision 9) through the real router: no valid link → 401 and no data
-// (security, 100%); the overview, shopkeepers, calls and the one setting it can change.
+// (security, 100%), unless the public demo is on; the overview, shopkeepers, calls
+// and the one setting it can change.
 import { munshiSetup } from './__fixtures__/munshi.ts';
 import { assert, assertEquals } from '@std/assert';
 import { DASHBOARD_TOKEN_HEADER, signDashboardToken } from '../_shared/auth/dashboard-link.ts';
@@ -99,6 +100,25 @@ Deno.test('dashboard api › no token, a wrong one or an expired one → 401 and
     body: { englishUnderTelugu: false },
   });
   assertEquals(settings.status, 401);
+});
+
+Deno.test('dashboard api › public demo: every route answers without a token, the setting too', async () => {
+  const { all } = deps();
+  const open: CallsApiDeps = { ...all, dashboard: { ...all.dashboard, publicDemo: true } };
+  for (const path of PATHS) {
+    for (const token of [null, 'nonsense']) {
+      const result = await call(path, open, { token });
+      assertEquals(result.status, 200, `${path} ${token}`);
+    }
+  }
+  const detail = await call(`/v1/dashboard/calls/${CALL.id}`, open, { token: null });
+  assert(JSON.stringify(detail.body).includes('Namaste'));
+  const settings = await call('/v1/dashboard/settings', open, {
+    token: null,
+    method: 'POST',
+    body: { englishUnderTelugu: false },
+  });
+  assertEquals(settings.status, 200);
 });
 
 Deno.test('dashboard api › the browser may send the token header (CORS)', async () => {
