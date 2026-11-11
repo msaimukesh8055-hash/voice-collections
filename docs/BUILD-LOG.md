@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-12 · M9 Builds C + D — Evals, Evals page, CI · ✅ Shipped (merged to main, pushed)**
+Asha runs 9 cases on Sarvam Tests with our own database checks, the WhatsApp brain runs 21 messages in code, both behind a release gate and shown on `/evals`; GitHub Actions runs the full gate on every push (first run green). Asha's gate failed at 16/18 behaviours (3 prompt findings for Saim, no money or identity failure); the brain passes 21/21 after two parser fixes.
+Deno 1,478 + root 272 + web 253 · `db:push` no longer runs the seed · Sarvam cost not measured · Details → [`milestones/M9.md`](milestones/M9.md)
+
 **2026-11-11 · M9 Build A — Trace, ops page, failure alert, health check · ✅ Shipped (commit 6587b95, merged to main f66f43f, pushed)**
 Every request gets a trace id and its steps land in `ops_events` (with LLM token counts); `/ops` shows error rate, rejected LLM answers, tool latency, queue, spend and each error's timeline; a 5-minute watcher sends one WhatsApp alert per problem per 15 minutes; 6 failure drills pass.
 Deno 1,469 + root 211 + web 244, `npm run check` green; migration pushed without the seed (demo data intact), a forced drill raised one WhatsApp alert via the cron · ops page already shows 2 tools over the 500 ms target · Details → [`milestones/M9.md`](milestones/M9.md)
