@@ -32,6 +32,8 @@
     "smoke:reminders": "node --env-file=.env scripts/smoke-reminders.ts",
     "smoke:munshi-latency": "node --env-file=.env scripts/smoke-munshi-latency.ts",
     "evals:munshi": "node --env-file-if-exists=.env evals/munshi/run.ts",
+    "evals:asha": "node --env-file=.env evals/sarvam/run.ts",
+    "evals:brain": "node --env-file=.env evals/brain/run.ts",
     "brand:png": "node scripts/brand-png.ts",
     "bot:profile": "node --env-file-if-exists=.env scripts/bot-profile.ts",
     "whatsapp:commands": "node --env-file-if-exists=.env scripts/whatsapp-commands.ts"

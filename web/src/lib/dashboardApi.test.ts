@@ -7,7 +7,7 @@ import {
   NeedsLinkError,
   readToken,
 } from './dashboardApi.ts';
-import { OPS, OVERVIEW, TRACE, TRACE_ID } from '../test/dashboardFakes.ts';
+import { EVALS, OPS, OVERVIEW, TRACE, TRACE_ID } from '../test/dashboardFakes.ts';
 import { AppApiError } from './appApi.ts';
 
 function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> & { data: Map<string, string> } {
@@ -116,6 +116,17 @@ describe('createDashboardApi', () => {
       'https://x/calls-api/v1/dashboard/ops',
       `https://x/calls-api/v1/dashboard/ops/traces/${TRACE_ID}`,
     ]);
+  });
+
+  it('reads the evals; an odd run summary shows as unknown instead of failing (M9)', async () => {
+    const odd = { ...EVALS.targets[0], latest: { ...EVALS.targets[0]?.latest, metrics: 'old' } };
+    const replies = [Response.json(EVALS), Response.json({ ...EVALS, targets: [odd] })];
+    const fetchImpl = vi.fn(() => Promise.resolve(replies.shift() ?? Response.error()));
+    const api = createDashboardApi({ ...base, token: 'T', fetchImpl });
+    expect((await api.evals()).targets).toHaveLength(2);
+    const [url] = fetchImpl.mock.calls[0] as unknown as [string];
+    expect(url).toBe('https://x/calls-api/v1/dashboard/evals');
+    await expect(api.evals()).rejects.toBeInstanceOf(AppApiError);
   });
 
   it('an ops reply in the wrong shape is refused, not shown', async () => {

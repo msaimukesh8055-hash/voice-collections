@@ -1,6 +1,7 @@
 // supabase/functions/_shared/brain/interpret.test.ts
 import { assertEquals } from '@std/assert';
-import { interpret } from './interpret.ts';
+import type { Command } from './commands.ts';
+import { interpret, notAPromise } from './interpret.ts';
 import type { BrainLlm, LlmResult } from './llm.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -144,4 +145,21 @@ Deno.test('interpret › "call Ramesh now" is a call request; an unknown name go
   assertEquals([hindi.command, calls.length], [{ kind: 'call_request', name: 'Ramesh' }, 1]);
   const unknown = await interpret('call Mohan', deps(FAILED));
   assertEquals(unknown.path, 'failed');
+});
+
+Deno.test('interpret › a promise to pay never becomes a money card, whatever the model says (M9)', () => {
+  const credit: Command = {
+    kind: 'add_credit',
+    name: 'Ramesh',
+    amount: 5000,
+    dueDate: '2026-11-15',
+    note: null,
+  };
+  const paid: Command = { kind: 'mark_paid', name: 'Ramesh', amount: 5000 };
+  assertEquals(notAPromise(credit, 'Ramesh will pay 5000 by 15th'), null);
+  assertEquals(notAPromise(paid, 'Ramesh will pay 5000 by 15th'), null);
+  // A real credit with a due date, and commands that move no money, are left alone.
+  assertEquals(notAPromise(credit, 'Ramesh will pay 5000 by 15th credit ichchaanu'), credit);
+  assertEquals(notAPromise({ kind: 'pending' }, 'who will pay this week'), { kind: 'pending' });
+  assertEquals(notAPromise(null, 'Ramesh will pay 5000 by 15th'), null);
 });

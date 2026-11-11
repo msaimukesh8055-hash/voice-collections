@@ -8,6 +8,7 @@ import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { DASHBOARD_TOKEN_HEADER } from '../_shared/auth/dashboard-link.ts';
 import { DASHBOARD_ROUTES } from './dashboard-routes.ts';
 import { getDemo, ringLiveShopkeeper } from './demo-routes.ts';
+import { EVALS_ROUTES } from './evals-routes.ts';
 import { getHealth } from './health-route.ts';
 import { OPS_ROUTES } from './ops-routes.ts';
 import { acceptMunshi, endMunshi, getMunshiSession } from './munshi-routes.ts';
@@ -50,6 +51,7 @@ const ROUTES: readonly Route[] = [
   { pattern: /^\/v1\/dashboard\/calls\/([^/]+)$/, methods: { GET: DASHBOARD_ROUTES.call } },
   { pattern: /^\/v1\/dashboard\/settings$/, methods: { POST: DASHBOARD_ROUTES.settings } },
   // M9: the ops page, behind the same signed link.
+  { pattern: /^\/v1\/dashboard\/evals$/, methods: { GET: EVALS_ROUTES.summary } },
   { pattern: /^\/v1\/dashboard\/ops$/, methods: { GET: OPS_ROUTES.summary } },
   { pattern: /^\/v1\/dashboard\/ops\/traces\/([^/]+)$/, methods: { GET: OPS_ROUTES.trace } },
   {

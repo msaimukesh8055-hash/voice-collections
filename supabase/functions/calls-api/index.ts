@@ -5,6 +5,7 @@ import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
 import { createSupabaseDashboardRepository } from '../_shared/db/supabase-dashboard-repository.ts';
+import { createEvalReads } from '../_shared/db/eval-reads.ts';
 import { createSupabaseOpsRepository } from '../_shared/db/supabase-ops-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
 import { createSupabaseOwnerCallRepository } from '../_shared/db/supabase-owner-call-repository.ts';
@@ -60,6 +61,7 @@ const deps: CallsApiDeps = {
     book,
     reads: createSupabaseDashboardRepository(query),
     ops: createSupabaseOpsRepository(query),
+    evals: createEvalReads(query),
     translate: env.SARVAM_API_KEY
       ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log })
       : null,

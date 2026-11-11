@@ -1,6 +1,6 @@
 // supabase/functions/_shared/brain/commands.test.ts
 import { assertEquals } from '@std/assert';
-import { parseCommand } from './commands.ts';
+import { isPromiseToPay, parseCommand } from './commands.ts';
 
 /** Monday 2 November 2026. */
 const TODAY = '2026-11-02';
@@ -210,4 +210,20 @@ Deno.test('commands › "insights" / "report" and "dashboard" (M6)', () => {
   for (const text of ['dashboard', 'Dashboard link', 'open dashboard']) {
     assertEquals(parse(text), { kind: 'dashboard' }, text);
   }
+});
+
+Deno.test('commands › "gave me" is a payment to the owner; "gave" alone is still credit (M9)', () => {
+  assertEquals(parseCommand('Praveen gave me 1,000 rupees yesterday', TODAY)?.kind, 'mark_paid');
+  const paid = parseCommand('Praveen gave me 1000', TODAY);
+  assertEquals(paid, { kind: 'mark_paid', name: 'Praveen', amount: 1000 });
+  assertEquals(parseCommand('Praveen has given us 2500', TODAY)?.kind, 'mark_paid');
+  assertEquals(parseCommand('gave Praveen 1000', TODAY)?.kind, 'add_credit');
+});
+
+Deno.test('commands › a promise to pay later is recognised; a credit with a due date is not one', () => {
+  assertEquals(isPromiseToPay('Ramesh will pay 5000 by 15th'), true);
+  assertEquals(isPromiseToPay('Suresh has to pay later, 2000'), true);
+  assertEquals(isPromiseToPay('Ramesh will pay 5000 by 15th credit ichchaanu'), false);
+  assertEquals(isPromiseToPay('Ramesh paid 5000'), false);
+  assertEquals(isPromiseToPay('Ramesh 5000 due 15th'), false);
 });

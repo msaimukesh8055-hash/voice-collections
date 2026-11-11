@@ -15,7 +15,13 @@ export default defineConfig({
         'evals/**/*.ts',
       ],
       // CLI entry points (argument parsing + process exit); their logic is in tested modules.
-      exclude: ['**/*.test.ts', 'scripts/seed/write-seed.ts', 'evals/munshi/run.ts'],
+      exclude: [
+        '**/*.test.ts',
+        'scripts/seed/write-seed.ts',
+        'evals/munshi/run.ts',
+        'evals/sarvam/run.ts',
+        'evals/brain/run.ts',
+      ],
       reportsDirectory: 'coverage/root',
     },
   },

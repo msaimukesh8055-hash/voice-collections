@@ -4,7 +4,7 @@
 // The path that understood the message is returned so M7's evals can measure it.
 import type { Language } from '../schemas/shopkeeper.ts';
 import { amountsIn } from './amounts.ts';
-import { type Command, parseCommand } from './commands.ts';
+import { type Command, isPromiseToPay, parseCommand } from './commands.ts';
 import { asciiDigits } from './devanagari.ts';
 import { detectLanguage, hasIndicScript } from './language.ts';
 import type { BrainLlm, LlmPath } from './llm.ts';
@@ -56,6 +56,14 @@ export function keepsWrittenAmount(command: Command | null, text: string): Comma
   return written.length === 0 || written.includes(command.amount) ? command : null;
 }
 
+const MONEY_KINDS: ReadonlySet<Command['kind']> = new Set(['add_credit', 'mark_paid']);
+
+/** A promise to pay later is never a money card, even when the model suggests one. */
+export function notAPromise(command: Command | null, text: string): Command | null {
+  if (command === null || !MONEY_KINDS.has(command.kind)) return command;
+  return isPromiseToPay(text) ? null : command;
+}
+
 export async function interpret(text: string, deps: InterpretDeps): Promise<Interpretation> {
   const language = detectLanguage(text);
   const command = parseCommand(text, deps.today);
@@ -64,5 +72,6 @@ export async function interpret(text: string, deps: InterpretDeps): Promise<Inte
   if (trusted) return { command, path: 'command', language };
   const result = await deps.llm(text, deps.now);
   const suggested = result.suggestion ? toCommand(result.suggestion, deps.today) : null;
-  return { command: keepsWrittenAmount(suggested, text), path: result.path, language };
+  const checked = notAPromise(keepsWrittenAmount(suggested, text), text);
+  return { command: checked, path: result.path, language };
 }
