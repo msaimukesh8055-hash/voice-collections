@@ -12,6 +12,7 @@ import {
   createFakeOpsRepository,
   type FakeOpsState,
 } from '../../_shared/db/fake-ops-repository.ts';
+import type { EvalCaseResult, EvalReads, EvalRun } from '../../_shared/db/eval-reads.ts';
 import type { CallStatus } from '../../_shared/schemas/shopkeeper.ts';
 import type { Translator } from '../../_shared/speech/translate.ts';
 import type { DashboardDeps } from '../types.ts';
@@ -24,11 +25,25 @@ export interface DashboardSetup {
   readonly reads: FakeDashboardState;
 }
 
+/** Stored eval runs (newest first) and each run's case results, for tests. */
+export interface FakeEvals {
+  readonly runs: readonly EvalRun[];
+  readonly results: Readonly<Record<string, readonly EvalCaseResult[]>>;
+}
+
+function fakeEvalReads(evals: FakeEvals = { runs: [], results: {} }): EvalReads {
+  return {
+    listRuns: (limit) => Promise.resolve(evals.runs.slice(0, limit)),
+    listResults: (runId) => Promise.resolve(evals.results[runId] ?? []),
+  };
+}
+
 export function dashboardSetup(
   options: {
     book?: Partial<FakeBookState>;
     reads?: Partial<FakeDashboardState>;
     ops?: Partial<FakeOpsState>;
+    evals?: FakeEvals;
     translate?: Translator | null;
   } = {},
 ): DashboardSetup {
@@ -39,6 +54,7 @@ export function dashboardSetup(
     book: fakeBook.book,
     reads: fakeReads.reads,
     ops: createFakeOpsRepository(options.ops),
+    evals: fakeEvalReads(options.evals),
     score: {
       listPromises: () => Promise.resolve([]),
       listCallStatuses: (): Promise<readonly CallStatus[]> => Promise.resolve([]),

@@ -42,6 +42,11 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /Error rate/ })).toBeInTheDocument();
   });
 
+  it('renders the evals page on /evals', async () => {
+    renderAt('/evals');
+    expect(await screen.findByRole('heading', { name: /Asha/ })).toBeInTheDocument();
+  });
+
   it('renders the phone page on /phone', async () => {
     renderAt('/phone/');
     expect(await screen.findByRole('heading', { name: 'Waiting for a call…' })).toBeInTheDocument();

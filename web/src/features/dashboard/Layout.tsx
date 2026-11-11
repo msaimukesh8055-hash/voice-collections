@@ -11,6 +11,7 @@ export const PAGES = [
   { path: '/shopkeepers', label: 'Shopkeepers' },
   { path: '/calls', label: 'Calls' },
   { path: '/ops', label: 'Ops' },
+  { path: '/evals', label: 'Evals' },
 ] as const;
 
 interface LayoutProps {

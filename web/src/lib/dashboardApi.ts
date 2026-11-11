@@ -11,6 +11,7 @@ import { DASHBOARD_TOKEN_HEADER } from '@shared/auth/dashboard-header.ts';
 import { REGION_HEADER } from '@shared/region.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
+import { type Evals, EvalsSchema } from './evalsSchemas.ts';
 import { type OpsSummary, OpsSummarySchema, type Trace, TraceSchema } from './opsSchemas.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -164,6 +165,8 @@ export interface DashboardApi {
   /** M9: the ops page's numbers, and every step of one request. */
   ops: () => Promise<OpsSummary>;
   trace: (id: string) => Promise<Trace>;
+  /** M9: stored eval runs, the latest case by case. */
+  evals: () => Promise<Evals>;
 }
 
 /** Thrown when the link is missing or expired: the page asks to reopen it from WhatsApp. */
@@ -319,6 +322,7 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     call: async (callId) =>
       (await request(`/v1/dashboard/calls/${id(callId)}`, CallDetailSchema)).call,
     ops: () => request('/v1/dashboard/ops', OpsSummarySchema),
+    evals: () => request('/v1/dashboard/evals', EvalsSchema),
     trace: (traceId) => request(`/v1/dashboard/ops/traces/${id(traceId)}`, TraceSchema),
     setEnglishUnderTelugu: async (on) => {
       const body = JSON.stringify({ englishUnderTelugu: on });

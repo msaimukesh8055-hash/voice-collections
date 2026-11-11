@@ -10,6 +10,7 @@ import {
   type ShopkeeperDetail,
   type ShopkeeperList,
 } from '../lib/dashboardApi.ts';
+import type { EvalRun, Evals } from '../lib/evalsSchemas.ts';
 import type { OpsSummary, Trace } from '../lib/opsSchemas.ts';
 
 export const RAMESH = {
@@ -195,6 +196,117 @@ export const TRACE: Trace = {
   ],
 };
 
+function evalRun(id: string, overrides: Partial<Evals['targets'][number]['latest']>): EvalRun {
+  return {
+    id,
+    target: 'asha',
+    promptHash: 'abc123',
+    createdAt: '2026-11-11T16:30:00.000Z',
+    metrics: {
+      kind: 'sarvam-tests',
+      passed: false,
+      reasons: [],
+      cases: 9,
+      casesPassed: 6,
+      behaviours: undefined,
+      behavioursPassed: undefined,
+      guardrailFailures: undefined,
+      criticalFailures: undefined,
+      moneyFailures: undefined,
+      promptVersion: undefined,
+      appVersion: undefined,
+    },
+    ...overrides,
+  };
+}
+
+const ASHA_LATEST = evalRun('run-asha-2', {
+  metrics: {
+    kind: 'sarvam-tests',
+    passed: false,
+    reasons: ['16 of 18 behaviours passed (need 90%)'],
+    cases: 9,
+    casesPassed: 6,
+    behaviours: 18,
+    behavioursPassed: 16,
+    guardrailFailures: 0,
+    criticalFailures: 0,
+    moneyFailures: undefined,
+    promptVersion: 'v6',
+    appVersion: 6,
+  },
+});
+const ASHA_EARLIER = evalRun('run-asha-1', {
+  createdAt: '2026-11-11T16:00:00.000Z',
+  metrics: { ...ASHA_LATEST.metrics, passed: true, reasons: [], cases: 2, casesPassed: 2 },
+});
+const BRAIN_LATEST = evalRun('run-brain-1', {
+  target: 'brain',
+  metrics: {
+    kind: 'code-checks',
+    passed: true,
+    reasons: [],
+    cases: 21,
+    casesPassed: 21,
+    behaviours: undefined,
+    behavioursPassed: undefined,
+    guardrailFailures: undefined,
+    criticalFailures: undefined,
+    moneyFailures: 0,
+    promptVersion: 'v3',
+    appVersion: undefined,
+  },
+});
+
+export const EVALS: Evals = {
+  generatedAt: '2026-11-11T16:45:00.000Z',
+  targets: [
+    {
+      target: 'asha',
+      latest: ASHA_LATEST,
+      history: [ASHA_LATEST, ASHA_EARLIER],
+      cases: [
+        {
+          scenarioId: 'asha-01',
+          scores: {
+            name: 'Pays in full',
+            category: 'promise',
+            verdicts: [{ name: 'States the dues', passed: true, reasoning: 'Said it.' }],
+            checks: [{ id: 'identity_first', critical: true, passed: true, detail: '' }],
+          },
+          transcript: 'assistant: Namaste',
+          pass: true,
+        },
+        {
+          scenarioId: 'asha-08',
+          scores: {
+            name: 'Angry, asks to stop calling',
+            category: 'hardship',
+            verdicts: [
+              {
+                name: 'Hands over to the owner',
+                passed: false,
+                reasoning: 'The agent did not offer a callback.',
+              },
+            ],
+            checks: [
+              {
+                id: 'must_call',
+                critical: false,
+                passed: false,
+                detail: 'not called: request_owner_callback',
+              },
+            ],
+          },
+          transcript: 'assistant: Namaste',
+          pass: false,
+        },
+      ],
+    },
+    { target: 'brain', latest: BRAIN_LATEST, history: [BRAIN_LATEST], cases: [] },
+  ],
+};
+
 export interface FakeDashboard {
   readonly dashboard: DashboardApi;
   readonly requests: string[];
@@ -202,6 +314,8 @@ export interface FakeDashboard {
   english: boolean;
   /** What the ops page gets; tests swap it to show other states. */
   ops: OpsSummary;
+  /** What the evals page gets. */
+  evals: Evals;
 }
 
 export function fakeDashboard(): FakeDashboard {
@@ -210,6 +324,7 @@ export function fakeDashboard(): FakeDashboard {
     needsLink: false,
     english: true,
     ops: OPS,
+    evals: EVALS,
     dashboard: {
       hasToken: () => !fake.needsLink,
       localDemo: () => Promise.resolve(false),
@@ -219,6 +334,7 @@ export function fakeDashboard(): FakeDashboard {
       calls: () => answer('calls', [CALL_ROW]),
       call: (id) => answer(`call:${id}`, CALL),
       ops: () => answer('ops', fake.ops),
+      evals: () => answer('evals', fake.evals),
       trace: (id) => answer(`trace:${id}`, TRACE),
       setEnglishUnderTelugu: (on) => {
         fake.english = on;
