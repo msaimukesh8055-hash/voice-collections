@@ -239,3 +239,19 @@ Deno.test('env › Munshi settings are optional; blank means "not set up" (M8)',
     'MUNSHI_LINK_SECRET',
   );
 });
+
+Deno.test('loadWorkerEnv › the ops alert number is optional; a bad one is refused (M9)', () => {
+  const { CORS_ALLOWED_ORIGINS: _cors, ...base } = WORKER_ENV;
+  assertEquals(loadWorkerEnv(base).OPS_ALERT_WHATSAPP_NUMBER, null);
+  assertEquals(
+    loadWorkerEnv({ ...base, OPS_ALERT_WHATSAPP_NUMBER: '  ' }).OPS_ALERT_WHATSAPP_NUMBER,
+    null,
+  );
+  const set = loadWorkerEnv({ ...base, OPS_ALERT_WHATSAPP_NUMBER: '919000000001' });
+  assertEquals(set.OPS_ALERT_WHATSAPP_NUMBER, '919000000001');
+  assertThrows(
+    () => loadWorkerEnv({ ...base, OPS_ALERT_WHATSAPP_NUMBER: 'call-me' }),
+    MissingEnvError,
+    'OPS_ALERT_WHATSAPP_NUMBER',
+  );
+});

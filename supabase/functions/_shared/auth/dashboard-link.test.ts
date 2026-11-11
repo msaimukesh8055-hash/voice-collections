@@ -9,6 +9,7 @@ import {
   phonePageLink,
   shopkeeperLink,
   signDashboardToken,
+  traceLink,
 } from './dashboard-link.ts';
 
 const SECRET = 'a-test-secret-that-is-at-least-32-characters';
@@ -83,4 +84,12 @@ Deno.test('shopkeeper link › an odd id is escaped, so it cannot add to the add
 Deno.test('phone page link › /phone on the dashboard address, with no token', () => {
   assertEquals(phonePageLink('https://voice.example/'), 'https://voice.example/phone');
   assertEquals(phonePageLink('https://voice.example').includes('#t='), false);
+});
+
+Deno.test('dashboard link › a trace link opens that trace on the ops page with a valid token', async () => {
+  const traceId = '55555555-5555-4555-8555-555555555555';
+  const link = await traceLink('https://voice.example/', SECRET, { traceId, now: NOW });
+  const [address, token] = link.split('#t=');
+  assertEquals(address, `https://voice.example/ops?id=${traceId}`);
+  assertEquals(await isValidDashboardToken(token ?? null, SECRET, NOW), true);
 });

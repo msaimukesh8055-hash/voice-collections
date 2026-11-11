@@ -10,6 +10,7 @@ import {
   type ShopkeeperDetail,
   type ShopkeeperList,
 } from '../lib/dashboardApi.ts';
+import type { OpsSummary, Trace } from '../lib/opsSchemas.ts';
 
 export const RAMESH = {
   id: 'b0000000-0000-4000-8000-000000000001',
@@ -110,11 +111,97 @@ export const CALL: CallDetail = {
   followup: { path: 'rule', decision: 'check_promise', reasoning: 'Promise logged' },
 };
 
+export const TRACE_ID = '55555555-5555-4555-8555-555555555555';
+
+export const OPS: OpsSummary = {
+  day: { requests: 40, failed: 1 },
+  week: { requests: 300, failed: 30 },
+  sources: [{ source: 'sarvam-tools', requests: 12, failed: 0, p95Ms: 180 }],
+  tools: [
+    { agent: 'asha', tool: 'get_dues', calls: 9, p50Ms: 120, p95Ms: 310 },
+    { agent: 'munshi', tool: 'book_summary', calls: 4, p50Ms: 300, p95Ms: 640 },
+  ],
+  llm: [{ provider: 'sarvam', answers: 20, rejected: 3, failed: 1 }],
+  tokens: [
+    {
+      provider: 'sarvam',
+      today: { input: 100, output: 10 },
+      month: { input: 1000, output: 90 },
+    },
+  ],
+  paths: { command: 14, button: 1, sarvam: 4, gemini: 1 },
+  followups: { waiting: 2, stuck: 0, failedWeek: 1 },
+  voice: {
+    today: { liveMinutes: 2, simulatedCalls: 3 },
+    month: { liveMinutes: 10, simulatedCalls: 12 },
+  },
+  recentErrors: [
+    {
+      traceId: TRACE_ID,
+      source: 'whatsapp-webhook',
+      step: 'whatsapp_background_failed',
+      errorCode: 'RepositoryError',
+      createdAt: '2026-11-11T05:00:00.000Z',
+    },
+  ],
+  toolTargetMs: 500,
+  spend: {
+    capInr: 1000,
+    today: { voiceInr: 8.26, llmInr: 4.32, totalInr: 12.58 },
+    month: { voiceInr: 41.3, llmInr: 43.19, totalInr: 84.49 },
+  },
+  generatedAt: '2026-11-11T05:30:00.000Z',
+};
+
+export const TRACE: Trace = {
+  traceId: TRACE_ID,
+  steps: [
+    {
+      source: 'whatsapp-webhook',
+      step: 'brain_llm',
+      status: 'warn',
+      errorCode: 'bad_json',
+      provider: 'sarvam',
+      durationMs: 412,
+      tokensIn: null,
+      tokensOut: null,
+      detail: { provider: 'sarvam', outcome: 'bad_json', ms: 412 },
+      createdAt: '2026-11-11T05:00:00.000Z',
+    },
+    {
+      source: 'whatsapp-webhook',
+      step: 'llm_usage',
+      status: 'ok',
+      errorCode: null,
+      provider: 'gemini',
+      durationMs: null,
+      tokensIn: 812,
+      tokensOut: 44,
+      detail: { provider: 'gemini', model: 'gemini-2.5-flash', tokens_in: 812, tokens_out: 44 },
+      createdAt: '2026-11-11T05:00:01.250Z',
+    },
+    {
+      source: 'whatsapp-webhook',
+      step: 'whatsapp_background_failed',
+      status: 'error',
+      errorCode: 'RepositoryError',
+      provider: null,
+      durationMs: null,
+      tokensIn: null,
+      tokensOut: null,
+      detail: { error: 'RepositoryError' },
+      createdAt: '2026-11-11T05:00:01.590Z',
+    },
+  ],
+};
+
 export interface FakeDashboard {
   readonly dashboard: DashboardApi;
   readonly requests: string[];
   needsLink: boolean;
   english: boolean;
+  /** What the ops page gets; tests swap it to show other states. */
+  ops: OpsSummary;
 }
 
 export function fakeDashboard(): FakeDashboard {
@@ -122,6 +209,7 @@ export function fakeDashboard(): FakeDashboard {
     requests: [],
     needsLink: false,
     english: true,
+    ops: OPS,
     dashboard: {
       hasToken: () => !fake.needsLink,
       localDemo: () => Promise.resolve(false),
@@ -130,6 +218,8 @@ export function fakeDashboard(): FakeDashboard {
       shopkeeper: (id) => answer(`shopkeeper:${id}`, SHOPKEEPER),
       calls: () => answer('calls', [CALL_ROW]),
       call: (id) => answer(`call:${id}`, CALL),
+      ops: () => answer('ops', fake.ops),
+      trace: (id) => answer(`trace:${id}`, TRACE),
       setEnglishUnderTelugu: (on) => {
         fake.english = on;
         return answer(`english:${String(on)}`, on);

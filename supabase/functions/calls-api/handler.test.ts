@@ -423,3 +423,27 @@ Deno.test('calls-api › an ended call that was already completed wakes nothing'
   await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 3 }), deps);
   assertEquals(kicked, []);
 });
+
+Deno.test('calls-api › GET /v1/health → ok with the database reachable, and no data', async () => {
+  const { deps } = setup();
+  const response = await handleCallsApi(request('/v1/health'), deps);
+  assertEquals(response.status, 200);
+  const body = await json(response) as Record<string, unknown>;
+  assertEquals([body.status, body.checks], ['ok', { database: 'ok' }]);
+  assertEquals(Object.keys(body).sort(), ['checks', 'databaseMs', 'status', 'time']);
+});
+
+Deno.test('calls-api › GET /v1/health → 503 "degraded" when the database cannot be reached', async () => {
+  const { deps } = setup();
+  const logged: string[] = [];
+  const broken: CallsApiDeps = {
+    ...deps,
+    repo: { ...deps.repo, getDemoSettings: () => Promise.reject(new Error('db')) },
+    log: (_level, event) => logged.push(event),
+  };
+  const response = await handleCallsApi(request('/v1/health'), broken);
+  assertEquals(response.status, 503);
+  const body = await json(response) as Record<string, unknown>;
+  assertEquals([body.status, body.checks], ['degraded', { database: 'fail' }]);
+  assertEquals(logged, ['health_database_failed']);
+});

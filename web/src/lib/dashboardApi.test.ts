@@ -7,7 +7,7 @@ import {
   NeedsLinkError,
   readToken,
 } from './dashboardApi.ts';
-import { OVERVIEW } from '../test/dashboardFakes.ts';
+import { OPS, OVERVIEW, TRACE, TRACE_ID } from '../test/dashboardFakes.ts';
 import { AppApiError } from './appApi.ts';
 
 function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> & { data: Map<string, string> } {
@@ -103,6 +103,25 @@ describe('createDashboardApi', () => {
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://x/calls-api/v1/dashboard/overview');
     expect((init.headers as Record<string, string>)['x-dashboard-token']).toBe('T');
+  });
+
+  it('reads the ops summary and one trace (M9)', async () => {
+    const replies = [Response.json(OPS), Response.json(TRACE)];
+    const fetchImpl = vi.fn(() => Promise.resolve(replies.shift() ?? Response.error()));
+    const api = createDashboardApi({ ...base, token: 'T', fetchImpl });
+    expect((await api.ops()).spend.capInr).toBe(1000);
+    expect((await api.trace(TRACE_ID)).steps).toHaveLength(3);
+    const urls = fetchImpl.mock.calls.map((call) => (call as unknown as [string])[0]);
+    expect(urls).toEqual([
+      'https://x/calls-api/v1/dashboard/ops',
+      `https://x/calls-api/v1/dashboard/ops/traces/${TRACE_ID}`,
+    ]);
+  });
+
+  it('an ops reply in the wrong shape is refused, not shown', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(Response.json({ ...OPS, spend: null })));
+    const api = createDashboardApi({ ...base, token: 'T', fetchImpl });
+    await expect(api.ops()).rejects.toBeInstanceOf(AppApiError);
   });
 
   it('no token: still asks (public demo answers) and sends no token header', async () => {

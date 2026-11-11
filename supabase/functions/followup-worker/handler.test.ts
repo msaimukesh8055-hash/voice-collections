@@ -47,6 +47,10 @@ function setup(overrides: Partial<WorkerDeps> = {}): WorkerSetup {
       jobs.push('promiseCheck');
       return Promise.resolve(0);
     },
+    opsWatch: () => {
+      jobs.push('opsWatch');
+      return Promise.resolve();
+    },
     ownerSend: (actionId) => {
       jobs.push(`ownerSend:${actionId}`);
       return Promise.resolve('sent');
@@ -160,4 +164,15 @@ Deno.test('worker › /owner-send needs the secret and a uuid', async () => {
   const notFound = await handleWorkerRequest(post('/owner-send/not-a-uuid'), badId.deps);
   assertEquals([refused.status, notFound.status], [401, 404]);
   assertEquals([...noSecret.jobs, ...badId.jobs], []);
+});
+
+Deno.test('worker › POST /ops-watch starts the failure watch, only with the secret (M9)', async () => {
+  const { deps, jobs, tasks } = setup();
+  const url = 'https://ref.supabase.co/functions/v1/followup-worker/ops-watch';
+  const refused = await handleWorkerRequest(new Request(url, { method: 'POST' }), deps);
+  assertEquals([refused.status, jobs], [401, []]);
+  const headers = { authorization: `Bearer ${SECRET}` };
+  const response = await handleWorkerRequest(new Request(url, { method: 'POST', headers }), deps);
+  await Promise.all(tasks);
+  assertEquals([response.status, jobs], [202, ['opsWatch']]);
 });

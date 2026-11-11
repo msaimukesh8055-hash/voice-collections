@@ -4,6 +4,20 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-11 · M9 Build A — Trace, ops page, failure alert, health check · ✅ Deployed + smoked (awaiting commit)**
+Every request gets a trace id and its steps land in `ops_events` (with LLM token counts); `/ops` shows error rate, rejected LLM answers, tool latency, queue, spend and each error's timeline; a 5-minute watcher sends one WhatsApp alert per problem per 15 minutes; 6 failure drills pass.
+Deno 1,469 + root 211 + web 244, `npm run check` green; migration pushed without the seed (demo data intact), a forced drill raised one WhatsApp alert via the cron · ops page already shows 2 tools over the 500 ms target · Details → [`milestones/M9.md`](milestones/M9.md)
+
+**2026-11-11 · M9 — Production readiness · ✅ Plan approved**
+Five builds: request trace + ops page + WhatsApp failure alert + health check; pause switch and rollback; evals on Sarvam Tests (spike first for cost) with an evals page; CI; unit economics, incident write-ups, runbook, README, then CP3.
+~15 h over two days; 7 decisions for Saim; SPEC §10/§12/§17 changes proposed, not made · Details → [`milestones/M9.md`](milestones/M9.md)
+
+**2026-11-08 · Future build (parked by Saim) — "Needs your check" for Asha's claims and disputes · 💡 Idea**
+Today a "I paid ₹5,000" claim and a dispute reach the owner inside Asha's call summary (claim with Confirm received / Not received). Parked for later: a separate "⚠️ Check this" WhatsApp message per claim/dispute (dispute buttons: I'll call / Asha call again / Resolved), a "Needs your check" box on the dashboard, the owner's choice carried into Asha's next call, and Munshi opening with "N things need your check". About 1.5–2 h.
+
+**2026-11-08 · M7 B2 follow-up — Light blue theme back, WhatsApp "/" commands · ✅ Committed and merged**
+Saim chose the very light blue theme again (faces, dialling screen, watermark kept). 13 slash commands handled in code and registered with Meta; "call Munshi" mid-conversation now sends the link. Commit 798e30e, merged into main.
+
 **2026-11-08 · M7 Build B2 — Call screen + beige/brown/gold theme · ✅ Built (awaiting gate, deploy, smoke, commit)**
 Dialling screen, drawn faces (female Asha, male Munshi, shopkeepers from an explicit fake-name list, neutral when unknown) with an AI tag, two-lane gold arrows, "…" bubble, Sarvam speech events first for the person's arrow; beige / cream / brown theme with light-brown card borders and gold accents, faint centred logo, favicon. Munshi's read-backs no longer say "his" about women shopkeepers.
 Deno 1370 + root 204 + web 227, `npm run check` green; contrast + raw-colour scan in theme.test.ts · Details → [`milestones/M7.md`](milestones/M7.md)

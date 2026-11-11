@@ -11,6 +11,7 @@ import { DASHBOARD_TOKEN_HEADER } from '@shared/auth/dashboard-header.ts';
 import { REGION_HEADER } from '@shared/region.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
+import { type OpsSummary, OpsSummarySchema, type Trace, TraceSchema } from './opsSchemas.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const STORAGE_KEY = 'dashboardToken';
@@ -160,6 +161,9 @@ export interface DashboardApi {
   calls: () => Promise<readonly CallRow[]>;
   call: (id: string) => Promise<CallDetail>;
   setEnglishUnderTelugu: (on: boolean) => Promise<boolean>;
+  /** M9: the ops page's numbers, and every step of one request. */
+  ops: () => Promise<OpsSummary>;
+  trace: (id: string) => Promise<Trace>;
 }
 
 /** Thrown when the link is missing or expired: the page asks to reopen it from WhatsApp. */
@@ -263,6 +267,19 @@ function tokenSource(token: string | null, devToken: DashboardApiOptions['devTok
   };
 }
 
+function requestHeaders(
+  options: Pick<DashboardApiOptions, 'anonKey' | 'region'>,
+  token: string | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${options.anonKey}`,
+    apikey: options.anonKey,
+    [REGION_HEADER]: options.region,
+    'Content-Type': 'application/json',
+  };
+  return token ? { ...headers, [DASHBOARD_TOKEN_HEADER]: token } : headers;
+}
+
 export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
   const { baseUrl, anonKey, region, token, devToken, fetchImpl = fetch } = options;
   const tokens = tokenSource(token, devToken);
@@ -275,13 +292,7 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     // No link token: still ask, because a public demo server (DASHBOARD_PUBLIC=on) answers
     // reads without one; a locked server answers 401, which becomes "open it from WhatsApp".
     const sendToken = await tokens.current();
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${anonKey}`,
-      apikey: anonKey,
-      [REGION_HEADER]: region,
-      'Content-Type': 'application/json',
-    };
-    if (sendToken) headers[DASHBOARD_TOKEN_HEADER] = sendToken;
+    const headers = requestHeaders({ anonKey, region }, sendToken);
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
     const response = await fetchImpl(`${baseUrl}${path}`, { ...init, headers, signal }).catch(
       () => null,
@@ -307,6 +318,8 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     calls: async () => (await request('/v1/dashboard/calls', CallListSchema)).calls,
     call: async (callId) =>
       (await request(`/v1/dashboard/calls/${id(callId)}`, CallDetailSchema)).call,
+    ops: () => request('/v1/dashboard/ops', OpsSummarySchema),
+    trace: (traceId) => request(`/v1/dashboard/ops/traces/${id(traceId)}`, TraceSchema),
     setEnglishUnderTelugu: async (on) => {
       const body = JSON.stringify({ englishUnderTelugu: on });
       const reply = await request('/v1/dashboard/settings', SettingsSchema, {

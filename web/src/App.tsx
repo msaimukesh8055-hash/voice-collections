@@ -1,6 +1,6 @@
 // web/src/App.tsx
-// Tiny path switch (no router library for five pages, M6 Decision 9): /phone is the shopkeeper's
-// phone; /munshi is the owner's call line (M8, token in #t=…); /shopkeepers and /calls are
+// Tiny path switch (no router library for six pages, M6 Decision 9): /phone is the shopkeeper's
+// phone; /munshi is the owner's call line (M8, token in #t=…); /shopkeepers, /calls and /ops are
 // dashboard pages (?id=… opens one); anything else is the dashboard. Every page has the faint
 // logo watermark behind it (M7 B2).
 import { MUNSHI_PATH } from '@shared/auth/owner-call-token.ts';
@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Watermark } from './components/Watermark.tsx';
 import { CallsPage } from './features/calls/CallsPage.tsx';
 import { DashboardPage } from './features/dashboard/DashboardPage.tsx';
+import { OpsPage } from './features/ops/OpsPage.tsx';
 import { MunshiPage } from './features/munshi/MunshiPage.tsx';
 import { readMunshiToken } from './features/munshi/munshiState.ts';
 import { PhonePage } from './features/phone/PhonePage.tsx';
@@ -48,6 +49,7 @@ function Page(props: AppProps): React.JSX.Element {
   }
   if (route === '/shopkeepers') return <ShopkeepersPage dashboard={dashboard} id={id} />;
   if (route === '/calls') return <CallsPage dashboard={dashboard} id={id} />;
+  if (route === '/ops') return <OpsPage dashboard={dashboard} id={id} />;
   return <DashboardPage api={api} dashboard={dashboard} />;
 }
 

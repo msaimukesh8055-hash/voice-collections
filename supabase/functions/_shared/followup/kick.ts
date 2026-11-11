@@ -5,6 +5,8 @@
 // failed kick is logged; the call stays "pending", so the 5b cron sweep (or a manual
 // POST /followup-worker/sweep) still picks it up.
 import type { Logger } from '../log.ts';
+import { currentTrace } from '../ops/trace.ts';
+import { TRACE_HEADER } from '../ops/tracing.ts';
 
 const KICK_TIMEOUT_MS = 10_000;
 
@@ -29,15 +31,24 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** The bearer secret, plus the caller's trace id so the worker's steps join the same trace
+ * (M9). Read when the kick is made, before any delay, while the request is still current. */
+function kickHeaders(secret: string): Record<string, string> {
+  const trace = currentTrace();
+  const authorization = `Bearer ${secret}`;
+  return trace ? { authorization, [TRACE_HEADER]: trace.id } : { authorization };
+}
+
 /** Posts one worker path with the secret; failures are logged with the path and status only. */
 function createPoster(config: KickerConfig): (path: string, delayMs: number) => Promise<void> {
   const sleep = config.sleep ?? wait;
   return async function post(path: string, delayMs: number): Promise<void> {
+    const headers = kickHeaders(config.secret);
     if (delayMs > 0) await sleep(delayMs);
     try {
       const response = await config.fetchImpl(`${config.workerUrl}${path}`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${config.secret}` },
+        headers,
         signal: AbortSignal.timeout(KICK_TIMEOUT_MS),
       });
       if (!response.ok) {

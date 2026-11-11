@@ -2,6 +2,7 @@
 // Shared shapes for the app API's routes.
 import type { BookRepository, Owner } from '../_shared/db/book-repository.ts';
 import type { DashboardRepository } from '../_shared/db/dashboard-repository.ts';
+import type { OpsRepository } from '../_shared/db/ops-repository.ts';
 import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ScoreReads } from '../_shared/reminders/score-explain.ts';
 import type { Translator } from '../_shared/speech/translate.ts';
@@ -32,6 +33,8 @@ export interface DashboardDeps {
     'getOwner' | 'listShopkeepers' | 'listEntries' | 'listShopkeeperEntries'
   >;
   readonly reads: DashboardRepository;
+  /** The ops page's reads (M9): the summary and one trace's steps. */
+  readonly ops: OpsRepository;
   readonly score: ScoreReads;
   /** Sarvam Translate for the transcript's English (M6); null when no Sarvam key is set. */
   readonly translate: Translator | null;

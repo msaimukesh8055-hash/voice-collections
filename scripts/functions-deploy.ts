@@ -38,6 +38,8 @@ const OPTIONAL_SECRETS = [
   'DASHBOARD_URL',
   // "on" opens the dashboard's reads to anyone with the web address (public demo).
   'DASHBOARD_PUBLIC',
+  // M9: who gets failure alerts; blank means the owner's number.
+  'OPS_ALERT_WHATSAPP_NUMBER',
 ] as const;
 
 function readEnv(name: string): string {

@@ -32,7 +32,7 @@ async function todayOf(ctx: RouteContext): Promise<string> {
 }
 
 /** Public demo (DASHBOARD_PUBLIC=on): the route runs without the link token. */
-function openInDemo(handler: RouteHandler): RouteHandler {
+export function openInDemo(handler: RouteHandler): RouteHandler {
   const checked = guarded(handler);
   return async function maybeOpen(req, ctx): Promise<Response> {
     if (ctx.deps.dashboard.publicDemo === true) return await handler(req, ctx);

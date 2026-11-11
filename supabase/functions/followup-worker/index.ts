@@ -1,7 +1,14 @@
 // supabase/functions/followup-worker/index.ts
 // Deployed with --no-verify-jwt: calls-api and pg_cron call it with WORKER_SECRET (checked in
 // the handler before anything else), not a Supabase JWT.
-import { callLink, dashboardLink, shopkeeperLink } from '../_shared/auth/dashboard-link.ts';
+import {
+  callLink,
+  dashboardLink,
+  shopkeeperLink,
+  traceLink,
+} from '../_shared/auth/dashboard-link.ts';
+import { createSupabaseOpsRepository } from '../_shared/db/supabase-ops-repository.ts';
+import { runOpsWatch, withoutErrors } from '../_shared/ops/watch.ts';
 import { createSupabaseVoiceActionRepository } from '../_shared/db/supabase-voice-action-repository.ts';
 import { sendOwnerRequest } from '../_shared/reminders/owner-send.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
@@ -32,6 +39,8 @@ import { sendDailyAlert } from '../_shared/reminders/daily-alert.ts';
 import { runPromiseCheck } from '../_shared/reminders/promise-check-job.ts';
 import { runNextSimulation, type SimulatorDeps } from '../_shared/simulator/run.ts';
 import { logToConsole } from '../_shared/log.ts';
+import { createOpsEventWriter } from '../_shared/ops/store.ts';
+import { createTracing } from '../_shared/ops/tracing.ts';
 import { createTranscriptClient } from '../_shared/sarvam-analytics.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
 import { ownerTwinSettings, withEnglishTwin } from '../_shared/whatsapp/english-twin.ts';
@@ -43,12 +52,22 @@ declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 const env = loadWorkerEnv(Deno.env.toObject());
 const query = createPostgrestClient(env);
-const defer = (task: Promise<unknown>): void => EdgeRuntime.waitUntil(task);
+// M9: every request gets a trace; log lines and background work join it (ops_events).
+const tracing = createTracing({
+  source: 'followup-worker',
+  write: createOpsEventWriter(query),
+  waitUntil: (task) => EdgeRuntime.waitUntil(task),
+  baseLog: logToConsole,
+  // Its callers are our own functions and pg_cron (WORKER_SECRET), so a kick keeps its trace.
+  acceptTraceHeader: true,
+});
+const log = tracing.log;
+const defer = tracing.defer;
 const kickerConfig = {
   workerUrl: followupWorkerUrl(env.SUPABASE_URL),
   secret: env.WORKER_SECRET,
   fetchImpl: fetch,
-  log: logToConsole,
+  log,
   defer,
 };
 const kick = createFollowupKicker(kickerConfig);
@@ -57,7 +76,7 @@ const llmConfig: JsonLlmConfig = {
   sarvamApiKey: env.SARVAM_API_KEY,
   geminiApiKey: env.GEMINI_API_KEY,
   fetchImpl: fetch,
-  log: logToConsole,
+  log,
 };
 
 const book = createSupabaseBookRepository(query);
@@ -72,7 +91,7 @@ const followupDeps: FollowupDeps = {
     workspaceId: env.SARVAM_WORKSPACE_ID,
     appId: env.SARVAM_APP_ID,
     fetchImpl: fetch,
-    log: logToConsole,
+    log,
   }),
   // M6: Telugu summaries and alerts get their English underneath when the demo setting is on.
   whatsapp: withEnglishTwin(
@@ -80,13 +99,13 @@ const followupDeps: FollowupDeps = {
       accessToken: env.META_ACCESS_TOKEN,
       phoneNumberId: env.META_PHONE_NUMBER_ID,
       fetchImpl: fetch,
-      log: logToConsole,
+      log,
     }),
     {
       translate: createTranslator({
         apiKey: env.SARVAM_API_KEY,
         fetchImpl: fetch,
-        log: logToConsole,
+        log,
       }),
       loadSettings: ownerTwinSettings(book),
       clock: () => new Date(),
@@ -94,7 +113,7 @@ const followupDeps: FollowupDeps = {
   ),
   owner: { ownerNumber: env.OWNER_WHATSAPP_NUMBER, hashKey: env.META_APP_SECRET },
   clock: () => new Date(),
-  log: logToConsole,
+  log,
   requeue: (callId) => kick(callId, RETRY_DELAY_MS),
   // Dry-run fix 8: "🔗 Transcript" in the summary opens that call on the dashboard (24 h link).
   callLink: (callId) =>
@@ -119,7 +138,7 @@ const simulatorDeps: SimulatorDeps = {
   asha: sarvamChat,
   shopkeeper: [geminiChat, sarvamChat],
   clock: followupDeps.clock,
-  log: logToConsole,
+  log,
   kickFollowup: (callId) => kick(callId),
   startNext: () => kickJob(SIMULATION_NEXT_PATH),
 };
@@ -140,6 +159,25 @@ const ownerSendDeps = {
       : Promise.resolve(null),
 };
 
+// M9: the failure alert. Its own send failures are warnings, so an alert that WhatsApp refuses
+// never raises another alert.
+const opsWatchDeps = {
+  ops: createSupabaseOpsRepository(query),
+  whatsapp: createWhatsAppClient({
+    accessToken: env.META_ACCESS_TOKEN,
+    phoneNumberId: env.META_PHONE_NUMBER_ID,
+    fetchImpl: fetch,
+    log: withoutErrors(log),
+  }),
+  alertNumber: env.OPS_ALERT_WHATSAPP_NUMBER ?? env.OWNER_WHATSAPP_NUMBER,
+  traceLink: (traceId: string) =>
+    linkBase
+      ? traceLink(linkBase.url, linkBase.secret, { traceId, now: new Date() })
+      : Promise.resolve(null),
+  clock: () => new Date(),
+  log,
+};
+
 const deps: WorkerDeps = {
   secret: env.WORKER_SECRET,
   defer,
@@ -154,7 +192,8 @@ const deps: WorkerDeps = {
   dailyAlert: () => sendDailyAlert(jobDeps),
   promiseCheck: () => runPromiseCheck(jobDeps),
   ownerSend: (actionId) => sendOwnerRequest(actionId, ownerSendDeps),
-  log: logToConsole,
+  opsWatch: () => runOpsWatch(opsWatchDeps),
+  log,
 };
 
-Deno.serve((req) => handleWorkerRequest(req, deps));
+Deno.serve(tracing.serve((req) => handleWorkerRequest(req, deps)));

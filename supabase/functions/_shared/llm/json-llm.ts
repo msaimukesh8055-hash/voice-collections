@@ -59,7 +59,11 @@ type Provider = (prompt: Prompt) => Promise<string>;
 const SarvamToolCall = z.object({
   function: z.object({ name: z.string(), arguments: z.string().nullable().catch(null) }),
 });
+/** Token counts as the provider reports them; absent or odd counts are simply not recorded. */
+const SarvamUsage = z.object({ prompt_tokens: z.number(), completion_tokens: z.number() });
+const GeminiUsage = z.object({ promptTokenCount: z.number(), candidatesTokenCount: z.number() });
 const SarvamReply = z.object({
+  usage: SarvamUsage.nullable().optional().catch(undefined),
   choices: z.array(z.object({
     message: z.object({
       content: z.string().nullable(),
@@ -71,7 +75,23 @@ const GeminiReply = z.object({
   candidates: z.array(
     z.object({ content: z.object({ parts: z.array(z.object({ text: z.string().optional() })) }) }),
   ).min(1),
+  usageMetadata: GeminiUsage.nullable().optional().catch(undefined),
 });
+
+/** Log event carrying one LLM call's token counts (M9): the ops page prices spend from these. */
+export const LLM_USAGE_EVENT = 'llm_usage';
+
+function logUsage(
+  log: Logger,
+  usage: { provider: LlmProvider; model: string; tokensIn: number; tokensOut: number },
+): void {
+  log('info', LLM_USAGE_EVENT, {
+    provider: usage.provider,
+    model: usage.model,
+    tokens_in: usage.tokensIn,
+    tokens_out: usage.tokensOut,
+  });
+}
 
 class ProviderError extends Error {
   override name = 'ProviderError';
@@ -191,6 +211,10 @@ export async function askSarvamChat(
   };
   const headers = { 'api-subscription-key': config.sarvamApiKey };
   const reply = SarvamReply.parse(await postJson(config, { url: SARVAM_CHAT_URL, headers, body }));
+  if (reply.usage) {
+    const { prompt_tokens: tokensIn, completion_tokens: tokensOut } = reply.usage;
+    logUsage(config.log, { provider: 'sarvam', model: SARVAM_MODEL, tokensIn, tokensOut });
+  }
   const message = reply.choices[0]?.message;
   return message ? sarvamText(message) : '';
 }
@@ -214,6 +238,10 @@ export async function askGeminiChat(config: JsonLlmConfig, request: ChatRequest)
   // Key in a header, not the URL, so it can never appear in a logged URL.
   const headers = { 'x-goog-api-key': config.geminiApiKey };
   const reply = GeminiReply.parse(await postJson(config, { url: GEMINI_URL, headers, body }));
+  if (reply.usageMetadata) {
+    const { promptTokenCount: tokensIn, candidatesTokenCount: tokensOut } = reply.usageMetadata;
+    logUsage(config.log, { provider: 'gemini', model: GEMINI_MODEL, tokensIn, tokensOut });
+  }
   return reply.candidates.flatMap((candidate) => candidate.content.parts)
     .map((part) => part.text ?? '').join('');
 }

@@ -15,6 +15,8 @@ import { createSupabaseVoiceActionRepository } from '../_shared/db/supabase-voic
 import { loadOwnerToolsEnv } from '../_shared/env.ts';
 import { createJobKicker, followupWorkerUrl, ownerSendPath } from '../_shared/followup/kick.ts';
 import { logToConsole } from '../_shared/log.ts';
+import { createOpsEventWriter } from '../_shared/ops/store.ts';
+import { createTracing } from '../_shared/ops/tracing.ts';
 import { handleOwnerToolRequest, type OwnerToolsDeps } from './handler.ts';
 
 /** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
@@ -22,6 +24,14 @@ declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 const env = loadOwnerToolsEnv(Deno.env.toObject());
 const query = createPostgrestClient(env);
+// M9: every request gets a trace; log lines and background work join it (ops_events).
+const tracing = createTracing({
+  source: 'munshi-tools',
+  write: createOpsEventWriter(query),
+  waitUntil: (task) => EdgeRuntime.waitUntil(task),
+  baseLog: logToConsole,
+});
+const log = tracing.log;
 const repo = createSupabaseRepository(query);
 const book = createSupabaseBookRepository(query);
 const followups = createSupabaseFollowupRepository(query);
@@ -30,8 +40,8 @@ const kickJob = createJobKicker({
   workerUrl: followupWorkerUrl(env.SUPABASE_URL),
   secret: env.WORKER_SECRET,
   fetchImpl: fetch,
-  log: logToConsole,
-  defer: (task) => EdgeRuntime.waitUntil(task),
+  log,
+  defer: tracing.defer,
 });
 
 const deps: OwnerToolsDeps = {
@@ -52,7 +62,7 @@ const deps: OwnerToolsDeps = {
   getOwner: () => book.getOwner(),
   secret: env.SARVAM_OWNER_TOOL_SECRET,
   clock,
-  log: logToConsole,
+  log,
 };
 
-Deno.serve((req) => handleOwnerToolRequest(req, deps));
+Deno.serve(tracing.serve((req) => handleOwnerToolRequest(req, deps)));

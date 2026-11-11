@@ -8,6 +8,8 @@ import { createSupabaseBookRepository } from '../_shared/db/supabase-book-reposi
 import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { loadWhatsAppEnv } from '../_shared/env.ts';
 import { logToConsole } from '../_shared/log.ts';
+import { createOpsEventWriter } from '../_shared/ops/store.ts';
+import { createTracing } from '../_shared/ops/tracing.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
 import { downloadMedia, uploadMedia } from '../_shared/whatsapp/media.ts';
 import { createSpeaker } from '../_shared/speech/tts.ts';
@@ -42,20 +44,28 @@ function signedMunshiLink(
   return async (ownerCallId) => munshiLink(baseUrl, await signOwnerCallToken(secret, ownerCallId));
 }
 const query = createPostgrestClient(env);
+// M9: every request gets a trace; log lines and background work join it (ops_events).
+const tracing = createTracing({
+  source: 'whatsapp-webhook',
+  write: createOpsEventWriter(query),
+  waitUntil: (task) => EdgeRuntime.waitUntil(task),
+  baseLog: logToConsole,
+});
+const log = tracing.log;
 const repo = createSupabaseRepository(query);
-const defer = (task: Promise<unknown>): void => EdgeRuntime.waitUntil(task);
+const defer = tracing.defer;
 const kickJob = createJobKicker({
   workerUrl: followupWorkerUrl(env.SUPABASE_URL),
   secret: env.WORKER_SECRET,
   fetchImpl: fetch,
-  log: logToConsole,
+  log,
   defer,
 });
 const mediaConfig = {
   accessToken: env.META_ACCESS_TOKEN,
   phoneNumberId: env.META_PHONE_NUMBER_ID,
   fetchImpl: fetch,
-  log: logToConsole,
+  log,
 };
 const book = createSupabaseBookRepository(query);
 const processDeps: ProcessDeps = {
@@ -65,7 +75,7 @@ const processDeps: ProcessDeps = {
     translate: createTranslator({
       apiKey: env.SARVAM_API_KEY,
       fetchImpl: fetch,
-      log: logToConsole,
+      log,
     }),
     loadSettings: ownerTwinSettings(book),
     clock: () => new Date(),
@@ -74,14 +84,14 @@ const processDeps: ProcessDeps = {
     sarvamApiKey: env.SARVAM_API_KEY,
     geminiApiKey: env.GEMINI_API_KEY,
     fetchImpl: fetch,
-    log: logToConsole,
+    log,
   }),
   sender: { ownerNumber: env.OWNER_WHATSAPP_NUMBER, hashKey: env.META_APP_SECRET },
   phoneNumberId: env.META_PHONE_NUMBER_ID,
   clock: () => new Date(),
   getDemoSettings: repo.getDemoSettings,
   newPhone: () => randomFakePhone(),
-  log: logToConsole,
+  log,
   reminder: {
     repo,
     store: createSupabaseReminderRepository(query),
@@ -95,7 +105,7 @@ const processDeps: ProcessDeps = {
     transcribe: createTranscriber({
       apiKey: env.SARVAM_API_KEY,
       fetchImpl: fetch,
-      log: logToConsole,
+      log,
     }),
   },
   web: {
@@ -122,10 +132,10 @@ const processDeps: ProcessDeps = {
     summarize: createSpokenSummarizer({
       sarvamApiKey: env.SARVAM_API_KEY,
       fetchImpl: fetch,
-      log: logToConsole,
+      log,
       random: Math.random,
     }),
-    speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log: logToConsole }),
+    speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log }),
     upload: (file) => uploadMedia(mediaConfig, file),
   },
   wakeWorker: () => kickJob(SWEEP_PATH),
@@ -143,7 +153,7 @@ const deps: WebhookDeps = {
   appSecret: env.META_APP_SECRET,
   defer,
   process: (payload) => processPayload(payload, processDeps),
-  log: logToConsole,
+  log,
 };
 
-Deno.serve((req) => handleWebhook(req, deps));
+Deno.serve(tracing.serve((req) => handleWebhook(req, deps)));
