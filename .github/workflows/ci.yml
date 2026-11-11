@@ -1,0 +1,32 @@
+# .github/workflows/ci.yml
+# The quality gate on every push and pull request (M9 Build D): format, lint, typecheck, every
+# test suite (root, web, Edge Functions), the web build and the bundle secret scan. It is the
+# same `npm run check` a developer runs before committing. No secrets are needed: all tests use
+# fakes, never the network.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check

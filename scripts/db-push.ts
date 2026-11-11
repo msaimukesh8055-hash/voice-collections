@@ -1,5 +1,6 @@
 // scripts/db-push.ts
-// Links the Supabase CLI to the project and applies migrations + seed.
+// Links the Supabase CLI to the project and applies migrations. The seed (which wipes the demo
+// data) runs only with --reseed-wipes-demo-data.
 // Reads secrets from .env (via `node --env-file`); passes them as env vars, never as printed output.
 import { execSync } from 'node:child_process';
 
@@ -24,4 +25,12 @@ if (!PROJECT_REF_PATTERN.test(projectRef))
 
 // The CLI reads SUPABASE_DB_PASSWORD and SUPABASE_ACCESS_TOKEN from the environment (.env).
 runSupabase(`link --project-ref ${projectRef}`);
-runSupabase('db push --linked --include-seed --yes');
+// M9: migrations only by default. The seed starts with "truncate ... cascade" and wipes every
+// call, promise and ledger entry made since, so it runs only when asked for by name.
+const RESEED_FLAG = '--reseed-wipes-demo-data';
+const reseed = process.argv.includes(RESEED_FLAG);
+runSupabase(`db push --linked ${reseed ? '--include-seed ' : ''}--yes`);
+if (!reseed) {
+  process.stdout.write(`Migrations pushed; seed not run (pass ${RESEED_FLAG} to wipe and reseed).
+`);
+}
