@@ -21,6 +21,7 @@
     "fn:coverage": "cd supabase/functions && deno coverage ../../coverage/functions",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run fn:fmt && npm run fn:lint && npm run fn:check && npm run fn:test",
     "db:push": "node --env-file=.env scripts/db-push.ts",
+    "db:reseed": "node --env-file=.env scripts/db-push.ts --reseed-wipes-demo-data",
     "db:check-seed": "node --env-file=.env scripts/check-seed.ts",
     "functions:deploy": "node --env-file=.env scripts/functions-deploy.ts",
     "agent:build": "node --env-file=.env scripts/agent-build.ts",
