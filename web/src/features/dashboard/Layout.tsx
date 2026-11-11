@@ -10,6 +10,7 @@ export const PAGES = [
   { path: '/', label: 'Dashboard' },
   { path: '/shopkeepers', label: 'Shopkeepers' },
   { path: '/calls', label: 'Calls' },
+  { path: '/ops', label: 'Ops' },
 ] as const;
 
 interface LayoutProps {

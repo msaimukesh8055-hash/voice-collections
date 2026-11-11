@@ -127,6 +127,9 @@ const WorkerEnvSchema = CallsApiEnvSchema.omit({
   /** Keys the stored hash of the owner's number (same as the webhook). */
   META_APP_SECRET: NonEmpty,
   OWNER_WHATSAPP_NUMBER: PhoneDigits,
+  /** M9: who gets failure alerts. In a real deployment the engineer on call, not the trader;
+   * blank means the owner's number (the demo, where both are Saim's phone). */
+  OPS_ALERT_WHATSAPP_NUMBER: OptionalText.pipe(PhoneDigits.nullable()),
   SARVAM_API_KEY: NonEmpty,
   GEMINI_API_KEY: NonEmpty,
   /** Dry-run fix 8: the call summary's transcript link (same signed link as "dashboard"). Both

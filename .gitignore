@@ -19,3 +19,6 @@ voice-agents/munshi/build/
 Thumbs.db
 .vscode/
 spike-voice-out/
+
+# Demo recordings are shared by link, never committed (925 MB).
+*.mp4

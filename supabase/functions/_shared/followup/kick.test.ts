@@ -1,6 +1,8 @@
 // supabase/functions/_shared/followup/kick.test.ts
 import { assertEquals } from '@std/assert';
 import type { LogFields } from '../log.ts';
+import { newTrace, runInTrace } from '../ops/trace.ts';
+import { TRACE_HEADER } from '../ops/tracing.ts';
 import {
   createFollowupKicker,
   createJobKicker,
@@ -112,4 +114,21 @@ Deno.test('kick › a job kick posts a fixed path, once per wake (M5 5b)', async
   await Promise.all(tasks);
   assertEquals(urls.length, 4);
   assertEquals(urls[3], 'https://ref.supabase.co/functions/v1/followup-worker/sweep');
+});
+
+Deno.test('kick › inside a request the worker gets the trace id; outside it only the secret', async () => {
+  const outside = setup(new Response('{}', { status: 200 }));
+  outside.kick(CALL_ID);
+  await Promise.all(outside.tasks);
+  assertEquals(outside.seen[0]?.headers, { authorization: `Bearer ${SECRET}` });
+
+  const inside = setup(new Response('{}', { status: 200 }));
+  const trace = newTrace('calls-api', '44444444-4444-4444-8444-444444444444');
+  // A delayed kick still carries the id of the request that made it.
+  runInTrace(trace, () => inside.kick(CALL_ID, 500));
+  await Promise.all(inside.tasks);
+  assertEquals(inside.seen[0]?.headers, {
+    authorization: `Bearer ${SECRET}`,
+    [TRACE_HEADER]: trace.id,
+  });
 });

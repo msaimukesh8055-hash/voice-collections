@@ -10,6 +10,7 @@
 //   POST /followup-worker/daily-alert      the owner's daily due alert (cron, 9:00 IST)
 //   POST /followup-worker/promise-check    the daily promise check (cron)
 //   POST /followup-worker/owner-send/{id}  M8 B5: send what the owner asked Munshi for (once)
+//   POST /followup-worker/ops-watch        M9: failure alert to the ops number (cron, 5 min)
 import { z } from 'zod';
 import { hasBearerSecret } from '../_shared/auth/bearer.ts';
 import type { FollowupOutcome } from '../_shared/followup/process.ts';
@@ -32,6 +33,8 @@ export interface WorkerDeps {
   readonly promiseCheck: () => Promise<unknown>;
   /** M8 B5: one voice_send action (reminders/owner-send.ts). */
   readonly ownerSend: (actionId: string) => Promise<unknown>;
+  /** M9: looks for new failures and alerts the ops number (ops/watch.ts). */
+  readonly opsWatch: () => Promise<unknown>;
   readonly log: Logger;
 }
 
@@ -55,11 +58,13 @@ function accepted(): Response {
 }
 
 /** Fixed paths → the background job they start (typed lookup, no switch). */
-const JOBS: Readonly<Record<string, 'sweep' | 'nextSimulation' | 'dailyAlert' | 'promiseCheck'>> = {
+type Job = 'sweep' | 'nextSimulation' | 'dailyAlert' | 'promiseCheck' | 'opsWatch';
+const JOBS: Readonly<Record<string, Job>> = {
   '/sweep': 'sweep',
   '/simulations/next': 'nextSimulation',
   '/daily-alert': 'dailyAlert',
   '/promise-check': 'promiseCheck',
+  '/ops-watch': 'opsWatch',
 };
 
 async function route(req: Request, deps: WorkerDeps): Promise<Response> {

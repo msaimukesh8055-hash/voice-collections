@@ -1,7 +1,14 @@
 // supabase/functions/_shared/llm/json-llm.test.ts
 // Multi-turn chat requests (M5 simulated calls): exact request bodies, with a fake fetch only.
 import { assertEquals, assertRejects } from '@std/assert';
-import { askGeminiChat, askSarvamChat, type ChatRequest, type JsonLlmConfig } from './json-llm.ts';
+import type { LogFields } from '../log.ts';
+import {
+  askGeminiChat,
+  askSarvamChat,
+  type ChatRequest,
+  type JsonLlmConfig,
+  LLM_USAGE_EVENT,
+} from './json-llm.ts';
 
 interface Captured {
   url: string;
@@ -134,4 +141,54 @@ Deno.test('chat › tool turns go to Sarvam in its native shape', async () => {
       tool_calls: [{ id: 'call_1', type: 'function', function: fn }],
     },
   ]);
+});
+
+/** M9: token counts reach the log (and so the trace) as one "llm_usage" line per call. */
+function usageLines(reply: unknown): { config: JsonLlmConfig; lines: [string, LogFields][] } {
+  const lines: [string, LogFields][] = [];
+  const base = config(reply).config;
+  return {
+    config: { ...base, log: (_level, event, fields = {}) => lines.push([event, fields]) },
+    lines,
+  };
+}
+
+Deno.test('usage › Sarvam token counts are logged with the provider and model', async () => {
+  const reply = {
+    choices: [{ message: { content: '{}' } }],
+    usage: { prompt_tokens: 812, completion_tokens: 44, total_tokens: 856 },
+  };
+  const { config: c, lines } = usageLines(reply);
+  await askSarvamChat(c, REQUEST);
+  assertEquals(lines, [[
+    LLM_USAGE_EVENT,
+    { provider: 'sarvam', model: 'sarvam-105b', tokens_in: 812, tokens_out: 44 },
+  ]]);
+});
+
+Deno.test('usage › Gemini token counts are logged with the provider and model', async () => {
+  const reply = {
+    candidates: [{ content: { parts: [{ text: '{}' }] } }],
+    usageMetadata: { promptTokenCount: 500, candidatesTokenCount: 20 },
+  };
+  const { config: c, lines } = usageLines(reply);
+  await askGeminiChat(c, REQUEST);
+  assertEquals(lines, [[
+    LLM_USAGE_EVENT,
+    { provider: 'gemini', model: 'gemini-2.5-flash', tokens_in: 500, tokens_out: 20 },
+  ]]);
+});
+
+Deno.test('usage › missing or malformed counts log nothing and never fail the answer', async () => {
+  const sarvam = usageLines({
+    choices: [{ message: { content: 'hi' } }],
+    usage: { prompt_tokens: 'x' },
+  });
+  assertEquals(await askSarvamChat(sarvam.config, REQUEST), 'hi');
+  const gemini = usageLines({
+    candidates: [{ content: { parts: [{ text: 'hi' }] } }],
+    usageMetadata: null,
+  });
+  assertEquals(await askGeminiChat(gemini.config, REQUEST), 'hi');
+  assertEquals([...sarvam.lines, ...gemini.lines], []);
 });

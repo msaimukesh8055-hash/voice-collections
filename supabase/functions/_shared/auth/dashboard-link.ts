@@ -42,6 +42,18 @@ export async function shopkeeperLink(
   return `${baseUrl.replace(/\/+$/, '')}/shopkeepers?id=${id}#t=${token}`;
 }
 
+/** M9: a link that opens one trace on the ops page: `<DASHBOARD_URL>/ops?id=<trace id>#t=<token>`,
+ * the same 24-hour token as the dashboard link. */
+export async function traceLink(
+  baseUrl: string,
+  secret: string,
+  trace: { readonly traceId: string; readonly now: Date },
+): Promise<string> {
+  const token = await signDashboardToken(secret, trace.now);
+  const id = encodeURIComponent(trace.traceId);
+  return `${baseUrl.replace(/\/+$/, '')}/ops?id=${id}#t=${token}`;
+}
+
 /** Reply links (cloud build): the phone page where Ramesh answers Asha's call. No token: the
  * phone page is public and shows no book data. */
 export function phonePageLink(baseUrl: string): string {
