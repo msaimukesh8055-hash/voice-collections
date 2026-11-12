@@ -116,9 +116,21 @@ const NEVER_LIST = `# Never
 - Share any amount before confirm_identity says confirmed.
 - Offer discounts, waivers or anything {{owner_name}} garu has not offered.`;
 
-describe('Asha prompt v7', () => {
-  it('is version v7 (v6 + the three fixes from the first Sarvam Tests run, M9)', () => {
-    expect(PROMPT_VERSION).toBe('v7');
+describe('Asha prompt v8', () => {
+  it('is version v8 (v7 + identity before anything else, and saying the owner will call)', () => {
+    expect(PROMPT_VERSION).toBe('v8');
+  });
+
+  it('v8: identity is recorded first even when the caller says more in the same breath', () => {
+    expect(ASHA_PROMPT).toContain(
+      'call tool:confirm_identity with confirmed, denied or unsure. Do this before anything else, even when they say more in the same breath.',
+    );
+  });
+
+  it('v8: after a callback is logged, the next sentence says the owner will call back', () => {
+    expect(ASHA_PROMPT).toContain(
+      'After the tool reply, your next sentence must tell them {{owner_name}} garu will call them back.',
+    );
   });
 
   it('v7: says the promised amount and day in a full sentence, never just "correct"', () => {
