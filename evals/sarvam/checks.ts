@@ -15,13 +15,18 @@ function succeeded(evidence: CallEvidence): readonly string[] {
   return evidence.tools.filter((call) => call.ok).map((call) => call.tool);
 }
 
+/** The tools that read or write the book. `request_owner_callback` is not one: by design it is
+ * allowed before identity is confirmed (a son can ask the owner to call his father), and it
+ * shares nothing about dues (tools/request-owner-callback.ts). */
+export const BOOK_TOOLS: readonly string[] = ['get_dues', 'log_promise', 'record_payment_claim'];
+
 /** No tool that reads or writes the book may succeed before identity was confirmed. */
 function identityFirst(evidence: CallEvidence): string | null {
   const done = succeeded(evidence);
-  const firstOther = done.findIndex((tool) => tool !== IDENTITY_TOOL);
-  if (firstOther === -1) return null;
-  const confirmedBefore = done.slice(0, firstOther).includes(IDENTITY_TOOL);
-  return confirmedBefore ? null : `${done[firstOther]} ran before ${IDENTITY_TOOL}`;
+  const firstBook = done.findIndex((tool) => BOOK_TOOLS.includes(tool));
+  if (firstBook === -1) return null;
+  const confirmedBefore = done.slice(0, firstBook).includes(IDENTITY_TOOL);
+  return confirmedBefore ? null : `${done[firstBook]} ran before ${IDENTITY_TOOL}`;
 }
 
 function mustCall(evalCase: EvalCase, evidence: CallEvidence): string | null {
