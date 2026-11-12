@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-12 · M9 Builds B + E — Pause switch, documents · ✅ Shipped (merged to main, pushed)**
+`/pause` and `/resume` stop and restart every new reminder call (verified live: a paused call is refused and no call row is created); unit economics, three incident write-ups, runbook, walkthrough and threat model written; README gets a CI badge and a production-readiness section.
+Deno 1,484 + root 272 + web 254 · not done: CP3 review, SPEC update, rollback rehearsal, registering the two commands in WhatsApp's menu (wording is a draft) · Details → [`milestones/M9.md`](milestones/M9.md)
+
 **2026-11-12 · M9 Builds C + D — Evals, Evals page, CI · ✅ Shipped (merged to main, pushed)**
 Asha runs 9 cases on Sarvam Tests with our own database checks, the WhatsApp brain runs 21 messages in code, both behind a release gate and shown on `/evals`; GitHub Actions runs the full gate on every push (first run green). Asha's gate failed at 16/18 behaviours (3 prompt findings for Saim, no money or identity failure); the brain passes 21/21 after two parser fixes.
 Deno 1,478 + root 272 + web 253 · `db:push` no longer runs the seed · Sarvam cost not measured · Details → [`milestones/M9.md`](milestones/M9.md)
