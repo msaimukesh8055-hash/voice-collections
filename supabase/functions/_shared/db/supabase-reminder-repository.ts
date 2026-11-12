@@ -157,6 +157,15 @@ export function createSupabaseReminderRepository(query: PostgrestClient): Remind
     ...readQueries(query),
     ...callWrites(query),
     ...simulatedCallEnds(query),
+    // The settings row is the single row id 1; written as an upsert so it also works before any
+    // other setting was ever saved.
+    async setCallsPaused(paused): Promise<void> {
+      await query('setCallsPaused', 'demo_settings', {
+        method: 'POST',
+        body: { id: 1, calls_paused: paused },
+        prefer: 'resolution=merge-duplicates,return=minimal',
+      });
+    },
     claimDailyAlert: (claim) =>
       insertOnce('claimDailyAlert', 'owner_alerts', {
         owner_id: claim.ownerId,

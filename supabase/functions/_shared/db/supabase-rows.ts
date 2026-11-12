@@ -22,7 +22,7 @@ export const SHOPKEEPER_COLUMNS =
 export const SESSION_COLUMNS = 'id,shopkeeper_id,mode,status,language,identity_status,' +
   'identity_unsure_count,interaction_id,queued_at,ringing_at,accepted_at,url_issued_at';
 export const SETTINGS_COLUMNS =
-  'demo_clock,calling_hours_enabled,call_limits_enabled,live_shopkeeper_id';
+  'demo_clock,calling_hours_enabled,call_limits_enabled,live_shopkeeper_id,calls_paused';
 export const LEDGER_COLUMNS = 'kind,amount,entry_date,due_date,status';
 
 export const IdRow = z.object({ id: z.uuid() });
@@ -60,6 +60,8 @@ const SettingsRow = z.object({
   calling_hours_enabled: z.boolean(),
   call_limits_enabled: z.boolean(),
   live_shopkeeper_id: z.uuid().nullable(),
+  // Tolerant: a settings row read before the M9 column existed is "not paused".
+  calls_paused: z.boolean().default(false),
 });
 
 const LedgerRow = z.object({
@@ -114,6 +116,7 @@ export const SETTINGS_ROW = SettingsRow.transform((row): DemoSettings => ({
   callingHoursEnabled: row.calling_hours_enabled,
   callLimitsEnabled: row.call_limits_enabled,
   liveShopkeeperId: row.live_shopkeeper_id,
+  callsPaused: row.calls_paused,
 }));
 
 export const LEDGER_ROW = LedgerRow.transform((row): LedgerEntry =>

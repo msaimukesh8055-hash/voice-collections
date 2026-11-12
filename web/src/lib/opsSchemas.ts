@@ -45,6 +45,8 @@ export const OpsSummarySchema = z.object({
     }),
   ),
   toolTargetMs: z.number(),
+  /** M9 pause switch; a server from before it reads as not paused. */
+  callsPaused: z.boolean().catch(false),
   spend: z.object({ capInr: z.number(), today: SpendSchema, month: SpendSchema }),
   generatedAt: z.string(),
 });

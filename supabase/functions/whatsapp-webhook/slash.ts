@@ -140,6 +140,20 @@ async function promises(_rest: string, ctx: BotContext): Promise<Handled> {
   return replied([promisesReply({ lists, shopkeepers: ctx.shopkeepers, language: ctx.language })]);
 }
 
+/** /pause and /resume (M9): flips the switch every new reminder call is checked against. */
+function pauseCalls(paused: boolean): SlashHandler {
+  return async function pauseHandler(_rest, ctx): Promise<Handled> {
+    await ctx.reminder.store.setCallsPaused(paused);
+    ctx.log('info', 'calls_paused_changed', { paused });
+    return replied([
+      textIn(ctx.language, (each) => {
+        const phrases = slashPhrasesFor(each);
+        return paused ? phrases.callsPaused : phrases.callsResumed;
+      }),
+    ]);
+  };
+}
+
 const SLASH_HANDLERS: Readonly<Record<SlashName, SlashHandler>> = {
   munshi: async (_rest, ctx) => replied(await startOwnerCall(ctx)),
   menu: run({ kind: 'help' }),
@@ -153,6 +167,8 @@ const SLASH_HANDLERS: Readonly<Record<SlashName, SlashHandler>> = {
   promises,
   insights: run({ kind: 'insights' }),
   statement: byName('statement', (name) => ({ kind: 'lookup', name })),
+  pause: pauseCalls(true),
+  resume: pauseCalls(false),
 };
 
 function helpReply(ctx: BotContext): Reply {

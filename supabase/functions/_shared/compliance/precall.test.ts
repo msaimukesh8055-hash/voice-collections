@@ -71,3 +71,10 @@ Deno.test('checkPrecall › do-not-call still blocks when the calling-hours swit
   const result = checkPrecall({ ...ALLOWED_INPUT, callingHoursEnabled: false, doNotCall: true });
   assertEquals(result, { allowed: false, code: 'DO_NOT_CALL' });
 });
+
+Deno.test('checkPrecall › paused: every call is blocked, and it is the first reason given (M9)', () => {
+  const paused = { allowed: false, code: 'CALLS_PAUSED' } as const;
+  assertEquals(checkPrecall({ ...ALLOWED_INPUT, callsPaused: true }), paused);
+  assertEquals(checkPrecall({ ...ALLOWED_INPUT, callsPaused: true, doNotCall: true }), paused);
+  assertEquals(checkPrecall({ ...ALLOWED_INPUT, callsPaused: false }), { allowed: true });
+});

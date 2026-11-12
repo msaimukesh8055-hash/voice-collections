@@ -83,6 +83,19 @@ describe('OpsPage', () => {
     expect(screen.getByRole('link', { name: /All ops/ })).toHaveAttribute('href', '/ops');
   });
 
+  it('shows whether reminder calls are running or paused, in words', async () => {
+    const running = render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
+    await screen.findByRole('heading', { name: 'Reminder calls' });
+    expect(within(tile(/^Reminder calls$/)).getByText('Running')).toBeInTheDocument();
+    running.unmount();
+    const fake = fakeDashboard();
+    fake.ops = { ...OPS, callsPaused: true };
+    render(<OpsPage dashboard={fake.dashboard} id={null} />);
+    await screen.findByRole('heading', { name: 'Reminder calls' });
+    expect(within(tile(/^Reminder calls$/)).getByText('Paused')).toBeInTheDocument();
+    expect(screen.getByText(/until \/resume is sent/)).toBeInTheDocument();
+  });
+
   it('asks for the WhatsApp link when there is none', async () => {
     const fake = fakeDashboard();
     fake.needsLink = true;

@@ -32,6 +32,8 @@ export interface FakeReminderState {
   personas: Readonly<Record<string, string>>;
   alerts: readonly DailyAlertClaim[];
   lastInboundAt: string | null;
+  /** What setCallsPaused last wrote; null until it is called. */
+  callsPaused: boolean | null;
   /** Stands in for the database's now(). */
   clock: () => Date;
 }
@@ -52,6 +54,7 @@ function initialState(overrides: Partial<FakeReminderState>): FakeReminderState 
     personas: {},
     alerts: [],
     lastInboundAt: null,
+    callsPaused: null,
     clock: () => new Date('2026-11-02T06:30:00.000Z'),
     ...overrides,
   };
@@ -131,6 +134,10 @@ function reads(state: FakeReminderState): Omit<
       return Promise.resolve(!taken);
     },
     lastInboundAt: () => Promise.resolve(state.lastInboundAt),
+    setCallsPaused: (paused) => {
+      state.callsPaused = paused;
+      return Promise.resolve();
+    },
   };
 }
 

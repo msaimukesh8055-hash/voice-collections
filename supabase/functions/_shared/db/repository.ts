@@ -27,6 +27,8 @@ export interface DemoSettings {
   /** Who the dashboard's "Ring" demo button calls. WhatsApp's Remind can ring anyone live
    * (Live remind, pre-M6), so this no longer decides who is live. */
   readonly liveShopkeeperId: string | null;
+  /** M9 pause switch: true = no new reminder call starts. Absent means not paused. */
+  readonly callsPaused?: boolean;
 }
 
 export type CallMode = 'live' | 'simulated';

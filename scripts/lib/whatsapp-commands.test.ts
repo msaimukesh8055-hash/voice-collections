@@ -51,6 +51,8 @@ describe('commandsPayload', () => {
       'promises',
       'insights',
       'statement',
+      'pause',
+      'resume',
     ]);
     expect(payload.commands.map((command) => command.command_description)).toEqual(
       SLASH_COMMANDS.map((command) => command.description),

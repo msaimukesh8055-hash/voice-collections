@@ -156,3 +156,18 @@ Deno.test('ops routes › all five functions are always listed, quiet ones with 
     { source: 'drill', requests: 1, failed: 1, p95Ms: 130 },
   ]);
 });
+
+Deno.test('ops routes › says whether reminder calls are paused (M9 pause switch)', async () => {
+  const running = await get('/v1/dashboard/ops', deps({ summary: SUMMARY }));
+  assertEquals(running.body.callsPaused, false);
+  const all = deps({ summary: SUMMARY });
+  const settings = await all.repo.getDemoSettings();
+  const paused: CallsApiDeps = {
+    ...all,
+    repo: {
+      ...all.repo,
+      getDemoSettings: () => Promise.resolve({ ...settings, callsPaused: true }),
+    },
+  };
+  assertEquals((await get('/v1/dashboard/ops', paused)).body.callsPaused, true);
+});

@@ -64,6 +64,7 @@ function blockOf(
     doNotCall: target.doNotCall,
     callingHoursEnabled: settings.callingHoursEnabled,
     callLimitsEnabled: settings.callLimitsEnabled,
+    callsPaused: settings.callsPaused === true,
     callsToday: countSince(calls, target.shopkeeperId, todayStart),
     callsThisWeek: countSince(calls, target.shopkeeperId, weekStart),
   });
