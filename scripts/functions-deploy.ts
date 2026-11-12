@@ -57,12 +57,20 @@ function runSupabase(command: string): void {
   execSync(`npx supabase ${command}`, { stdio: 'inherit' });
 }
 
+/** What is being deployed: the commit, marked when the working tree has uncommitted changes,
+ * and the time. Not a secret; the health check reports it so "what is live?" has an answer. */
+function releaseVersion(): string {
+  const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim() !== '';
+  return `${commit}${dirty ? '-dirty' : ''} ${new Date().toISOString().slice(0, 16)}Z`;
+}
+
 function secretLines(): string[] {
   const required = REQUIRED_SECRETS.map((name) => `${name}=${requireEnv(name)}`);
   const optional = OPTIONAL_SECRETS.filter((name) => readEnv(name) !== '').map(
     (name) => `${name}=${readEnv(name)}`,
   );
-  return [...required, ...optional];
+  return [...required, ...optional, `RELEASE_VERSION=${releaseVersion()}`];
 }
 
 requireEnv('SUPABASE_ACCESS_TOKEN');

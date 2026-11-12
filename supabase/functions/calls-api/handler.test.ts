@@ -430,7 +430,16 @@ Deno.test('calls-api › GET /v1/health → ok with the database reachable, and 
   assertEquals(response.status, 200);
   const body = await json(response) as Record<string, unknown>;
   assertEquals([body.status, body.checks], ['ok', { database: 'ok' }]);
-  assertEquals(Object.keys(body).sort(), ['checks', 'databaseMs', 'status', 'time']);
+  assertEquals(Object.keys(body).sort(), ['checks', 'databaseMs', 'status', 'time', 'version']);
+  assertEquals(body.version, 'unknown');
+  const stamped = await handleCallsApi(request('/v1/health'), {
+    ...deps,
+    version: 'abc1234 2026-11-12T05:00Z',
+  });
+  assertEquals(
+    (await json(stamped) as Record<string, unknown>).version,
+    'abc1234 2026-11-12T05:00Z',
+  );
 });
 
 Deno.test('calls-api › GET /v1/health → 503 "degraded" when the database cannot be reached', async () => {

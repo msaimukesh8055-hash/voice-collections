@@ -2,6 +2,53 @@
 
 [![CI](https://github.com/msaimukesh8055-hash/voice-collections/actions/workflows/ci.yml/badge.svg)](https://github.com/msaimukesh8055-hash/voice-collections/actions/workflows/ci.yml)
 
+## What it is
+
+A WhatsApp-first credit-recovery assistant for a small trader, built as a mock client implementation: requirements, design, build, test, go-live. The trader in the demo is fictional (Srinivas Reddy, Sri Lakshmi Traders, Anantapur) with 100 invented shopkeepers who buy on credit.
+
+- **The owner runs his credit book by chatting on WhatsApp**: who owes what, add credit, record a payment, by text or voice note, in Telugu, Hindi or English.
+- **Asha, a voice agent on Sarvam, makes reminder calls.** She remembers earlier calls, takes a promise to pay, and never states an amount before the person confirms who they are.
+- **Munshi, a second voice agent, is the owner's call line**: he asks about his book by talking, and every change is read back and confirmed.
+- **A follow-up agent** decides what happens after each call and sends the owner a WhatsApp summary.
+
+**The design rule throughout: code first, AI second, the owner last.** Fixed commands are answered in code. The model is asked only when code cannot read a message, and may only suggest. Code checks every figure, name and direction. Nothing touches money until the owner taps Save.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  owner([Owner on WhatsApp]) --> meta[Meta WhatsApp Cloud API]
+  meta -- signed webhook --> webhook[whatsapp-webhook]
+  shop([Shopkeeper, browser call]) --> web[Web app on Vercel]
+  ownerline([Owner call line]) --> web
+  web --> api[calls-api]
+  web <-- voice --> sarvam[Sarvam Voice Agents<br/>Asha and Munshi]
+  sarvam -- tool calls, Asha secret --> ashatools[sarvam-tools]
+  sarvam -- tool calls, owner secret --> munshitools[munshi-tools]
+  webhook --> llm[Sarvam LLM<br/>Gemini as fallback]
+  api --> worker[followup-worker]
+  cron[(scheduler)] --> worker
+  worker --> llm
+  worker -- summaries and failure alerts --> meta
+  webhook --> db[(Supabase Postgres)]
+  ashatools --> db
+  munshitools --> db
+  api --> db
+  worker --> db
+```
+
+Five Edge Functions, each with its own door check:
+
+| Function | Who calls it | Checked by |
+|---|---|---|
+| `whatsapp-webhook` | Meta, with the owner's messages | Meta's signature on every request, then the owner's number |
+| `sarvam-tools` | Sarvam, when Asha needs a tool | Asha's secret, then a one-time call token |
+| `munshi-tools` | Sarvam, when Munshi needs a tool | A different secret and token; Asha's get nothing here |
+| `calls-api` | The web app | A signed 24-hour link for the dashboard; one-time tokens for calls |
+| `followup-worker` | Our own functions and the scheduler | The worker secret |
+
+Every request to all five is traced step by step into one table, which is what the **Ops** page and the failure alert read. More in `docs/architecture.md` and the decision records in `docs/adr/`.
+
 ## Production readiness (M9)
 
 What makes this more than a demo: it can be measured, watched, stopped and explained.
@@ -17,7 +64,7 @@ What makes this more than a demo: it can be measured, watched, stopped and expla
 | Who could attack it? | Five doors, each with its own check | `docs/threat-model.md` |
 | Explain it in five minutes | One message and one call, end to end | `docs/walkthrough.md` |
 
-**Honest limits:** fake data, one trader, a Meta test number that reaches only registered numbers, calls in a browser (no phone lines), no login. Asha's current version fails its release gate (16 of 18 behaviours, the bar is 90%); the three findings are in `docs/milestones/M9.md`.
+**Honest limits:** fake data, one trader, a Meta test number that reaches only registered numbers, calls in a browser (no phone lines), no login. Asha's live prompt (v8) has not been through the eval suite yet; the last measured version (v7) passed the release gate at 17 of 18 behaviours. History and findings are in `docs/milestones/M9.md`.
 
 
 A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake persona: Srinivas Reddy, Sri Lakshmi Traders, ~100 fake shopkeepers). Asha, a reminder voice agent on **Sarvam Voice Agents**, calls shopkeepers in Telugu, Hindi or English. Built on Sarvam + Supabase (Mumbai) + React. **All data is fake.** Scope: [`docs/SPEC.md`](docs/SPEC.md) · Architecture: [`docs/architecture.md`](docs/architecture.md).

@@ -14,6 +14,8 @@ export interface CallsApiDeps extends ProxyDeps {
   readonly allowedOrigins: readonly string[];
   /** Wakes the follow-up worker for a call that just ended (M5); runs in the background. */
   readonly kickFollowup: FollowupKicker;
+  /** What is deployed ("<commit> <time>"), for the health check; null when not stamped. */
+  readonly version?: string | null;
   /** The web dashboard's reads (M6), behind the signed link. */
   readonly dashboard: DashboardDeps;
   /** The /munshi page (M8): owner calls, the link secret and the owner's names. */

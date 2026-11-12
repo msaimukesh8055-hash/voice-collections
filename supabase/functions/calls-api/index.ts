@@ -46,6 +46,7 @@ const deps: CallsApiDeps = {
   clock: () => new Date(),
   log,
   allowedOrigins: env.CORS_ALLOWED_ORIGINS,
+  version: env.RELEASE_VERSION,
   sarvam: {
     apiKey: env.SARVAM_AGENTS_API_KEY,
     orgId: env.SARVAM_ORG_ID,

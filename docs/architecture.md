@@ -2,6 +2,8 @@
 
 Status: M6 built (2026-11-04, not yet deployed): voice notes in and out, English under Telugu (Sarvam Translate), insights with a ring chart, the web dashboard behind a signed link (ADR-0017). Before that, M5 built and deployed (2026-11-03), CP2 reviewed: 5a — memory and tone in `get_dues`, promise checker, reliability score, follow-up worker with WhatsApp summaries; 5b — due alert, Remind / Remind all with queue and limits, text simulated calls, pg_cron scheduler. On top of M4 (WhatsApp owner bot) and M3 (Sarvam voice agent, credit-book schema, phone page). Next: M7 (simulated-shopkeeper fix, evals + gate). **M8 (ADR-0018, accepted 2026-11-07 with amendments):** Munshi, the owner's own voice agent; Build A (line, link, `/munshi` page, `munshi-tools` reads) built 2026-11-07, actions in Build B. Updated by the `architect` agent when decisions change. Scope: `docs/SPEC.md` v2.0.
 
+**M9 (2026-11-12, built and deployed):** every request to the five functions is traced into `ops_events` (one trace id per request, carried across a kick to the follow-up worker); the `/ops` page and a 5-minute failure alert read it; `demo_settings.calls_paused` is the first pre-call rule; evals run on Sarvam Tests against fake shopkeepers under a per-run eval owner. A simple diagram is in `README.md`; detail in `docs/milestones/M9.md`.
+
 ## System context
 
 ```
