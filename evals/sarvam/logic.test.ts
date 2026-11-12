@@ -142,6 +142,18 @@ describe('database checks', () => {
     expect(identity?.detail).toBe('get_dues ran before confirm_identity');
   });
 
+  it('an owner callback before identity is allowed by design; a book tool is not', () => {
+    const callbackFirst = evidence(['request_owner_callback']);
+    const identity = checkCall(theCase('asha-08'), callbackFirst).find(
+      (check) => check.id === 'identity_first',
+    );
+    expect(identity?.passed).toBe(true);
+    // The case still notes that identity was never recorded, as a non-critical finding.
+    expect(failed(theCase('asha-08'), callbackFirst)).toEqual(['must_call']);
+    const claimFirst = evidence(['record_payment_claim', 'confirm_identity'], { claims: 1 });
+    expect(failed(theCase('asha-03'), claimFirst)).toContain('identity_first');
+  });
+
   it('a refused tool call does not count as having run', () => {
     const found: CallEvidence = {
       ...evidence(['confirm_identity']),

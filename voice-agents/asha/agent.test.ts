@@ -116,9 +116,33 @@ const NEVER_LIST = `# Never
 - Share any amount before confirm_identity says confirmed.
 - Offer discounts, waivers or anything {{owner_name}} garu has not offered.`;
 
-describe('Asha prompt v6', () => {
-  it('is version v6 (v5 + earlier calls from the records, M7 B1)', () => {
-    expect(PROMPT_VERSION).toBe('v6');
+describe('Asha prompt v7', () => {
+  it('is version v7 (v6 + the three fixes from the first Sarvam Tests run, M9)', () => {
+    expect(PROMPT_VERSION).toBe('v7');
+  });
+
+  it('v7: says the promised amount and day in a full sentence, never just "correct"', () => {
+    expect(ASHA_PROMPT).toContain(
+      'Your next sentence must say the amount and the day from the tool reply',
+    );
+    expect(ASHA_PROMPT).toContain('Never answer with only "yes", "okay" or "correct"');
+  });
+
+  it('v7: records identity as denied before anything else when someone else answers', () => {
+    const start = ASHA_PROMPT.indexOf('Someone else answered');
+    const bullet = ASHA_PROMPT.slice(start, ASHA_PROMPT.indexOf('\n', start));
+    expect(bullet).toContain('first call tool:confirm_identity with denied');
+    expect(bullet.indexOf('confirm_identity')).toBeLessThan(bullet.indexOf('apologise'));
+    expect(bullet).toContain('share nothing about money or dues');
+  });
+
+  it('v7: hardship or "stop calling" is handled at any point, and the call may end when asked', () => {
+    const start = ASHA_PROMPT.indexOf('6. If they dispute the amount');
+    const step = ASHA_PROMPT.slice(start, ASHA_PROMPT.indexOf('\n', start));
+    expect(step).toContain('ask you to stop calling');
+    expect(step).toContain('even before the recording notice or the dues');
+    expect(step).toContain('call tool:request_owner_callback'.replace('call', 'Call'));
+    expect(step).toContain('If they ask you to end the call');
   });
 
   it('uses earlier calls from the records: at most one, briefly, never read out', () => {
@@ -226,7 +250,7 @@ describe('Asha prompt v6', () => {
   });
 
   it('reads the promise back, updates it on new terms and adds no filler after a tool reply', () => {
-    expect(ASHA_PROMPT).toContain('read it back');
+    expect(ASHA_PROMPT).toContain('ask them to confirm');
     expect(ASHA_PROMPT).toContain('it updates the saved promise');
     expect(ASHA_PROMPT).toContain('read back what the tool reply says');
     expect(ASHA_PROMPT).toContain('never say "let me check" again');
