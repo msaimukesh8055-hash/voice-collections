@@ -1,6 +1,7 @@
 // supabase/functions/calls-api/health-route.ts
 // GET /v1/health (M9 Build A): is the app API up and can it reach the database? No link token
-// and no data, so an uptime checker or the ops page can call it. The required settings are
+// and no data, so an uptime checker or the ops page can call it. It also says which commit is
+// deployed. The required settings are
 // checked when the function starts (env.ts), so an answer at all means they are present.
 import { jsonResponse } from '../_shared/http.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
@@ -16,6 +17,8 @@ export interface HealthBody {
   readonly status: HealthStatus;
   readonly checks: { readonly database: 'ok' | 'fail' };
   readonly databaseMs: number;
+  /** The deployed commit and deploy time; "unknown" when the deploy did not stamp one. */
+  readonly version: string;
   readonly time: string;
 }
 
@@ -33,6 +36,7 @@ export async function getHealth(_req: Request, { deps, cors }: RouteContext): Pr
     status: database === 'ok' ? 'ok' : 'degraded',
     checks: { database },
     databaseMs: now.getTime() - started,
+    version: deps.version ?? 'unknown',
     time: now.toISOString(),
   };
   return jsonResponse(body, database === 'ok' ? OK : DEGRADED, cors);

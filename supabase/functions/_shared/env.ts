@@ -75,6 +75,8 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .transform((value) => value === 'on'),
   /** Sarvam core key: the dashboard's transcript English (M6). Blank → no translation. */
   SARVAM_API_KEY: OptionalText,
+  /** M9: "<commit> <time>", stamped by scripts/functions-deploy.ts; the health check reports it. */
+  RELEASE_VERSION: OptionalText,
   /** Munshi (M8): checks the /munshi page's link token. Blank → Munshi is not set up. */
   MUNSHI_LINK_SECRET: OptionalMunshiSecret,
   /** Munshi's Sarvam app id; blank until the agent exists, and then Munshi calls are refused. */
