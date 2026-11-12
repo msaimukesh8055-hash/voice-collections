@@ -1,5 +1,25 @@
 # Easy Recovery AI (prototype)
 
+[![CI](https://github.com/msaimukesh8055-hash/voice-collections/actions/workflows/ci.yml/badge.svg)](https://github.com/msaimukesh8055-hash/voice-collections/actions/workflows/ci.yml)
+
+## Production readiness (M9)
+
+What makes this more than a demo: it can be measured, watched, stopped and explained.
+
+| Question | Answer | Where |
+|---|---|---|
+| How do you know the AI works? | Asha runs 9 cases on Sarvam Tests plus our own database checks; the WhatsApp brain runs 21 messages; a release gate decides | Dashboard → **Evals**, `evals/` |
+| How do you know when it breaks? | Every request is traced step by step; a WhatsApp alert within 5 minutes | Dashboard → **Ops**, `docs/runbook.md` |
+| How do you limit the damage? | `/pause` stops every new reminder call in one message | `docs/runbook.md` |
+| What stops a bad change? | GitHub runs the full quality gate on every push | `.github/workflows/ci.yml` |
+| What does it cost? | About ₹12 a call; voice minutes are 99% of cost | `docs/unit-economics.md` |
+| What went wrong so far? | Three money-direction bugs, each stopped at the confirmation card | `docs/incidents/` |
+| Who could attack it? | Five doors, each with its own check | `docs/threat-model.md` |
+| Explain it in five minutes | One message and one call, end to end | `docs/walkthrough.md` |
+
+**Honest limits:** fake data, one trader, a Meta test number that reaches only registered numbers, calls in a browser (no phone lines), no login. Asha's current version fails its release gate (16 of 18 behaviours, the bar is 90%); the three findings are in `docs/milestones/M9.md`.
+
+
 A WhatsApp-first credit-recovery assistant for a small trader in Anantapur (fake persona: Srinivas Reddy, Sri Lakshmi Traders, ~100 fake shopkeepers). Asha, a reminder voice agent on **Sarvam Voice Agents**, calls shopkeepers in Telugu, Hindi or English. Built on Sarvam + Supabase (Mumbai) + React. **All data is fake.** Scope: [`docs/SPEC.md`](docs/SPEC.md) · Architecture: [`docs/architecture.md`](docs/architecture.md).
 
 ## Setup

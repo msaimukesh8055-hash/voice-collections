@@ -146,6 +146,7 @@ export const OPS: OpsSummary = {
     },
   ],
   toolTargetMs: 500,
+  callsPaused: false,
   spend: {
     capInr: 1000,
     today: { voiceInr: 8.26, llmInr: 4.32, totalInr: 12.58 },

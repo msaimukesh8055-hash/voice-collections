@@ -136,3 +136,21 @@ Deno.test('reminder repo › a database error surfaces as a RepositoryError', as
   const { repo } = setup({ status: 500, body: { code: 'XX000' } });
   await assertRejects(() => repo.listPausedShopkeepers(), RepositoryError);
 });
+
+Deno.test('reminder repository › the pause switch is one upsert of the single settings row (M9)', async () => {
+  const calls: [string, string, unknown][] = [];
+  const repo = createSupabaseReminderRepository((operation, path, request) => {
+    calls.push([operation, path, request]);
+    return Promise.resolve({ rows: null, contentRange: null });
+  });
+  await repo.setCallsPaused(true);
+  assertEquals(calls, [[
+    'setCallsPaused',
+    'demo_settings',
+    {
+      method: 'POST',
+      body: { id: 1, calls_paused: true },
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+  ]]);
+});

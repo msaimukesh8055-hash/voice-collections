@@ -24,6 +24,9 @@ export interface SlashPhrases {
   readonly none: string;
   readonly promisedBy: (label: string, amount: string, day: string) => string;
   readonly brokenOn: (label: string, amount: string, day: string) => string;
+  /** M9 pause switch: what the owner reads after /pause and /resume. */
+  readonly callsPaused: string;
+  readonly callsResumed: string;
 }
 
 type Descriptions = Readonly<Record<CommandName, string>>;
@@ -57,6 +60,9 @@ const EN: SlashPhrases = {
   none: 'None',
   promisedBy: (label, amount, day) => `• ${label} · ${amount} by ${day}`,
   brokenOn: (label, amount, day) => `• ${label} · ${amount} was due ${day}`,
+  callsPaused:
+    '⏸️ *Reminder calls are paused.* No new call will start until you send /resume. Calls already in progress will finish.',
+  callsResumed: '▶️ *Reminder calls are on again.*',
 };
 
 const HI_DESCRIPTIONS: Descriptions = {
@@ -73,6 +79,8 @@ const HI_DESCRIPTIONS: Descriptions = {
   promises: 'इस हफ़्ते के वादे और टूटे वादे',
   insights: 'पाई चार्ट, % वसूली, टॉप 5',
   statement: 'एक दुकानदार का हिसाब, जैसे /statement Ramesh',
+  pause: 'सभी रिमाइंडर कॉल रोकें',
+  resume: 'रिमाइंडर कॉल फिर चालू करें',
 };
 
 const HI: SlashPhrases = {
@@ -94,6 +102,9 @@ const HI: SlashPhrases = {
   none: 'कोई नहीं',
   promisedBy: (label, amount, day) => `• ${label} · ${amount}, ${day} तक`,
   brokenOn: (label, amount, day) => `• ${label} · ${amount}, ${day} को देय था`,
+  callsPaused:
+    '⏸️ *रिमाइंडर कॉल रोक दी गई हैं।* जब तक आप /resume नहीं भेजते, कोई नई कॉल शुरू नहीं होगी। चल रही कॉल पूरी होंगी।',
+  callsResumed: '▶️ *रिमाइंडर कॉल फिर चालू हैं।*',
 };
 
 const TE_DESCRIPTIONS: Descriptions = {
@@ -110,6 +121,8 @@ const TE_DESCRIPTIONS: Descriptions = {
   promises: 'ఈ వారం మాటలు, తప్పిన మాటలు',
   insights: 'పై చార్ట్, % వసూలు, టాప్ 5',
   statement: 'ఒక షాపు లెక్క, ఉదా. /statement Ramesh',
+  pause: 'రిమైండర్ కాల్స్ అన్నీ ఆపండి',
+  resume: 'రిమైండర్ కాల్స్ మళ్ళీ మొదలుపెట్టండి',
 };
 
 const TE: SlashPhrases = {
@@ -134,6 +147,9 @@ const TE: SlashPhrases = {
   none: 'ఏవీ లేవు',
   promisedBy: (label, amount, day) => `• ${label} · ${amount}, ${day} లోగా`,
   brokenOn: (label, amount, day) => `• ${label} · ${amount}, ${day} న ఇవ్వాల్సింది`,
+  callsPaused:
+    '⏸️ *రిమైండర్ కాల్స్ ఆపేశాను.* మీరు /resume పంపే వరకు కొత్త కాల్స్ మొదలవ్వవు. జరుగుతున్న కాల్స్ పూర్తవుతాయి.',
+  callsResumed: '▶️ *రిమైండర్ కాల్స్ మళ్ళీ మొదలయ్యాయి.*',
 };
 
 const PHRASES: Readonly<Record<Language, SlashPhrases>> = { en: EN, hi: HI, te: TE };

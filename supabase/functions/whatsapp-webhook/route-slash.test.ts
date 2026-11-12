@@ -22,6 +22,7 @@ import type { Hearing } from '../_shared/speech/hear.ts';
 import type { InboundMessage } from '../_shared/whatsapp/inbound.ts';
 import { type Reply, replyText } from '../_shared/whatsapp/replies.ts';
 import { SLASH_COMMANDS } from '../_shared/whatsapp/slash-commands.ts';
+import { slashPhrasesFor } from '../_shared/whatsapp/slash-phrases.ts';
 import { ownerCallPhrasesFor } from './owner-call.ts';
 import { type Outcome, routeMessage } from './route.ts';
 
@@ -316,4 +317,28 @@ Deno.test('slash › Telugu and Hindi words after a command reply in that langua
   assert(reply?.kind === 'text');
   assert(/[ఀ-౿]/.test(reply.text));
   assert((reply.english ?? '').length > 0);
+});
+
+Deno.test('slash › /pause and /resume flip the switch in code and say so, never asking the LLM (M9)', async () => {
+  const setup = botSetup();
+  const paused = await routeWith(setup, text('/pause'));
+  assertEquals(setup.reminder.store.state.callsPaused, true);
+  assertStringIncludes(replyText(paused.outcome.replies), 'Reminder calls are paused');
+  assertStringIncludes(replyText(paused.outcome.replies), '/resume');
+  assertEquals([paused.outcome.path, paused.outcome.command], ['command', 'slash_pause']);
+  const resumed = await routeWith(setup, text('/resume'));
+  assertEquals(setup.reminder.store.state.callsPaused, false);
+  assertStringIncludes(replyText(resumed.outcome.replies), 'Reminder calls are on again');
+  assertEquals([...paused.asked, ...resumed.asked], []);
+});
+
+Deno.test('slash › both new commands are registered with a description in every language', () => {
+  const names = SLASH_COMMANDS.map((command) => command.name);
+  assert(names.includes('pause') && names.includes('resume'));
+  for (const language of ['en', 'hi', 'te'] as const) {
+    const phrases = slashPhrasesFor(language);
+    assert(phrases.callsPaused.includes('/resume'));
+    assert(phrases.callsResumed.length > 0);
+    assertEquals(phrases.helpLines.length, SLASH_COMMANDS.length);
+  }
 });

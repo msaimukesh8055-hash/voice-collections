@@ -396,6 +396,7 @@ Deno.test('postgrest › demo settings default to off when the row is missing', 
     calling_hours_enabled: true,
     call_limits_enabled: false,
     live_shopkeeper_id: SHOPKEEPER_ID,
+    calls_paused: true,
   };
   const { repo } = setup({ body: [] }, { body: [row] });
   assertEquals((await repo.getDemoSettings()).liveShopkeeperId, null);
@@ -404,6 +405,7 @@ Deno.test('postgrest › demo settings default to off when the row is missing', 
     callingHoursEnabled: true,
     callLimitsEnabled: false,
     liveShopkeeperId: SHOPKEEPER_ID,
+    callsPaused: true,
   });
 });
 

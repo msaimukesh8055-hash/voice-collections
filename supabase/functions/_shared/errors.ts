@@ -9,6 +9,7 @@ export const ERROR_CODES = {
   METHOD_NOT_ALLOWED: { status: 405, message: 'This method is not allowed.' },
   CALL_STATE_CONFLICT: { status: 409, message: 'This call can no longer do that.' },
   NO_LIVE_SHOPKEEPER: { status: 409, message: 'No live shopkeeper is set for the demo.' },
+  CALLS_PAUSED: { status: 409, message: 'Reminder calls are paused.' },
   DO_NOT_CALL: { status: 409, message: 'This shopkeeper has asked not to be called.' },
   OUTSIDE_CALLING_HOURS: {
     status: 409,

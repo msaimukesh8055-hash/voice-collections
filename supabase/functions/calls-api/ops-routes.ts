@@ -53,13 +53,18 @@ function spendFor(summary: OpsSummary, period: 'today' | 'month'): Spend {
 }
 
 async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Response> {
-  const summary = await deps.dashboard.ops.getSummary();
+  const [summary, settings] = await Promise.all([
+    deps.dashboard.ops.getSummary(),
+    deps.repo.getDemoSettings(),
+  ]);
   const body = {
     ...summary,
     // One row per failed request, not one per error step (Saim, 2026-11-11).
     recentErrors: leadErrors(summary.recentErrors),
     sources: allSources(summary.sources),
     toolTargetMs: TOOL_TARGET_MS,
+    // M9 pause switch: true while /pause is in force (no new reminder call starts).
+    callsPaused: settings.callsPaused === true,
     spend: {
       capInr: SPEND_CAP_INR,
       today: spendFor(summary, 'today'),

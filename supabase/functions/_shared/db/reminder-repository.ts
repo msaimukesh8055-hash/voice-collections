@@ -59,4 +59,6 @@ export interface ReminderRepository {
   claimDailyAlert(claim: DailyAlertClaim): Promise<boolean>;
   /** When the owner last wrote to the bot (real time, ISO), or null. */
   lastInboundAt(senderHash: string): Promise<string | null>;
+  /** M9 pause switch: stop (true) or allow (false) every new reminder call. */
+  setCallsPaused(paused: boolean): Promise<void>;
 }

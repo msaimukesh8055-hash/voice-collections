@@ -17,9 +17,15 @@ export interface PrecallInput {
   readonly callLimitsEnabled: boolean;
   readonly callsToday: number;
   readonly callsThisWeek: number;
+  /** M9 pause switch: the owner (or whoever runs the system) stopped all new reminder calls. */
+  readonly callsPaused?: boolean;
 }
 
-export type PrecallBlockCode = 'DO_NOT_CALL' | 'OUTSIDE_CALLING_HOURS' | 'ATTEMPT_LIMIT_REACHED';
+export type PrecallBlockCode =
+  | 'CALLS_PAUSED'
+  | 'DO_NOT_CALL'
+  | 'OUTSIDE_CALLING_HOURS'
+  | 'ATTEMPT_LIMIT_REACHED';
 
 export type PrecallDecision =
   | { readonly allowed: true }
@@ -35,6 +41,8 @@ function isOverAttemptLimit(input: PrecallInput): boolean {
 }
 
 export function checkPrecall(input: PrecallInput): PrecallDecision {
+  // Paused comes first: it is about the whole system, not this shopkeeper.
+  if (input.callsPaused === true) return { allowed: false, code: 'CALLS_PAUSED' };
   if (input.doNotCall) return { allowed: false, code: 'DO_NOT_CALL' };
   if (input.callingHoursEnabled && !isWithinCallingHours(input.now)) {
     return { allowed: false, code: 'OUTSIDE_CALLING_HOURS' };

@@ -21,6 +21,8 @@ export const SLASH_NAMES = [
   'promises',
   'insights',
   'statement',
+  'pause',
+  'resume',
 ] as const;
 export type SlashName = (typeof SLASH_NAMES)[number];
 
@@ -57,6 +59,8 @@ export const SLASH_COMMANDS: readonly SlashCommandInfo[] = [
   { name: 'promises', description: 'Promises this week and broken promises' },
   { name: 'insights', description: 'Pie chart, % collected, top 5' },
   { name: 'statement', description: "One shopkeeper's statement, e.g. /statement Ramesh" },
+  { name: 'pause', description: 'Pause all reminder calls' },
+  { name: 'resume', description: 'Turn reminder calls back on' },
 ];
 
 export type SlashParse =

@@ -93,6 +93,7 @@ const EN: ReminderPhrases = {
   callCancelled: 'OK, no call made.',
   blocked: (code, name) =>
     ({
+      CALLS_PAUSED: 'Reminder calls are paused. Send /resume to turn them on. No call made.',
       DO_NOT_CALL: `${name} asked not to be called. No call made.`,
       OUTSIDE_CALLING_HOURS: 'Calls are made only between 8 am and 7 pm. No call made.',
       ATTEMPT_LIMIT_REACHED: `${name} has had the most calls allowed for now. No call made.`,
@@ -152,6 +153,7 @@ const HI: ReminderPhrases = {
   callCancelled: 'ठीक है, कॉल नहीं की गई।',
   blocked: (code, name) =>
     ({
+      CALLS_PAUSED: 'रिमाइंडर कॉल अभी रुकी हुई हैं। चालू करने के लिए /resume भेजें। कॉल नहीं हुई।',
       DO_NOT_CALL: `${name} ने कॉल न करने को कहा है। कॉल नहीं की गई।`,
       OUTSIDE_CALLING_HOURS: 'कॉल सिर्फ़ सुबह 8 से शाम 7 बजे तक होती हैं। कॉल नहीं की गई।',
       ATTEMPT_LIMIT_REACHED: `${name} को अभी अधिकतम कॉल हो चुकी हैं। कॉल नहीं की गई।`,
@@ -206,6 +208,7 @@ const TE: ReminderPhrases = {
   callCancelled: 'సరే, కాల్ చేయలేదు.',
   blocked: (code, name) =>
     ({
+      CALLS_PAUSED: 'రిమైండర్ కాల్స్ ప్రస్తుతం ఆపి ఉన్నాయి. మొదలుపెట్టడానికి /resume పంపండి. కాల్ చేయలేదు.',
       DO_NOT_CALL: `${name} కాల్ చేయవద్దని చెప్పారు. కాల్ చేయలేదు.`,
       OUTSIDE_CALLING_HOURS: 'కాల్స్ ఉదయం 8 నుండి సాయంత్రం 7 వరకే. కాల్ చేయలేదు.',
       ATTEMPT_LIMIT_REACHED: `${name}కి ఇప్పటికే గరిష్ఠ కాల్స్ అయ్యాయి. కాల్ చేయలేదు.`,

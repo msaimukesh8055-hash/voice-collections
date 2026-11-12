@@ -134,3 +134,11 @@ Deno.test('queueCall › limits on, demo clock a day behind: yesterday does not 
   assertEquals(result.ok && result.alreadyQueued, false);
   assertEquals(state.calls.length, 4);
 });
+
+Deno.test('queueCall › paused: no call row, the reason says so; resumed: the call is queued (M9)', async () => {
+  const paused = setup({ settings: { ...SETTINGS, callsPaused: true } });
+  assertEquals(await paused.run(FAKE_RAMESH.id), { ok: false, code: 'CALLS_PAUSED' });
+  assertEquals(paused.state.calls.length, 0);
+  const resumed = setup({ settings: { ...SETTINGS, callsPaused: false } });
+  assertEquals((await resumed.run(FAKE_RAMESH.id)).ok, true);
+});

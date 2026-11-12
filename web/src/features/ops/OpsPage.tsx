@@ -102,6 +102,22 @@ function QueueTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   );
 }
 
+function CallsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  return (
+    <Tile
+      label="Reminder calls"
+      value={ops.callsPaused ? 'Paused' : 'Running'}
+      tone={ops.callsPaused ? 'warn' : 'good'}
+    >
+      <p>
+        {ops.callsPaused
+          ? 'No new call starts until /resume is sent on WhatsApp.'
+          : 'Send /pause on WhatsApp to stop all new calls.'}
+      </p>
+    </Tile>
+  );
+}
+
 function SpendTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   const { capInr, today, month } = ops.spend;
   const used = Math.min(100, Math.round((month.totalInr / capInr) * 100));
@@ -236,6 +252,7 @@ function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
         <RejectedTile ops={ops} />
         <PathsTile ops={ops} />
         <QueueTile ops={ops} />
+        <CallsTile ops={ops} />
         <SpendTile ops={ops} />
       </div>
       <ToolsCard ops={ops} />
