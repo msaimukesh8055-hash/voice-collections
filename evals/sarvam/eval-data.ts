@@ -1,9 +1,9 @@
 // evals/sarvam/eval-data.ts
 // The fake data one eval run needs, as database rows (M9 Build C). Sarvam Tests calls our real
 // tool server, so each case gets a real call token on a real row. To keep that away from the
-// trader's book, every run gets its own "eval owner": the bot, alerts, insights, scores and the
-// dashboard all read by owner (the first one created), so they never see these rows. Nothing
-// here touches an existing row.
+// trader's book, every run gets its own "eval owner", flagged is_eval (M9 Build F): the bot,
+// alerts, insights, scores and the dashboard read only the real owner (the first one with
+// is_eval = false), so they never see these rows. Nothing here touches an existing row.
 import type { EvalCase } from './types.ts';
 
 /** How eval owners are told apart from the real one by a person reading the table. */
@@ -102,6 +102,9 @@ export function buildEvalRows(cases: readonly EvalCase[], options: EvalDataOptio
     business_name: options.owner.businessName,
     city: EVAL_CITY,
     language: 'te',
+    is_eval: true,
+    eval_agent: 'asha',
+    eval_run: ownerId,
   };
   const byCase = new Map<string, EvalIds>();
   const parts = cases.map((evalCase) => {

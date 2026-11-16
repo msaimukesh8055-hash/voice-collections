@@ -90,7 +90,13 @@ describe('eval data', () => {
   });
 
   it('puts every shopkeeper under a new owner marked as eval data', () => {
-    expect(rows.owner).toMatchObject({ id: 'id-1', city: EVAL_CITY });
+    expect(rows.owner).toMatchObject({
+      id: 'id-1',
+      city: EVAL_CITY,
+      is_eval: true,
+      eval_agent: 'asha',
+      eval_run: 'id-1',
+    });
     expect(rows.shopkeepers.map((row) => row['owner_id'])).toEqual(['id-1', 'id-1']);
     expect(rows.shopkeepers.map((row) => row['phone'])).toEqual([
       '+91 00000 00000',

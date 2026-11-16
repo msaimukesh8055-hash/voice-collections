@@ -1,8 +1,10 @@
 // evals/munshi/llms.ts
 // Which models play which part in Munshi's text evals (M8 C1):
-//   - live: Munshi on Sarvam sarvam-105b (reasoning off, as everywhere else), the owner on Gemini
-//     with Sarvam as fallback, the judge on Gemini. Gemini's free tier allows ~10 requests a
-//     minute, so Gemini calls are spaced out (GEMINI_MIN_GAP_MS); keys go in headers only.
+//   - live: Munshi on Sarvam sarvam-105b (reasoning off, as everywhere else). The simulated owner
+//     and the judge are on Sarvam too by default (M9 Build F: Gemini's free quota ran out mid-run
+//     on 2026-11-08). `--judge gemini` puts them back on Gemini (owner falls back to Sarvam) for an
+//     independent judge; Gemini's free tier allows ~10 requests a minute, so its calls are spaced
+//     out (GEMINI_MIN_GAP_MS). Keys go in headers only.
 //   - dry: fake models, no network at all (used by `--dry` and the unit tests). The fake owner
 //     says the scenario's lines then goodbye; the fake Munshi looks up the overview once, asks
 //     the closing question in the owner's language, and says bye. A dry run checks the plumbing,
@@ -47,14 +49,45 @@ export function spacedOut(provider: ChatProvider, gapMs: number, pacing: Pacing)
   };
 }
 
-export function liveModels(config: JsonLlmConfig, pacing: Pacing): EvalModels {
+/**
+ * Gemini answers the owner's turns in JSON mode; Sarvam has no JSON mode and often replies with
+ * the bare line ("Add 5000 credit for Ramesh."), which the turn loop would count as a failed
+ * owner (seen 2026-11-15). A reply with no JSON object is wrapped as the owner's line; a reply
+ * that has one is passed on untouched, so its hang_up still counts. Sarvam also sometimes
+ * returns an empty reply: that throws, so the turn loop tries the next provider (Sarvam again).
+ */
+export function ownerLineAsJson(provider: ChatProvider): ChatProvider {
+  return {
+    name: provider.name,
+    async ask(request): Promise<string> {
+      const raw = await provider.ask(request);
+      const line = raw.trim();
+      if (line === '') throw new Error('empty owner reply');
+      if (line.includes('{')) return raw;
+      return JSON.stringify({ say: line, hang_up: false });
+    },
+  };
+}
+
+/** Who plays the owner and judges: Sarvam (default) or Gemini (an independent judge). */
+export type SideModel = 'sarvam' | 'gemini';
+
+export function liveModels(
+  config: JsonLlmConfig,
+  pacing: Pacing,
+  side: SideModel = 'sarvam',
+): EvalModels {
   const sarvam: ChatProvider = { name: 'sarvam', ask: (request) => askSarvamChat(config, request) };
+  const sarvamOwner = ownerLineAsJson(sarvam);
+  // Tried twice: an empty reply or one network error is not the owner hanging up.
+  if (side === 'sarvam')
+    return { munshi: sarvam, owner: [sarvamOwner, sarvamOwner], judge: sarvam };
   const gemini = spacedOut(
     { name: 'gemini', ask: (request) => askGeminiChat(config, request) },
     GEMINI_MIN_GAP_MS,
     pacing,
   );
-  return { munshi: sarvam, owner: [gemini, sarvam], judge: gemini };
+  return { munshi: sarvam, owner: [gemini, sarvamOwner], judge: gemini };
 }
 
 /** What the fake owner says after his scripted lines. */

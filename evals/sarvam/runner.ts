@@ -75,7 +75,11 @@ function suiteFor(plan: RunPlan, rows: EvalRows): NewSuite {
   };
 }
 
-async function waitForRun(deps: RunnerDeps, suiteId: string, runId: string): Promise<void> {
+export async function waitForRun(
+  deps: Pick<RunnerDeps, 'sarvam' | 'now' | 'sleep' | 'onProgress'>,
+  suiteId: string,
+  runId: string,
+): Promise<void> {
   const deadline = deps.now().getTime() + MAX_WAIT_MS;
   while (deps.now().getTime() < deadline) {
     const run = await deps.sarvam.getRun(suiteId, runId);

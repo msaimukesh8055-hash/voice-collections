@@ -87,6 +87,7 @@ Deno.test('book repo › owner and shopkeepers are read and mapped', async () =>
   assertEquals([read?.businessName, read?.englishUnderTelugu], ['Sri Lakshmi Traders', true]);
   assertEquals((await repo.listShopkeepers(OWNER_ID))[0]?.shopName, 'Ramesh Kirana');
   assertStringIncludes(requests[0]?.url ?? '', '/rest/v1/owners?select=');
+  assertStringIncludes(requests[0]?.url ?? '', 'is_eval=eq.false');
   assertStringIncludes(requests[1]?.url ?? '', `owner_id=eq.${OWNER_ID}`);
   assertStringIncludes(requests[1]?.url ?? '', 'limit=1000');
 });
