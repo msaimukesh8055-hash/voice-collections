@@ -141,6 +141,30 @@ Each message goes through the real bot code. Fixed commands are answered in code
 
 ---
 
+## Munshi's two eval sets — how they differ
+
+Both test the same 15 situations (§3 and §4). They differ in where the conversation happens and how the result is checked.
+
+| | **Text evals** (`npm run evals:munshi`) | **Sarvam Tests** (`npm run evals:munshi-sarvam`) |
+|---|---|---|
+| Where Munshi runs | Our own runner; sends Munshi's prompt straight to Sarvam's AI model, not to the deployed agent | The real Munshi agent on Sarvam's platform: its actual configuration, version and tools |
+| Which tools run | The same tool code, run inside the runner | The live tool server (deployed `munshi-tools`) over the internet |
+| Ledger it writes to | An in-memory fake ledger; nothing touches the database | A flagged eval owner in the real database, one per case, fenced off from the real ledger |
+| Who plays the owner | Sarvam's AI model, from scripted lines | Sarvam Tests, from a written scenario |
+| Who judges | Our own judge prompt: tone, language, clarity (1–5) | Sarvam's judge: pass/fail on each case's expected behaviours, plus 4 guardrails |
+| Our own checks | Ledger result, plus timing: did an owner "yes" come between the read-back and the save? | Ledger result read from the database; no timing, so the behaviour checks and guardrails cover it |
+| Cost | ≈ ₹1.6 per scenario | ≈ ₹1.8 per case (estimate) |
+| Status | Run on 9 of 15 (4 critical failures) | Built, never run |
+
+**When to use which:**
+
+- **Text evals are the cheap workbench.** Fast and safe, so use them while changing the prompt. They are also the only set that catches "saved before the yes" exactly, because they log each step in order.
+- **Sarvam Tests is the release check.** It tests what the owner actually gets: the deployed agent, the real tool server and the real database. Run it once before committing a new Munshi version, as Asha must pass before a release.
+
+In FDE terms, the first is a unit test of Munshi's behaviour and the second is an end-to-end test of the deployed system.
+
+---
+
 ## 3. Munshi — 15 owner scenarios, text evals
 
 Source: [`evals/munshi/scenarios.ts`](../evals/munshi/scenarios.ts) · run: `npm run evals:munshi` · fake book: [`evals/munshi/book.fixture.ts`](../evals/munshi/book.fixture.ts)
