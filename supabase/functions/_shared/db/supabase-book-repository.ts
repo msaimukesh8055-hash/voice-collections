@@ -50,7 +50,8 @@ function readQueries(
 > {
   return {
     async getOwner(): Promise<Owner | null> {
-      const path = `owners?select=${OWNER_COLUMNS}&order=created_at&limit=1`;
+      // The real owner: eval runs create flagged owners of their own (M9 Build F), never read here.
+      const path = `owners?select=${OWNER_COLUMNS}&is_eval=eq.false&order=created_at&limit=1`;
       return firstRow(OWNER_ROW, (await query('getOwner', path)).rows);
     },
     async listShopkeepers(ownerId): Promise<readonly BookShopkeeper[]> {

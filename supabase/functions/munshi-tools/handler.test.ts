@@ -48,6 +48,8 @@ interface SetupOptions {
   readonly insertOwnerToolEvent?: () => Promise<void>;
   readonly getOwnerCall?: () => Promise<never>;
   readonly clock?: () => Date;
+  /** Eval owners the tool server may serve (M9 Build F). */
+  readonly evalOwners?: readonly Owner[];
 }
 
 function setup(call: Partial<FakeOwnerCall> = {}, options: SetupOptions = {}): Setup {
@@ -96,6 +98,8 @@ function setup(call: Partial<FakeOwnerCall> = {}, options: SetupOptions = {}): S
     },
     getDemoSettings: () => repo.getDemoSettings(),
     getOwner: () => book.getOwner(),
+    getEvalOwner: (ownerId) =>
+      Promise.resolve(options.evalOwners?.find((owner) => owner.id === ownerId) ?? null),
     secret: SECRET,
     clock: options.clock ?? (() => FAKE_NOW),
     log,
@@ -442,4 +446,97 @@ Deno.test('munshi-tools › cancel_action and every Build B tool name are known'
     const body = await reply(await handleOwnerToolRequest(toolRequest(tool, { ...TOKEN }), deps));
     assert(body['code'] !== 'UNKNOWN_TOOL', tool);
   }
+});
+
+// M9 Build F: eval owners.
+const EVAL_OWNER_ID = '0e000000-0000-4000-8000-0000000000e1';
+const EVAL_OWNER: Owner = {
+  id: EVAL_OWNER_ID,
+  name: 'Srinivas Reddy',
+  businessName: 'Sri Lakshmi Traders',
+  city: 'EVAL DATA (not a real owner)',
+  language: 'te',
+  englishUnderTelugu: false,
+};
+
+Deno.test("munshi-tools › an eval owner's call is served (flagged eval owner only)", async () => {
+  const served = setup({ ownerId: EVAL_OWNER_ID }, { evalOwners: [EVAL_OWNER] });
+  const body = await reply(
+    await handleOwnerToolRequest(toolRequest('book_summary', OVERVIEW), served.deps),
+  );
+  assertEquals(body['ok'], true);
+  // Another owner that is not flagged as eval data is still refused.
+  const other = setup({ ownerId: EVAL_OWNER_ID });
+  const refused = await reply(
+    await handleOwnerToolRequest(toolRequest('book_summary', OVERVIEW), other.deps),
+  );
+  assertEquals(refused['code'], 'CALL_NOT_AUTHORISED');
+});
+
+Deno.test('munshi-tools › an eval call never queues a reminder or kicks a WhatsApp send', async () => {
+  let now = FAKE_NOW;
+  const { deps, kicked, logs, voice } = setup(
+    { ownerId: EVAL_OWNER_ID },
+    { evalOwners: [EVAL_OWNER], clock: () => now },
+  );
+  let queued = 0;
+  const counting: OwnerToolsDeps = {
+    ...deps,
+    writes: {
+      ...deps.writes,
+      queueCall: () => {
+        queued += 1;
+        return Promise.resolve({ ok: true, callId: crypto.randomUUID(), alreadyQueued: false });
+      },
+    },
+  };
+  const prepared = await reply(
+    await handleOwnerToolRequest(
+      toolRequest('prepare_send', { ...TOKEN, what: 'pending' }),
+      counting,
+    ),
+  );
+  now = new Date(FAKE_NOW.getTime() + 5_000);
+  const confirmed = await reply(
+    await handleOwnerToolRequest(
+      toolRequest('confirm_action', { ...TOKEN, action_ref: prepared['action_ref'] }),
+      counting,
+    ),
+  );
+  const remind = await reply(
+    await handleOwnerToolRequest(
+      toolRequest('prepare_remind', { ...TOKEN, name: 'Ramesh' }),
+      counting,
+    ),
+  );
+  now = new Date(FAKE_NOW.getTime() + 10_000);
+  const reminded = await reply(
+    await handleOwnerToolRequest(
+      toolRequest('confirm_action', { ...TOKEN, action_ref: remind['action_ref'] }),
+      counting,
+    ),
+  );
+  assertEquals([confirmed['ok'], reminded['ok']], [true, true]);
+  assertEquals([kicked.length, queued], [0, 0]);
+  assertEquals(voice.actions.map((action) => action.status), ['saved', 'saved']);
+  assertEquals(
+    logs.filter((entry) => entry.event === 'eval_side_effect_skipped').map((e) =>
+      e.fields['effect']
+    ),
+    ['owner_send', 'queue_call'],
+  );
+});
+
+Deno.test("munshi-tools › the real owner's call still kicks a WhatsApp send", async () => {
+  let now = FAKE_NOW;
+  const { deps, kicked } = setup({}, { evalOwners: [EVAL_OWNER], clock: () => now });
+  const prepared = await reply(
+    await handleOwnerToolRequest(toolRequest('prepare_send', { ...TOKEN, what: 'pending' }), deps),
+  );
+  now = new Date(FAKE_NOW.getTime() + 5_000);
+  await handleOwnerToolRequest(
+    toolRequest('confirm_action', { ...TOKEN, action_ref: prepared['action_ref'] }),
+    deps,
+  );
+  assertEquals(kicked.length, 1);
 });

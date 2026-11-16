@@ -4,7 +4,15 @@
 // never touch the network. No real network here: fetch is a fake.
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatRequest } from '../../supabase/functions/_shared/llm/json-llm.ts';
-import { DRY_GOODBYE, dryModels, GEMINI_MIN_GAP_MS, liveModels, spacedOut } from './llms.ts';
+import type { ChatProvider } from '../../supabase/functions/_shared/simulator/run.ts';
+import {
+  DRY_GOODBYE,
+  dryModels,
+  GEMINI_MIN_GAP_MS,
+  liveModels,
+  ownerLineAsJson,
+  spacedOut,
+} from './llms.ts';
 import { MUNSHI_SCENARIOS } from './scenarios.ts';
 
 const REQUEST: ChatRequest = {
@@ -53,7 +61,23 @@ describe('spacedOut', () => {
 });
 
 describe('liveModels', () => {
-  it('Munshi on sarvam-105b, reasoning off, keys in headers; owner falls back to Sarvam; judge on Gemini', async () => {
+  it('by default the owner and the judge are on Sarvam too (no Gemini quota)', async () => {
+    const sent: Sent[] = [];
+    const config = {
+      sarvamApiKey: 'sk-test',
+      geminiApiKey: '',
+      fetchImpl: fakeFetch(sent),
+      log: vi.fn(),
+    };
+    const models = liveModels(config, { now: () => 0, sleep: () => Promise.resolve() });
+    await models.judge.ask(REQUEST);
+    expect(models.owner.map((provider) => provider.name)).toEqual(['sarvam', 'sarvam']);
+    expect(models.judge.name).toBe('sarvam');
+    expect(sent[0]?.body).toMatchObject({ model: 'sarvam-105b' });
+    expect(sent.some((request) => request.url.includes('googleapis'))).toBe(false);
+  });
+
+  it('with Gemini chosen: owner on Gemini with Sarvam fallback, judge on Gemini, keys in headers', async () => {
     const sent: Sent[] = [];
     const config = {
       sarvamApiKey: 'sk-test',
@@ -61,7 +85,7 @@ describe('liveModels', () => {
       fetchImpl: fakeFetch(sent),
       log: vi.fn(),
     };
-    const models = liveModels(config, { now: () => 0, sleep: () => Promise.resolve() });
+    const models = liveModels(config, { now: () => 0, sleep: () => Promise.resolve() }, 'gemini');
     await models.munshi.ask({
       ...REQUEST,
       tools: [{ name: 'book_summary', description: 'd', parameters: {} }],
@@ -73,6 +97,26 @@ describe('liveModels', () => {
     expect(sent[1]?.headers['x-goog-api-key']).toBe('gk-test');
     expect(sent.some((request) => request.url.includes('gk-test'))).toBe(false);
     expect(GEMINI_MIN_GAP_MS).toBeGreaterThanOrEqual(6_000);
+  });
+});
+
+describe('ownerLineAsJson', () => {
+  function replying(text: string): ChatProvider {
+    return { name: 'sarvam', ask: () => Promise.resolve(text) };
+  }
+
+  it('wraps a bare owner line as JSON', async () => {
+    const reply = await ownerLineAsJson(replying(' Add 5000 credit for Ramesh. ')).ask(REQUEST);
+    expect(JSON.parse(reply)).toEqual({ say: 'Add 5000 credit for Ramesh.', hang_up: false });
+  });
+
+  it('passes a JSON reply on untouched', async () => {
+    const json = '{"say": "Ok bye.", "hang_up": true}';
+    expect(await ownerLineAsJson(replying(json)).ask(REQUEST)).toBe(json);
+  });
+
+  it('an empty reply throws, so the next provider is tried', async () => {
+    await expect(ownerLineAsJson(replying('  ')).ask(REQUEST)).rejects.toThrow('empty owner reply');
   });
 });
 

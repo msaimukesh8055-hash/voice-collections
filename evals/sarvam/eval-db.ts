@@ -64,9 +64,13 @@ interface RequestInitLite {
   readonly prefer?: string;
 }
 
-type DbRequest = (operation: string, path: string, init?: RequestInitLite) => Promise<unknown>;
+export type DbRequest = (
+  operation: string,
+  path: string,
+  init?: RequestInitLite,
+) => Promise<unknown>;
 
-function createRequest(config: EvalDbConfig): DbRequest {
+export function createRequest(config: EvalDbConfig): DbRequest {
   const base = `${config.supabaseUrl.replace(/\/+$/, '')}/rest/v1/`;
   const key = config.serviceRoleKey;
   const sleep = config.sleep ?? realSleep;
@@ -107,7 +111,11 @@ function realSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function insert(request: DbRequest, table: string, rows: readonly unknown[]): Promise<void> {
+export async function insert(
+  request: DbRequest,
+  table: string,
+  rows: readonly unknown[],
+): Promise<void> {
   if (rows.length === 0) return;
   await request(`insert ${table}`, table, { method: 'POST', body: rows, prefer: 'return=minimal' });
 }

@@ -6,10 +6,14 @@
 // only in owner_calls, so a shopkeeper call id is never accepted here (and an owner call id
 // never resolves in sarvam-tools). Build B adds the writes (voice actions, confirm, cancel); no
 // LLM, Meta or Translate call here (a WhatsApp send is a background kick to the worker).
+// M9 Build F: a token of an eval owner's call (owners.is_eval) is served too, against that
+// owner's fake book, with no real side effects: a WhatsApp send is not kicked and a reminder
+// call is not queued (both are still recorded as confirmed voice actions and audited).
 import { z } from 'zod';
 import { hasBearerSecret } from '../_shared/auth/bearer.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository, Owner } from '../_shared/db/book-repository.ts';
+import type { GetEvalOwner } from '../_shared/db/eval-owner.ts';
 import {
   ACTIVE_OWNER_CALL_STATUSES,
   type OwnerCall,
@@ -43,6 +47,8 @@ export interface OwnerToolsDeps {
   readonly writes: OwnerWrites;
   readonly getDemoSettings: Repository['getDemoSettings'];
   readonly getOwner: BookRepository['getOwner'];
+  /** An owner with is_eval = true, by id; never the real owner (M9 Build F). */
+  readonly getEvalOwner: GetEvalOwner;
   readonly secret: string;
   readonly clock: () => Date;
   readonly log: Logger;
@@ -63,6 +69,8 @@ type Authorisation =
     readonly ok: true;
     readonly ownerCall: OwnerCall;
     readonly owner: Owner;
+    /** The call belongs to an eval owner: fake book, no real side effects. */
+    readonly isEval: boolean;
     readonly today: string;
   }
   | { readonly ok: false; readonly ownerCall: OwnerCall | null; readonly reason: RefusalReason };
@@ -94,11 +102,33 @@ async function authorise(body: Body, deps: OwnerToolsDeps): Promise<Authorisatio
     deps.getOwner(),
   ]);
   if (!ownerCall) return { ok: false, ownerCall: null, reason: 'unknown_token' };
-  if (!owner) return { ok: false, ownerCall, reason: 'owner_mismatch' };
+  // Not the real owner's call: serve it only if it belongs to a flagged eval owner.
+  const evalOwner = owner && owner.id === ownerCall.ownerId
+    ? null
+    : await deps.getEvalOwner(ownerCall.ownerId);
+  const served = evalOwner ?? owner;
+  if (!served) return { ok: false, ownerCall, reason: 'owner_mismatch' };
   const realNow = deps.clock();
-  const reason = refusalOf(ownerCall, owner, realNow);
+  const reason = refusalOf(ownerCall, served, realNow);
   if (reason !== null) return { ok: false, ownerCall, reason };
-  return { ok: true, ownerCall, owner, today: istDate(resolveNow(settings.demoClock, realNow)) };
+  const today = istDate(resolveNow(settings.demoClock, realNow));
+  return { ok: true, ownerCall, owner: served, isEval: evalOwner !== null, today };
+}
+
+/** An eval owner's call changes its fake book but never reaches a shopkeeper or WhatsApp. */
+const EVAL_NOT_QUEUED_CALL_ID = '00000000-0000-0000-0000-000000000000';
+
+function evalSafeWrites(writes: OwnerWrites, log: Logger): OwnerWrites {
+  return {
+    ...writes,
+    queueCall: (shopkeeperId) => {
+      log('info', 'eval_side_effect_skipped', { effect: 'queue_call', shopkeeperId });
+      return Promise.resolve({ ok: true, callId: EVAL_NOT_QUEUED_CALL_ID, alreadyQueued: false });
+    },
+    kickOwnerSend: (actionId) => {
+      log('info', 'eval_side_effect_skipped', { effect: 'owner_send', actionId });
+    },
+  };
 }
 
 function withoutToken(body: Body): Record<string, unknown> {
@@ -130,7 +160,8 @@ async function handleTool(req: Request, body: Body, deps: OwnerToolsDeps): Promi
 
   const { ownerCall, owner, today } = auth;
   const realNow = deps.clock();
-  const ctx = { reads: deps.reads, writes: deps.writes, owner, ownerCall, today, realNow };
+  const writes = auth.isEval ? evalSafeWrites(deps.writes, deps.log) : deps.writes;
+  const ctx = { reads: deps.reads, writes, owner, ownerCall, today, realNow };
   const ran = await runOwnerTool(tool, withoutToken(body), ctx);
   const run: OwnerToolRun = {
     ...ran,

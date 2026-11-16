@@ -6,6 +6,7 @@
 // WhatsApp send is only a background kick to the follow-up worker (WORKER_SECRET).
 import { queueCall } from '../_shared/calls/queue-call.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
+import { createEvalOwnerReader } from '../_shared/db/eval-owner.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
 import { createSupabaseOwnerCallRepository } from '../_shared/db/supabase-owner-call-repository.ts';
@@ -60,6 +61,7 @@ const deps: OwnerToolsDeps = {
   },
   getDemoSettings: () => repo.getDemoSettings(),
   getOwner: () => book.getOwner(),
+  getEvalOwner: createEvalOwnerReader(query),
   secret: env.SARVAM_OWNER_TOOL_SECRET,
   clock,
   log,

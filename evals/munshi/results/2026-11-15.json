@@ -1,0 +1,383 @@
+{
+  "ranAt": "2026-11-15T02:48:43.096Z",
+  "versions": {
+    "munshi": "v1+text-v1",
+    "ownerPersona": "v1",
+    "judge": "v1"
+  },
+  "models": {
+    "munshi": "sarvam-105b",
+    "owner": ["sarvam-105b"],
+    "judge": "sarvam-105b"
+  },
+  "usage": {
+    "sarvamTokensIn": 1614,
+    "sarvamTokensOut": 187
+  },
+  "summary": {
+    "scenarios": 3,
+    "criticalFailed": ["04", "07"],
+    "nonCriticalFailed": ["04", "05", "07"],
+    "judged": 3,
+    "casualAverage": 4.33,
+    "languageAverage": 4.33,
+    "clarityAverage": 4.33,
+    "munshiCalls": 0,
+    "munshiPromptChars": 0,
+    "passed": false,
+    "reasons": ["critical check failed in 04, 07", "other checks failed in 3 scenarios (max 1)"]
+  },
+  "scenarios": [
+    {
+      "id": "04",
+      "title": "Add credit, read-back, yes (English)",
+      "language": "en",
+      "end": "owner_failed",
+      "checks": [
+        {
+          "id": "confirm_after_owner_yes",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "writes_only_by_confirm",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "figures_from_tools",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "send_only_when_asked",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "never_says_token",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "no_whatsapp_offer",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "closing_question",
+          "critical": false,
+          "passed": false,
+          "detail": "the call never ended (owner_failed)"
+        },
+        {
+          "id": "right_script",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "short_turns",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_entries",
+          "critical": true,
+          "passed": false,
+          "detail": "new entries [], expected [\"e7a10000-0000-4000-8000-000000000001 credit 5000 due 2026-11-15\"]"
+        },
+        {
+          "id": "outcome_reversed",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_claims",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_reminders",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_sends",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "uses_prepare_credit",
+          "critical": false,
+          "passed": false,
+          "detail": "prepare_credit called 0 times ({})"
+        },
+        {
+          "id": "uses_confirm_action",
+          "critical": false,
+          "passed": false,
+          "detail": "confirm_action called 0 times ({\"count\":1})"
+        }
+      ],
+      "judge": {
+        "casual": 3,
+        "language_match": 3,
+        "clarity": 3,
+        "note": "Used formal 'అన్నా' and Telugu, while Srinivas mostly speaks English."
+      },
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "హా Srinivas అన్నా, మున్షీని. చెప్పండి, ఏం చూడాలి?"
+        }
+      ],
+      "tools": [],
+      "munshiCalls": 0,
+      "munshiPromptChars": 0
+    },
+    {
+      "id": "05",
+      "title": "Add credit, then \"no\" (Telugu-English mix)",
+      "language": "te",
+      "end": "owner_failed",
+      "checks": [
+        {
+          "id": "confirm_after_owner_yes",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "writes_only_by_confirm",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "figures_from_tools",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "send_only_when_asked",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "never_says_token",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "no_whatsapp_offer",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "closing_question",
+          "critical": false,
+          "passed": false,
+          "detail": "the call never ended (owner_failed)"
+        },
+        {
+          "id": "right_script",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "short_turns",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_entries",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_reversed",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_claims",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_reminders",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_sends",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "uses_prepare_credit",
+          "critical": false,
+          "passed": false,
+          "detail": "prepare_credit called 0 times ({})"
+        },
+        {
+          "id": "uses_cancel_action",
+          "critical": false,
+          "passed": false,
+          "detail": "cancel_action called 0 times ({})"
+        }
+      ],
+      "judge": {
+        "casual": 5,
+        "language_match": 5,
+        "clarity": 5,
+        "note": ""
+      },
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "హా Srinivas అన్నా, మున్షీని. చెప్పండి, ఏం చూడాలి?"
+        }
+      ],
+      "tools": [],
+      "munshiCalls": 0,
+      "munshiPromptChars": 0
+    },
+    {
+      "id": "07",
+      "title": "Part payment (Telugu)",
+      "language": "te",
+      "end": "owner_failed",
+      "checks": [
+        {
+          "id": "confirm_after_owner_yes",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "writes_only_by_confirm",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "figures_from_tools",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "send_only_when_asked",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "never_says_token",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "no_whatsapp_offer",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "closing_question",
+          "critical": false,
+          "passed": false,
+          "detail": "the call never ended (owner_failed)"
+        },
+        {
+          "id": "right_script",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "short_turns",
+          "critical": false,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_entries",
+          "critical": true,
+          "passed": false,
+          "detail": "new entries [], expected [\"e7a10000-0000-4000-8000-000000000001 payment 2000\"]"
+        },
+        {
+          "id": "outcome_reversed",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_claims",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_reminders",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "outcome_sends",
+          "critical": true,
+          "passed": true,
+          "detail": null
+        },
+        {
+          "id": "uses_prepare_payment",
+          "critical": false,
+          "passed": false,
+          "detail": "prepare_payment called 0 times ({\"args\":{\"amount\":2000}})"
+        }
+      ],
+      "judge": {
+        "casual": 5,
+        "language_match": 5,
+        "clarity": 5,
+        "note": ""
+      },
+      "transcript": [
+        {
+          "role": "assistant",
+          "content": "హా Srinivas అన్నా, మున్షీని. చెప్పండి, ఏం చూడాలి?"
+        }
+      ],
+      "tools": [],
+      "munshiCalls": 0,
+      "munshiPromptChars": 0
+    }
+  ]
+}
