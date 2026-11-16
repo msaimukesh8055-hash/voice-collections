@@ -129,7 +129,8 @@ export function createSupabaseOpsRepository(query: PostgrestClient): OpsReposito
   const rows = createRowInserter(query);
   return {
     async listErrorsSince(sinceIso): Promise<readonly OpsError[]> {
-      const path = `ops_events?select=${ERROR_COLUMNS}&status=eq.error` +
+      // Eval traffic (detail.eval) never raises an alert (M9 follow-up).
+      const path = `ops_events?select=${ERROR_COLUMNS}&status=eq.error&detail->eval=is.null` +
         `&created_at=gte.${encodeURIComponent(sinceIso)}&order=created_at.desc&limit=${MAX_ERRORS}`;
       return z.array(ErrorRow).parse((await query('listOpsErrors', path)).rows).map(toError);
     },

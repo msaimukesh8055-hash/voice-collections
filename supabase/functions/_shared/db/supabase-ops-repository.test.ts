@@ -132,7 +132,7 @@ Deno.test('ops repository › recent errors: error steps only, since a time, new
   assertEquals(
     calls[0]?.[1],
     'ops_events?select=trace_id,source,step,error_code,created_at&status=eq.error' +
-      '&created_at=gte.2026-11-11T04%3A52%3A00.000Z&order=created_at.desc&limit=200',
+      '&detail->eval=is.null&created_at=gte.2026-11-11T04%3A52%3A00.000Z&order=created_at.desc&limit=200',
   );
   assertEquals(errors[0]?.traceId, TRACE_ID);
 });

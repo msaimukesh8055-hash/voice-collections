@@ -20,7 +20,9 @@ const Rupees = z.coerce.number();
 export const SHOPKEEPER_COLUMNS =
   'id,name,shop_name,language,do_not_call,owners(name,business_name,consequence_text)';
 export const SESSION_COLUMNS = 'id,shopkeeper_id,mode,status,language,identity_status,' +
-  'identity_unsure_count,interaction_id,queued_at,ringing_at,accepted_at,url_issued_at';
+  'identity_unsure_count,interaction_id,queued_at,ringing_at,accepted_at,url_issued_at,' +
+  // Same query, no extra round trip: is this an eval owner's call (M9 follow-up, ops page)?
+  'shopkeepers(owners(is_eval))';
 export const SETTINGS_COLUMNS =
   'demo_clock,calling_hours_enabled,call_limits_enabled,live_shopkeeper_id,calls_paused';
 export const LEDGER_COLUMNS = 'kind,amount,entry_date,due_date,status';
@@ -53,6 +55,7 @@ const SessionRow = z.object({
   ringing_at: z.string().nullable(),
   accepted_at: z.string().nullable(),
   url_issued_at: z.string().nullable(),
+  shopkeepers: z.object({ owners: z.object({ is_eval: z.boolean() }) }).nullish(),
 });
 
 const SettingsRow = z.object({
@@ -109,6 +112,7 @@ export const SESSION_ROW = SessionRow.transform((row): CallSession => ({
   ringingAt: row.ringing_at,
   acceptedAt: row.accepted_at,
   urlIssuedAt: row.url_issued_at,
+  isEval: row.shopkeepers?.owners.is_eval === true,
 }));
 
 export const SETTINGS_ROW = SettingsRow.transform((row): DemoSettings => ({

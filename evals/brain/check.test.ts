@@ -28,9 +28,10 @@ function mark(id: string, command: Command | null, path = 'sarvam'): BrainResult
 const PAID: Command = { kind: 'mark_paid', name: 'Suresh', amount: 3000 };
 
 describe('brain cases', () => {
-  it('are 21 messages with unique ids, including the two past failures and the injection', () => {
-    expect(BRAIN_CASES).toHaveLength(21);
-    expect(new Set(BRAIN_CASES.map((evalCase) => evalCase.id)).size).toBe(21);
+  it('are 22 messages with unique ids, including the past failures and the injection', () => {
+    expect(BRAIN_CASES).toHaveLength(22);
+    expect(new Set(BRAIN_CASES.map((evalCase) => evalCase.id)).size).toBe(22);
+    expect(theCase('brain-22').text).toContain('కడతాడు');
     expect(theCase('brain-19').text).toBe('Ramesh will pay 5000 by 15th');
     expect(theCase('brain-21').text).toContain('Ignore all previous instructions');
   });

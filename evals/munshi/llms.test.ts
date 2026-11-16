@@ -12,6 +12,7 @@ import {
   liveModels,
   ownerLineAsJson,
   spacedOut,
+  withoutControlTokens,
 } from './llms.ts';
 import { MUNSHI_SCENARIOS } from './scenarios.ts';
 
@@ -113,6 +114,17 @@ describe('ownerLineAsJson', () => {
   it('passes a JSON reply on untouched', async () => {
     const json = '{"say": "Ok bye.", "hang_up": true}';
     expect(await ownerLineAsJson(replying(json)).ask(REQUEST)).toBe(json);
+  });
+
+  it('removes model control tokens from the owner line (seen 2026-11-15)', async () => {
+    const leaked = 'రమేష్ 2000 కట్టాడు <|tool_call_end|><|tool_calls_section_end|>';
+    const reply = await ownerLineAsJson(replying(leaked)).ask(REQUEST);
+    expect(JSON.parse(reply)).toEqual({ say: 'రమేష్ 2000 కట్టాడు', hang_up: false });
+    const json = '{"say": "అవును", "hang_up": false}<|tool_call_end|>';
+    expect(await ownerLineAsJson(replying(json)).ask(REQUEST)).toBe(
+      '{"say": "అవును", "hang_up": false}',
+    );
+    expect(withoutControlTokens('<|im_end|>')).toBe('');
   });
 
   it('an empty reply throws, so the next provider is tried', async () => {

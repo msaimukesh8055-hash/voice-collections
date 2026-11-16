@@ -1,4 +1,5 @@
 // supabase/functions/munshi-tools/handler.test.ts
+import { newTrace, runInTrace } from '../_shared/ops/trace.ts';
 import { assert, assertEquals } from '@std/assert';
 import {
   createFakeBookRepository,
@@ -471,6 +472,23 @@ Deno.test("munshi-tools › an eval owner's call is served (flagged eval owner o
     await handleOwnerToolRequest(toolRequest('book_summary', OVERVIEW), other.deps),
   );
   assertEquals(refused['code'], 'CALL_NOT_AUTHORISED');
+});
+
+Deno.test("munshi-tools › an eval owner's request is marked as eval traffic for the ops page", async () => {
+  const served = setup({ ownerId: EVAL_OWNER_ID }, { evalOwners: [EVAL_OWNER] });
+  const trace = newTrace('munshi-tools');
+  await runInTrace(
+    trace,
+    () => handleOwnerToolRequest(toolRequest('book_summary', OVERVIEW), served.deps),
+  );
+  assertEquals(trace.flags.eval, true);
+  const real = setup();
+  const realTrace = newTrace('munshi-tools');
+  await runInTrace(
+    realTrace,
+    () => handleOwnerToolRequest(toolRequest('book_summary', OVERVIEW), real.deps),
+  );
+  assertEquals(realTrace.flags.eval, false);
 });
 
 Deno.test('munshi-tools › an eval call never queues a reminder or kicks a WhatsApp send', async () => {

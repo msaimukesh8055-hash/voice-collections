@@ -340,10 +340,39 @@ function isNameWord(word: string): boolean {
  * which is left to the model as before.
  */
 export function isPromiseToPay(text: string): boolean {
+  if (isTeluguPromise(text)) return true;
   const all = text.toLowerCase().split(/[^a-z]+/).filter((word) => word !== '');
   const paying = all.some((word) => PAID_WORDS.has(word));
   const stillOwed = all.some((word) => STILL_OWED_WORDS.has(word));
   return paying && stillOwed && !all.some((word) => CREDIT_WORDS.has(word));
+}
+
+/**
+ * Telugu script: one verb already says "will pay" or "has to pay" (కడతాడు, ఇవ్వాలి), so it alone
+ * makes a promise. A credit word (అప్పు) makes it a credit with a due date, left to the model.
+ * The Latin-letter lists above never see these words (M9 follow-up, brain-22).
+ */
+const TELUGU_WILL_PAY_WORDS = new Set([
+  'కడతాడు',
+  'కడతారు',
+  'కడుతుంది',
+  'కడతాను',
+  'కట్టాలి',
+  'కట్టుతాడు',
+  'ఇస్తాడు',
+  'ఇస్తారు',
+  'ఇస్తుంది',
+  'ఇవ్వాలి',
+  'చెల్లిస్తాడు',
+  'చెల్లిస్తారు',
+  'చెల్లించాలి',
+]);
+const TELUGU_CREDIT_WORDS = new Set(['అప్పు', 'ఉద్దెర', 'ఉద్ధార్', 'క్రెడిట్']);
+
+function isTeluguPromise(text: string): boolean {
+  const all = text.split(/[^ఀ-౿]+/).filter((word) => word !== '');
+  const willPay = all.some((word) => TELUGU_WILL_PAY_WORDS.has(word));
+  return willPay && !all.some((word) => TELUGU_CREDIT_WORDS.has(word));
 }
 
 function lookupOf(text: string): Command | null {

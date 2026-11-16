@@ -227,3 +227,14 @@ Deno.test('commands › a promise to pay later is recognised; a credit with a du
   assertEquals(isPromiseToPay('Ramesh paid 5000'), false);
   assertEquals(isPromiseToPay('Ramesh 5000 due 15th'), false);
 });
+
+Deno.test('commands › a promise in Telugu script is recognised too (M9 follow-up, brain-22)', () => {
+  // Ramesh will pay 5000 by the 15th.
+  assertEquals(isPromiseToPay('రమేష్ 15వ తేదీ లోపు 5000 కడతాడు'), true);
+  // Suresh has to give 2000.
+  assertEquals(isPromiseToPay('సురేష్ 2000 ఇవ్వాలి'), true);
+  // Suresh gave 2500 (a payment, not a promise).
+  assertEquals(isPromiseToPay('సురేష్ 2500 ఇచ్చాడు'), false);
+  // I gave Ramesh 4000 on credit; he will give it by the 15th (a credit with a due date).
+  assertEquals(isPromiseToPay('రమేష్ కి 4000 అప్పు ఇచ్చాను, 15 కి ఇస్తాడు'), false);
+});

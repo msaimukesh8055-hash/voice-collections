@@ -55,12 +55,21 @@ export function spacedOut(provider: ChatProvider, gapMs: number, pacing: Pacing)
  * owner (seen 2026-11-15). A reply with no JSON object is wrapped as the owner's line; a reply
  * that has one is passed on untouched, so its hang_up still counts. Sarvam also sometimes
  * returns an empty reply: that throws, so the turn loop tries the next provider (Sarvam again).
+ * Its replies can also carry the model's own control tokens ("<|tool_call_end|>", seen
+ * 2026-11-15), which Munshi would hear as words: they are removed first.
  */
+/** Model control tokens like <|tool_call_end|>: never part of what a person says. */
+const CONTROL_TOKEN = /<\|[^|<>]*\|>/g;
+
+export function withoutControlTokens(text: string): string {
+  return text.replace(CONTROL_TOKEN, '').trim();
+}
+
 export function ownerLineAsJson(provider: ChatProvider): ChatProvider {
   return {
     name: provider.name,
     async ask(request): Promise<string> {
-      const raw = await provider.ask(request);
+      const raw = withoutControlTokens(await provider.ask(request));
       const line = raw.trim();
       if (line === '') throw new Error('empty owner reply');
       if (line.includes('{')) return raw;

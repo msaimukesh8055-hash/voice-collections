@@ -71,6 +71,14 @@ Deno.test('postgrest › sends the service key and maps the call session', async
   assertEquals(requests[0]?.headers['Authorization'], 'Bearer service-key');
 });
 
+Deno.test("postgrest › the call session says whether it is an eval owner's call (ops page)", async () => {
+  const evalRow = { ...SESSION_ROW, shopkeepers: { owners: { is_eval: true } } };
+  const { repo, requests } = setup({ body: [evalRow] }, { body: [SESSION_ROW] });
+  assertEquals((await repo.getCallSession(CALL_ID))?.isEval, true);
+  assertEquals((await repo.getCallSession(CALL_ID))?.isEval, false);
+  assertStringIncludes(requests[0]?.url ?? '', 'shopkeepers(owners(is_eval))');
+});
+
 Deno.test('postgrest › an unknown id returns null, not an error', async () => {
   const { repo } = setup({ body: [] }, { body: [] }, { body: [] }, { body: [] });
   assertEquals(await repo.getCallSession(CALL_ID), null);

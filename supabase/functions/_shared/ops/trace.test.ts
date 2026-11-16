@@ -4,6 +4,7 @@ import {
   currentTrace,
   drainTrace,
   isTraceId,
+  markEvalTraffic,
   MAX_EVENTS_PER_TRACE,
   newTrace,
   type OpsStep,
@@ -58,6 +59,19 @@ Deno.test('trace › a step gets the trace id and source; draining empties the t
   const events = drainTrace(trace);
   assertEquals(events, [{ ...STEP, trace_id: trace.id, source: 'sarvam-tools' }]);
   assertEquals(drainTrace(trace), []);
+});
+
+Deno.test('trace › eval traffic marks every event of its trace, even ones recorded before', () => {
+  const trace = newTrace('munshi-tools');
+  recordStep(trace, STEP);
+  runInTrace(trace, markEvalTraffic);
+  recordStep(trace, STEP);
+  assertEquals(drainTrace(trace).map((event) => event.detail['eval']), [true, true]);
+  const plain = newTrace('munshi-tools');
+  recordStep(plain, STEP);
+  assertEquals(drainTrace(plain)[0]?.detail['eval'], undefined);
+  // Outside a request it does nothing (and does not throw).
+  markEvalTraffic();
 });
 
 Deno.test('trace › a full trace refuses further steps', () => {

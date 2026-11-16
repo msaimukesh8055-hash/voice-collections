@@ -50,6 +50,8 @@ export interface CallSession {
   readonly ringingAt: string | null;
   readonly acceptedAt: string | null;
   readonly urlIssuedAt: string | null;
+  /** An eval owner's call (owners.is_eval): kept out of the ops page's error rate. */
+  readonly isEval?: boolean;
 }
 
 export interface NewCall {

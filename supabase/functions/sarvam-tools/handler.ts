@@ -17,6 +17,7 @@ import {
   withErrorBoundary,
 } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
+import { markEvalTraffic } from '../_shared/ops/trace.ts';
 import { CALL_TOKEN_VARIABLE, WARM_TOOLS_PATH } from '../_shared/sarvam.ts';
 import type { CallStatus } from '../_shared/schemas/shopkeeper.ts';
 import { AUDIT_MARKERS, runTool, type ToolRun } from '../_shared/tools/registry.ts';
@@ -72,6 +73,7 @@ async function authorise(body: Body, deps: ToolsDeps): Promise<Authorisation> {
     return { ok: false, session, reason: 'not_active' };
   }
   if (isExpired(session, deps.clock())) return { ok: false, session, reason: 'token_expired' };
+  if (session.isEval === true) markEvalTraffic();
   return { ok: true, session, now: resolveNow(settings.demoClock, deps.clock()) };
 }
 

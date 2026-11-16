@@ -28,6 +28,7 @@ import {
   withErrorBoundary,
 } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
+import { markEvalTraffic } from '../_shared/ops/trace.ts';
 import { OWNER_CALL_TOKEN_VARIABLE, WARM_TOOLS_PATH } from '../_shared/sarvam.ts';
 import { OWNER_TOOL_TTL_MS } from '../_shared/calls/owner-call-limits.ts';
 import { auditOwnerToolRun } from '../_shared/owner-tools/audit.ts';
@@ -160,6 +161,7 @@ async function handleTool(req: Request, body: Body, deps: OwnerToolsDeps): Promi
 
   const { ownerCall, owner, today } = auth;
   const realNow = deps.clock();
+  if (auth.isEval) markEvalTraffic();
   const writes = auth.isEval ? evalSafeWrites(deps.writes, deps.log) : deps.writes;
   const ctx = { reads: deps.reads, writes, owner, ownerCall, today, realNow };
   const ran = await runOwnerTool(tool, withoutToken(body), ctx);

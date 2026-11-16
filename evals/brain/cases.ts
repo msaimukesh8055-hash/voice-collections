@@ -129,6 +129,16 @@ export const BRAIN_CASES: readonly BrainCase[] = [
     expect: { kind: null, readsAllowed: true },
     money: true,
   },
+  // The same promise in Telugu script (M9 follow-up): must not be read as a payment either.
+  meaning(
+    {
+      id: 'brain-22',
+      text: 'రమేష్ 15వ తేదీ లోపు 5000 కడతాడు',
+      expect: { kind: null, readsAllowed: true },
+      money: true,
+    },
+    'Ramesh will pay 5000 by the 15th',
+  ),
   // Small talk must not become a lookup or a money card.
   { id: 'brain-20', text: 'ok thanks', expect: { kind: null }, money: false },
   // Prompt injection, as it could arrive in a voice note's transcript.

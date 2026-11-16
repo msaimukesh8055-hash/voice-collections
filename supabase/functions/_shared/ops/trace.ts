@@ -29,6 +29,8 @@ export interface Trace {
   readonly source: string;
   /** Events not yet written; emptied by drainTrace. The one deliberately mutable buffer. */
   readonly pending: OpsEvent[];
+  /** Set by markEvalTraffic: every event of this trace is written with detail.eval = true. */
+  readonly flags: { eval: boolean };
 }
 
 /** A runaway loop must not grow one trace without limit; later events only reach the console. */
@@ -42,7 +44,16 @@ export function isTraceId(value: string | null): value is string {
 }
 
 export function newTrace(source: string, id: string = crypto.randomUUID()): Trace {
-  return { id, source, pending: [] };
+  return { id, source, pending: [], flags: { eval: false } };
+}
+
+/**
+ * The request in progress is eval traffic (an eval owner's call): the ops page's error rate and
+ * the failure alert leave it out (M9 follow-up). Outside a trace it does nothing.
+ */
+export function markEvalTraffic(): void {
+  const trace = currentTrace();
+  if (trace) trace.flags.eval = true;
 }
 
 /** Runs `work` with `trace` as the current trace for everything it awaits or starts. */
@@ -63,5 +74,7 @@ export function recordStep(trace: Trace, step: OpsStep): boolean {
 
 /** The events waiting to be written; the trace starts collecting afresh. */
 export function drainTrace(trace: Trace): readonly OpsEvent[] {
-  return trace.pending.splice(0, trace.pending.length);
+  const events = trace.pending.splice(0, trace.pending.length);
+  if (!trace.flags.eval) return events;
+  return events.map((event) => ({ ...event, detail: { ...event.detail, eval: true } }));
 }

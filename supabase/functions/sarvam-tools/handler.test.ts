@@ -1,4 +1,5 @@
 // supabase/functions/sarvam-tools/handler.test.ts
+import { newTrace, runInTrace } from '../_shared/ops/trace.ts';
 import { assert, assertEquals } from '@std/assert';
 import {
   createFakeRepository,
@@ -59,6 +60,23 @@ Deno.test('sarvam-tools › no secret → 401 and nothing runs', async () => {
   const response = await handleToolRequest(toolRequest('get_dues', TOKEN, {}), deps);
   assertEquals(response.status, 401);
   assertEquals(state.toolEvents.length, 0);
+});
+
+Deno.test("sarvam-tools › an eval owner's call is marked as eval traffic for the ops page", async () => {
+  const base = setup({ identityStatus: 'confirmed' });
+  const evalSession: Repository['getCallSession'] = async (callId) => {
+    const session = await base.deps.repo.getCallSession(callId);
+    return session && { ...session, isEval: true };
+  };
+  const { deps } = setup({ identityStatus: 'confirmed' }, {
+    repo: { getCallSession: evalSession },
+  });
+  const trace = newTrace('sarvam-tools');
+  await runInTrace(trace, () => handleToolRequest(toolRequest('get_dues', TOKEN), deps));
+  assertEquals(trace.flags.eval, true);
+  const realTrace = newTrace('sarvam-tools');
+  await runInTrace(realTrace, () => handleToolRequest(toolRequest('get_dues', TOKEN), base.deps));
+  assertEquals(realTrace.flags.eval, false);
 });
 
 Deno.test('sarvam-tools › wrong secret → 401', async () => {
