@@ -52,6 +52,12 @@ export function replyFields(
   };
 }
 
+/** The reply-time log fields: none if the page sent nothing, a zero count if it timed none. */
+export function replyLog(replyMs: readonly number[] | undefined): Record<string, number> {
+  if (!replyMs) return {};
+  return replyMs.length > 0 ? replyFields(replyStats(replyMs)) : { replyCount: 0 };
+}
+
 /** Every ended call (completed, declined, missed) gets a follow-up (M5 Decision 4). */
 function followupQueued(ctx: RouteContext): Pick<CallPatch, 'followupStatus' | 'followupNextAt'> {
   return { followupStatus: 'pending', followupNextAt: ctx.deps.clock().toISOString() };
@@ -169,7 +175,7 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
   ctx.deps.log('info', 'call_ended', {
     callId: call.callId,
     seconds,
-    ...(replyMs && replyMs.length > 0 ? replyFields(replyStats(replyMs)) : {}),
+    ...replyLog(replyMs),
   });
   ctx.deps.kickFollowup(call.callId);
   return jsonResponse({ status: 'completed' }, 200, ctx.cors);

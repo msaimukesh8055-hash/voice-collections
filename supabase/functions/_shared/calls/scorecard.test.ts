@@ -160,7 +160,7 @@ Deno.test("scorecard › Ramesh's call: every guardrail passes, the verdict is g
   assertEquals(valueOf(card, 'summary_writer'), 'Sarvam (main model)');
   assertEquals(valueOf(card, 'followup_time'), '4 s');
   assertEquals(valueOf(card, 'call_setup'), '212 ms');
-  assertEquals(card.gaps.length, 4);
+  assertEquals(card.gaps.length, 3);
 });
 
 Deno.test('scorecard › cost: 4 minutes of voice plus the follow-up tokens', () => {
@@ -376,4 +376,33 @@ Deno.test('tools needed vs ran › dues skipped because the call went to the own
     'na',
     'skipped: handed to the owner first',
   ]);
+});
+
+Deno.test('amounts › Indian amounts said in parts are one amount', () => {
+  assertEquals(amountsIn('12 lakh 71 thousand is pending'), [1_271_000]);
+  assertEquals(amountsIn('Total due 13 lakh 48 thousand 500 rupees'), [1_348_500]);
+  assertEquals(amountsIn('2 lakh 8 thousand, then 5 thousand'), [208_000, 5_000]);
+});
+
+Deno.test('scorecard › the same tool with the same arguments twice within seconds warns', () => {
+  const at = (seconds: number): string => `2026-11-20T05:00:${String(seconds).padStart(2, '0')}Z`;
+  const send = (seconds: number, who = 'Ramesh'): ScorecardTool => ({
+    ...tool('prepare_send', {}),
+    args: { name: who },
+    createdAt: at(seconds),
+  });
+  const twice = scoreCall(rameshCall({ tools: [send(10), send(12), send(30, 'Prasad')] }));
+  assertEquals(statusOf(twice, 'repeated_calls'), 'warn');
+  assertEquals(valueOf(twice, 'repeated_calls'), 'repeated: prepare_send ×1');
+  const apart = scoreCall(rameshCall({ tools: [send(10), send(40), send(42, 'Prasad')] }));
+  assertEquals(statusOf(apart, 'repeated_calls'), 'pass');
+});
+
+Deno.test('scorecard › a page that timed no replies says so, apart from one that sent nothing', () => {
+  const ended = (detail: Record<string, unknown>): TraceStep =>
+    step('call_ended', '2026-11-20T05:04:00Z', { detail: { callId: CALL_ID, ...detail } });
+  const zero = scoreCall(rameshCall({ steps: [ended({ replyCount: 0 })] }));
+  assertEquals(valueOf(zero, 'reply_p50'), 'the page timed no replies');
+  const none = scoreCall(rameshCall({ steps: [ended({})] }));
+  assertEquals(valueOf(none, 'reply_p50'), 'not reported by the page');
 });

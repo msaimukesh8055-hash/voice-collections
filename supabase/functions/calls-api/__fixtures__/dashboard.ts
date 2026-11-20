@@ -1,5 +1,6 @@
 // supabase/functions/calls-api/__fixtures__/dashboard.ts
 // Dashboard deps for tests (M6): the fake credit book, fake dashboard reads, a fixed link secret.
+import type { ToneJudge } from '../../_shared/calls/tone-judge.ts';
 import {
   createFakeBookRepository,
   type FakeBookState,
@@ -51,6 +52,7 @@ export function dashboardSetup(
     translate?: Translator | null;
     ownerCalls?: readonly OwnerCallDetail[];
     munshiTranscripts?: TranscriptClient | null;
+    judgeTone?: ToneJudge | null;
   } = {},
 ): DashboardSetup {
   const fakeBook = createFakeBookRepository(options.book);
@@ -69,6 +71,7 @@ export function dashboardSetup(
     translate: options.translate === undefined ? null : options.translate,
     ownerCalls: owners.reads,
     munshiTranscripts: options.munshiTranscripts ?? null,
+    judgeTone: options.judgeTone ?? null,
   };
   return { dashboard, book: fakeBook.state, reads: fakeReads.state, ownerCalls: owners.saved };
 }

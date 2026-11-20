@@ -17,7 +17,14 @@ export interface FakeDashboardState {
 }
 
 function plain(call: DashboardCallDetail): DashboardCall {
-  const { transcript: _t, transcriptEnglish: _en, toolEvents: _e, followup: _f, ...rest } = call;
+  const {
+    transcript: _t,
+    transcriptEnglish: _en,
+    toneJudgement: _j,
+    toolEvents: _e,
+    followup: _f,
+    ...rest
+  } = call;
   return rest;
 }
 
@@ -48,6 +55,12 @@ export function createFakeDashboardRepository(
       state.savedEnglish = { ...state.savedEnglish, [callId]: lines };
       state.calls = state.calls.map((call) =>
         call.id === callId ? { ...call, transcriptEnglish: lines } : call
+      );
+      return Promise.resolve();
+    },
+    saveToneJudgement: (callId, judgement) => {
+      state.calls = state.calls.map((call) =>
+        call.id === callId ? { ...call, toneJudgement: judgement } : call
       );
       return Promise.resolve();
     },

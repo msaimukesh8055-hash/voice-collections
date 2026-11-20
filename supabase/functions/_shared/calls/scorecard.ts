@@ -22,7 +22,8 @@ export type GroupName =
   | 'Tools'
   | 'Latency'
   | 'Cost'
-  | 'Follow-up';
+  | 'Follow-up'
+  | 'Tone';
 
 export interface Check {
   readonly id: string;
@@ -52,6 +53,9 @@ export interface ScorecardTool {
   readonly tool: string;
   readonly result: Readonly<Record<string, unknown>>;
   readonly durationMs: number | null;
+  /** What the agent sent and when: lets the scorecard spot the same call made twice. */
+  readonly args?: Readonly<Record<string, unknown>>;
+  readonly createdAt?: string;
 }
 
 export interface ScorecardInput {
@@ -74,12 +78,13 @@ export const REPLY_P50_OK_MS = 2_500;
 export const REPLY_MAX_GOOD_MS = 3_000;
 export const REPLY_MAX_OK_MS = 5_000;
 export const CALL_BUDGET_INR = 15;
+/** The same tool with the same arguments again within this gap is a repeat, not a new ask. */
+export const REPEAT_WITHIN_MS = 5_000;
 export const FOLLOWUP_GOOD_SECONDS = 60;
 const WARNINGS_FOR_CHECK = 3;
 
 export const SCORECARD_GAPS: readonly string[] = [
   'Amounts said in Telugu or Hindi number words are not read by the amount checks yet.',
-  'Tone and empathy are not judged yet (an AI judge is a later step).',
   'Tools needed vs ran reads English and a few Telugu and Hindi words only; an AI judge will read the rest later.',
   "Reply time is measured on the phone page from Sarvam's end-of-speech signal, so it leaves out the short pause Sarvam waits to be sure the person stopped.",
 ];
@@ -345,6 +350,24 @@ function slowestTool(input: ScorecardInput): Check {
   ]);
 }
 
+/** Back-to-back calls of the same tool with the same arguments, a few seconds apart. */
+function repeatedCalls(input: ScorecardInput): Check {
+  const label = 'No tool called twice in a row for the same thing';
+  const repeats = new Map<string, number>();
+  input.tools.forEach((tool, index) => {
+    const before = input.tools[index - 1];
+    if (!before || before.tool !== tool.tool || !tool.createdAt || !before.createdAt) return;
+    const gap = Date.parse(tool.createdAt) - Date.parse(before.createdAt);
+    const same = JSON.stringify(before.args ?? {}) === JSON.stringify(tool.args ?? {});
+    if (same && gap >= 0 && gap <= REPEAT_WITHIN_MS) {
+      repeats.set(tool.tool, (repeats.get(tool.tool) ?? 0) + 1);
+    }
+  });
+  if (repeats.size === 0) return check('repeated_calls', label, ['pass', 'none']);
+  const list = [...repeats].map(([name, times]) => `${name} ×${times}`).join(', ');
+  return check('repeated_calls', label, ['warn', `repeated: ${list}`]);
+}
+
 export function toolChecks(input: ScorecardInput): Check[] {
   const failed = input.tools.filter((tool) => !ok(tool));
   const names = [...new Set(input.tools.map((tool) => tool.tool))].join(', ');
@@ -358,6 +381,7 @@ export function toolChecks(input: ScorecardInput): Check[] {
       failed.length === 0 ? ['pass', 'none'] : ['warn', errors.join(', ')],
     ),
     slowestTool(input),
+    repeatedCalls(input),
   ];
 }
 
@@ -382,7 +406,13 @@ function replyCheck(id: 'reply_p50' | 'reply_max', ended: TraceStep | undefined)
   const ms = numberField(ended, typical ? 'replyP50Ms' : 'replyMaxMs');
   const aim = typical ? REPLY_P50_GOOD_MS : REPLY_MAX_GOOD_MS;
   const label = `Agent reply time, ${typical ? 'typical' : 'slowest'} (aim ≤ ${aim / 1000} s)`;
-  if (ms === null) return check(id, label, ['na', 'not measured for this call']);
+  if (ms === null) {
+    const zero = numberField(ended, 'replyCount') === 0;
+    return check(id, label, [
+      'na',
+      zero ? 'the page timed no replies' : 'not reported by the page',
+    ]);
+  }
   const okay = typical ? REPLY_P50_OK_MS : REPLY_MAX_OK_MS;
   const count = numberField(ended, 'replyCount') ?? 0;
   const seconds = `${(ms / 1000).toFixed(1)} s`;

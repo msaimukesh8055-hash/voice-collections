@@ -22,7 +22,7 @@ function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Ele
   return (
     <LoadState state={state}>
       {(calls: readonly CallRow[]) => (
-        <Card title="Calls">
+        <Card title="Asha calls">
           <CallsTable calls={calls} />
         </Card>
       )}

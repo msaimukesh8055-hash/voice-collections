@@ -30,6 +30,8 @@ export interface UseInput {
 export interface Lines {
   readonly caller: readonly string[];
   readonly asha: readonly string[];
+  /** Every turn in order, for checks that need who spoke right before whom. */
+  readonly turns: readonly Turn[];
 }
 
 export interface Need {
@@ -139,6 +141,7 @@ export function toolUse(input: UseInput, needs: readonly Need[] = ASHA_NEEDS): T
   const lines: Lines = {
     caller: turns.filter((turn) => turn.role !== 'assistant').map((turn) => turn.content),
     asha: turns.filter((turn) => turn.role === 'assistant').map((turn) => turn.content),
+    turns,
   };
   return needs.map((need) => row(need, lines, input));
 }

@@ -51,7 +51,7 @@ export function Scorecard({ card }: { readonly card: Card }): React.JSX.Element 
         </span>
         <span className="text-sm text-ink-muted">
           {card.passed} of {card.applicable} checks passed · worked out in code from this call's
-          records, no AI, ₹0
+          records, except Tone: an AI judge (Gemini, free tier) scores it once and it is kept
         </span>
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

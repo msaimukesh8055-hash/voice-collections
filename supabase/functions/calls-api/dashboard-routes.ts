@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { DASHBOARD_TOKEN_HEADER, isValidDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
 import { scoreCall } from '../_shared/calls/scorecard.ts';
+import { withTone } from '../_shared/calls/tone-judge.ts';
 import type { TraceStep } from '../_shared/db/ops-repository.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookShopkeeper } from '../_shared/db/book-repository.ts';
@@ -18,6 +19,7 @@ import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import { computeDues } from '../_shared/ledger/dues.ts';
 import { computeInsights } from '../_shared/ledger/insights.ts';
 import { scoreFrom } from '../_shared/reminders/score-explain.ts';
+import { toneOf } from './tone-route.ts';
 import type { RouteContext, RouteHandler } from './types.ts';
 
 const RECENT_CALLS = 10;
@@ -209,7 +211,13 @@ async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
     withEnglish(found, ctx, names),
     callSteps(found.id, ctx),
   ]);
-  const scorecard = scoreCall({
+  const tone = await toneOf({
+    agent: 'asha',
+    transcript: call.transcript,
+    toneJudgement: call.toneJudgement,
+    save: (judgement) => reads.saveToneJudgement(call.id, judgement),
+  }, ctx);
+  const scored = scoreCall({
     mode: call.mode,
     queuedAt: call.queuedAt,
     durationSeconds: call.durationSeconds,
@@ -218,8 +226,10 @@ async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
     tools: call.toolEvents,
     steps,
   });
+  const scorecard = withTone(scored, 'asha', tone);
+  const { toneJudgement: _tone, ...shown } = call;
   return jsonResponse(
-    { call: { ...callRow(call, nameMap(shopkeepers)), scorecard, trace: steps } },
+    { call: { ...callRow(shown, nameMap(shopkeepers)), scorecard, trace: steps } },
     200,
     ctx.cors,
   );

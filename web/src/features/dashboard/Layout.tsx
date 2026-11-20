@@ -9,7 +9,7 @@ import type { Loaded } from './useLoad.ts';
 export const PAGES = [
   { path: '/', label: 'Dashboard' },
   { path: '/shopkeepers', label: 'Shopkeepers' },
-  { path: '/calls', label: 'Calls' },
+  { path: '/calls', label: 'Asha calls' },
   { path: '/munshi-calls', label: 'Munshi calls' },
   { path: '/ops', label: 'Ops' },
   { path: '/evals', label: 'Evals' },

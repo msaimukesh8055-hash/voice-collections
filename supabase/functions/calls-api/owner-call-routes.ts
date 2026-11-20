@@ -6,12 +6,14 @@
 // is best effort: if Sarvam or a read fails, the page shows the rest and the reason is logged.
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
 import { scoreMunshiCall } from '../_shared/calls/munshi-scorecard.ts';
+import { withTone } from '../_shared/calls/tone-judge.ts';
 import type { OwnerCallDetail } from '../_shared/db/owner-call-reads.ts';
 import type { TraceStep } from '../_shared/db/ops-repository.ts';
 import { errorResponse, jsonResponse } from '../_shared/http.ts';
 import { englishLines, needsEnglish } from '../_shared/speech/transcript-english.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
 import { openInDemo } from './dashboard-routes.ts';
+import { toneOf } from './tone-route.ts';
 import type { RouteContext } from './types.ts';
 
 const OWNER_CALLS_PAGE = 50;
@@ -75,14 +77,21 @@ async function ownerCallDetail(_req: Request, ctx: RouteContext): Promise<Respon
     withTranscript(found, ctx).then((one) => withEnglish(one, ctx)),
     stepsOf(found.id, ctx),
   ]);
-  const scorecard = scoreMunshiCall({
+  const tone = await toneOf({
+    agent: 'munshi',
+    transcript: call.transcript,
+    toneJudgement: call.toneJudgement,
+    save: (judgement) => ctx.deps.dashboard.ownerCalls.saveOwnerCallTone(call.id, judgement),
+  }, ctx);
+  const scored = scoreMunshiCall({
     startedAt: call.acceptedAt ?? call.issuedAt,
     durationSeconds: call.durationSeconds,
     transcript: call.transcript,
     tools: call.toolEvents,
     steps,
   });
-  const { interactionId: _id, ...shown } = call;
+  const scorecard = withTone(scored, 'munshi', tone);
+  const { interactionId: _id, toneJudgement: _tone, ...shown } = call;
   return jsonResponse({ call: { ...withCost(shown), scorecard, trace: steps } }, 200, ctx.cors);
 }
 

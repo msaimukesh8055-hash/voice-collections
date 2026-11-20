@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-20 · Live evals — scorecard fixes, AI tone judge, Munshi's gaps · ✅ Shipped**
+From the 1:50 pm Munshi call: Indian amounts in parts ("12 lakh 71 thousand") read as one, the real yes quoted, "credit scores" counted, repeated tool calls warned, reply-time count always logged. Tone now judged by Gemini once per call and kept (warns only, never fails); Munshi drops the turn-length checks; "Calls" renamed "Asha calls".
+Product gap found on that call: Munshi has no list of **who has paid** (the owner asked first thing); the report now flags any ask Munshi couldn't answer · tone judge prompt v1 is a draft for Saim
+
 **2026-11-12 · M9 Builds B + E — Pause switch, documents · ✅ Shipped (merged to main, pushed)**
 `/pause` and `/resume` stop and restart every new reminder call (verified live: a paused call is refused and no call row is created); unit economics, three incident write-ups, runbook, walkthrough and threat model written; README gets a CI badge and a production-readiness section.
 Deno 1,484 + root 272 + web 254 · not done: CP3 review, SPEC update, rollback rehearsal, registering the two commands in WhatsApp's menu (wording is a draft) · Details → [`milestones/M9.md`](milestones/M9.md)

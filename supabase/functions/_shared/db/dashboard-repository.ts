@@ -2,6 +2,7 @@
 // What the web dashboard reads (M6, SPEC §12) beyond the credit book: calls with their
 // transcript, tool calls and follow-up decision, a shopkeeper's promises and notes, and the one
 // setting it can change ("English under Telugu"). Read-only otherwise. Service role, RLS on.
+import type { ToneJudgement } from '../calls/tone-judge.ts';
 import type { Turn } from '../sarvam-analytics.ts';
 import type { CallStatus, Language } from '../schemas/shopkeeper.ts';
 
@@ -37,6 +38,8 @@ export interface DashboardCallDetail extends DashboardCall {
   readonly transcript: readonly Turn[] | null;
   /** English of each turn, made once and kept (M6); null until made. */
   readonly transcriptEnglish: readonly (string | null)[] | null;
+  /** The AI tone judge's scores, made once and kept; null until made. */
+  readonly toneJudgement: ToneJudgement | null;
   readonly toolEvents: readonly DashboardToolEvent[];
   readonly followup: DashboardFollowupRun | null;
 }
@@ -61,4 +64,5 @@ export interface DashboardRepository {
   listNotes(shopkeeperId: string, limit: number): Promise<readonly DashboardNote[]>;
   setEnglishUnderTelugu(ownerId: string, on: boolean): Promise<void>;
   saveEnglishTranscript(callId: string, lines: readonly (string | null)[]): Promise<void>;
+  saveToneJudgement(callId: string, judgement: ToneJudgement): Promise<void>;
 }

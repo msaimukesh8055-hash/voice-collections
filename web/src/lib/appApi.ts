@@ -140,7 +140,7 @@ function endedBody(report: EndedReport): Record<string, unknown> {
   return {
     seconds: Math.min(MAX_REPORTED_SECONDS, Math.max(0, Math.round(report.seconds))),
     ...(report.interactionId ? { interactionId: report.interactionId } : {}),
-    ...(report.replyMs && report.replyMs.length > 0 ? { replyMs: report.replyMs } : {}),
+    ...(report.replyMs ? { replyMs: report.replyMs } : {}),
   };
 }
 

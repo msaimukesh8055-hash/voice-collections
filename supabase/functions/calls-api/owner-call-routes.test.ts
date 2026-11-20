@@ -7,6 +7,7 @@ import { DASHBOARD_TOKEN_HEADER, signDashboardToken } from '../_shared/auth/dash
 import { fakeOwnerCallDetail } from '../_shared/db/fake-owner-call-reads.ts';
 import { FAKE_OWNER_CALL_ID } from '../_shared/db/fake-owner-call-repository.ts';
 import { createFakeRepository, FAKE_NOW } from '../_shared/db/fake-repository.ts';
+import type { ToneJudge } from '../_shared/calls/tone-judge.ts';
 import type { OwnerCallDetail } from '../_shared/db/owner-call-reads.ts';
 import type { TranscriptClient, TranscriptResult } from '../_shared/sarvam-analytics.ts';
 import { dashboardSetup, LINK_SECRET } from './__fixtures__/dashboard.ts';
@@ -37,11 +38,16 @@ function transcripts(result: TranscriptResult): TranscriptClient & { asked: stri
 }
 
 function deps(
-  options: { calls?: readonly OwnerCallDetail[]; client?: TranscriptClient | null } = {},
+  options: {
+    calls?: readonly OwnerCallDetail[];
+    client?: TranscriptClient | null;
+    judgeTone?: ToneJudge | null;
+  } = {},
 ): { all: CallsApiDeps; setup: ReturnType<typeof dashboardSetup> } {
   const setup = dashboardSetup({
     ...(options.calls ? { ownerCalls: options.calls } : {}),
     munshiTranscripts: options.client ?? null,
+    judgeTone: options.judgeTone ?? null,
   });
   const all: CallsApiDeps = {
     repo: createFakeRepository().repo,
@@ -126,4 +132,30 @@ Deno.test('owner calls api › an unknown call is 404', async () => {
     all,
   );
   assertEquals(status, 404);
+});
+
+Deno.test('owner calls api › tone is judged once, saved, and shown as its own group', async () => {
+  const asked: string[] = [];
+  const judgeTone: ToneJudge = (agent) => {
+    asked.push(agent);
+    return Promise.resolve({
+      version: 'v1',
+      model: 'gemini-2.5-flash',
+      points: [{ id: 'clear', score: 3, reason: 'Long list in one turn.' }],
+    });
+  };
+  const fresh = deps({ judgeTone, calls: [fakeOwnerCallDetail({ transcript: [...TURNS] })] });
+  const { body } = await get(DETAIL, fresh.all);
+  const groups = (body['call'] as { scorecard: { groups: Array<{ name: string }> } }).scorecard
+    .groups;
+  assertEquals(groups.at(-1)?.name, 'Tone');
+  assertEquals(asked, ['munshi']);
+  assertEquals(fresh.setup.ownerCalls.tone?.points[0]?.score, 3);
+  assertEquals((body['call'] as Record<string, unknown>)['toneJudgement'], undefined);
+  const kept = fakeOwnerCallDetail({
+    transcript: [...TURNS],
+    toneJudgement: { version: 'v1', model: 'gemini-2.5-flash', points: [] },
+  });
+  await get(DETAIL, deps({ judgeTone, calls: [kept] }).all);
+  assertEquals(asked, ['munshi']);
 });

@@ -2,7 +2,9 @@
 // Live evals for Munshi (Saim, 2026-11-20): the same kind of scorecard as Asha's, with Munshi's own
 // guardrails. Asha's protect the shopkeeper (identity, no discount); Munshi's protect the owner's
 // book: every change read back before it is saved, nothing saved without his yes, amounts only from
-// tools, WhatsApp only when he asked. Conversation, tools, latency and cost reuse Asha's checks.
+// tools, WhatsApp only when he asked. Conversation, tools, latency and cost reuse Asha's checks,
+// minus turn length: a list he asked for is long, and that is fine (Saim, 2026-11-20). Asks the
+// book cannot answer ("who has paid?") are listed so they can become product work.
 // "Tools: needed vs ran" uses Munshi's words ("add credit", "he paid", "remind him"…). Rules, no
 // AI, ₹0, worked out each time the page opens.
 import type { TraceStep } from '../db/ops-repository.ts';
@@ -47,20 +49,28 @@ export interface MunshiScoreInput {
 
 export const MUNSHI_GAPS: readonly string[] = [
   'Tools needed vs ran reads English and a few Telugu and Hindi words only; an AI judge will read the rest later.',
-  '"Said yes for every save" counts yes replies; it cannot yet line each yes up with its read-back.',
-  'Tone is not judged yet (an AI judge is a later step).',
+  '"He said yes" looks for a yes straight after a read-back question; a yes said in other words, or a turn later, only warns.',
 ];
+
+/** Asha's turn-length checks; left out for Munshi. */
+const TURN_LENGTH = new Set(['longest_turn', 'long_turns']);
+/** Munshi saying the book can't do what was asked. */
+const CANT =
+  /\b(doesn'?t (give|show|have|keep)|can'?t|cannot|not able to|don'?t have|no way to|isn'?t (in|kept))\b|కుదరదు|లేదు అన్నా|नहीं दिखा|नहीं है/i;
+const QUOTE_CHARS = 70;
 
 const PREPARE = /^prepare_/;
 const YES =
   /\b(yes|yeah|yep|ok|okay|correct|right|confirm|do it|save it|haan|ha|theek)\b|అవును|సరే|ఓకే|హా|हाँ|हां|ठीक/i;
+/** Munshi asking him to confirm a read-back: "…on WhatsApp. Correct?", "Shall I save it?". */
+const CONFIRM_ASK = /\b(correct|right|ok|okay)\s*\?|\bshall i\b|సరేనా|ఓకేనా|ठीक है\s*\?/i;
 const SEND = /whatsapp|send|bhej|పంపు|పంపించు|भेज/i;
 const LIST = /\b(list|people|who all|everyone)\b/i;
 const QUESTION = /\?|^\s*(how|what|did|has|is|kitna|ఎంత)\b/i;
 const TOTAL =
   /\b(total|overall|whole book|everyone|all of them|who (is|are) (due|overdue)|summary|today'?s dues)\b|\b(people|who|list)\b.*\b(pending|overdue|due)\b|మొత్తం|అందరూ|कुल|सब का/i;
 const ONE_PERSON =
-  /\bhow much\b|\bowes?\b|\bbalance\b|\bbaaki\b|\bdues? (of|for)\b|బాకీ|ఎంత|कितना|बाकी/i;
+  /\bhow much\b|\bowes?\b|\bbalance\b|\bscores?\b|\bbaaki\b|\bdues? (of|for)\b|బాకీ|ఎంత|कितना|बाकी/i;
 const CREDIT =
   /\b(add|write|note|put)\b.*\b(credit|udhaa?r)\b|\bcredit of\b|\btook (goods|stock|items)\b|\bgave (him|her|them) (goods|stock|items)\b|ఉద్దెర|అప్పు రాయి|उधार/i;
 const PAYMENT =
@@ -102,6 +112,15 @@ function asks(pattern: RegExp): (lines: Lines) => string | null {
   return (lines) => said(lines, (line) => pattern.test(line) && !QUESTION.test(line));
 }
 
+/** His replies straight after Munshi asked him to confirm a read-back, that say yes. */
+function yesReplies(turns: readonly Turn[]): string[] {
+  return turns.flatMap((turn, index) => {
+    const before = turns[index - 1];
+    const asked = before?.role === 'assistant' && CONFIRM_ASK.test(before.content);
+    return asked && turn.role !== 'assistant' && YES.test(turn.content) ? [turn.content] : [];
+  });
+}
+
 function afterReadBack(pattern: RegExp): (lines: Lines, input: UseInput) => string | null {
   return (lines, input) => prepared(input) ? said(lines, (line) => pattern.test(line)) : null;
 }
@@ -132,7 +151,12 @@ const MUNSHI_NEEDS: readonly Need[] = [
   { tool: 'prepare_send', trigger: asks(SEND), notNeeded: 'no WhatsApp asked for' },
   {
     tool: 'confirm_action',
-    trigger: afterReadBack(YES),
+    trigger: (lines, input) => {
+      const first = yesReplies(lines.turns)[0];
+      return first !== undefined && prepared(input)
+        ? `"${first.replace(/\s+/g, ' ').trim().slice(0, 60)}"`
+        : afterReadBack(YES)(lines, input);
+    },
     notNeeded: 'nothing read back, or no yes heard',
   },
   {
@@ -169,11 +193,12 @@ function yesForEverySave(input: MunshiScoreInput): Check {
   const label = 'He said yes for every save';
   const saves = named(input, 'confirm_action').length;
   if (saves === 0) return check('yes_before_save', label, ['na', 'nothing saved']);
-  const yes = callerLines(input).filter((line) => YES.test(line)).length;
-  return check('yes_before_save', label, [
-    yes >= saves ? 'pass' : 'fail',
-    `${saves} save(s), ${yes} yes repl${yes === 1 ? 'y' : 'ies'}`,
-  ]);
+  const yes = yesReplies(input.transcript ?? []).length;
+  const loose = callerLines(input).filter((line) => YES.test(line)).length;
+  const value = `${saves} save(s), ${yes} yes repl${yes === 1 ? 'y' : 'ies'} after a read-back`;
+  if (yes >= saves) return check('yes_before_save', label, ['pass', value]);
+  // Some yes words were heard, just not straight after a read-back question: worth a look.
+  return check('yes_before_save', label, [loose >= saves ? 'warn' : 'fail', value]);
 }
 
 function whatsappOnRequest(input: MunshiScoreInput): Check {
@@ -205,6 +230,25 @@ function leftOpen(input: MunshiScoreInput): string | null {
   return closed ? null : (okTools[last] as MunshiTool).tool.replace(PREPARE, '');
 }
 
+/** What he asked for just before Munshi said the book can't do it. */
+function unanswered(input: MunshiScoreInput): string[] {
+  const turns = input.transcript ?? [];
+  return turns.flatMap((turn, index) => {
+    const before = turns[index - 1];
+    if (turn.role !== 'assistant' || !CANT.test(turn.content)) return [];
+    if (!before || before.role === 'assistant') return [];
+    return [`"${before.content.replace(/\s+/g, ' ').trim().slice(0, QUOTE_CHARS)}"`];
+  });
+}
+
+function couldNotAnswer(input: MunshiScoreInput): Check {
+  const asks = unanswered(input);
+  return check('could_not_answer', 'Asks Munshi could answer', [
+    asks.length === 0 ? 'pass' : 'warn',
+    asks.length === 0 ? 'none turned away' : `couldn't answer: ${asks.join(', ')}`,
+  ]);
+}
+
 function outcome(input: MunshiScoreInput): Check[] {
   const answers = named(input, 'book_summary').length + named(input, 'lookup_shopkeeper').length;
   const saved = named(input, 'confirm_action').length;
@@ -223,6 +267,7 @@ function outcome(input: MunshiScoreInput): Check[] {
       open === null ? 'pass' : 'warn',
       open === null ? 'none' : `a ${open} was read back but never saved or cancelled`,
     ]),
+    couldNotAnswer(input),
   ];
 }
 
@@ -239,7 +284,10 @@ export function scoreMunshiCall(input: MunshiScoreInput): Scorecard {
   const groups: CheckGroup[] = [
     { name: 'Guardrails', checks: guardrails(input, base) },
     { name: 'Outcome', checks: outcome(input) },
-    { name: 'Conversation', checks: conversation(base) },
+    {
+      name: 'Conversation',
+      checks: conversation(base).filter((one) => !TURN_LENGTH.has(one.id)),
+    },
     { name: 'Tools', checks: toolChecks(base) },
     { name: 'Latency', checks: latency(base) },
     { name: 'Cost', checks: costs(base) },

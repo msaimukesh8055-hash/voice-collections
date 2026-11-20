@@ -64,6 +64,12 @@ const CallsApiEnvSchema = ServerEnvSchema.extend({
     .transform((value) => (value ? value : null)),
   /** Bearer secret for followup-worker: calls-api sends it when a call ends (M5). */
   WORKER_SECRET: z.string().trim().min(MIN_WORKER_SECRET_LENGTH),
+  /** Gemini, for the AI tone judge on call reports; blank → reports say "not judged". */
+  GEMINI_API_KEY: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : null)),
   /** Signs and checks the dashboard's 24-hour links (M6 Decision 9). */
   DASHBOARD_LINK_SECRET: z.string().trim().min(MIN_DASHBOARD_SECRET_LENGTH),
   /** Public demo: "on" lets anyone use the dashboard (overview, customers, calls, transcripts, the switch)

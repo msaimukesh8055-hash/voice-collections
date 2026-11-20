@@ -7,6 +7,7 @@ import type { OpsRepository } from '../_shared/db/ops-repository.ts';
 import type { OwnerCallReads } from '../_shared/db/owner-call-reads.ts';
 import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ScoreReads } from '../_shared/reminders/score-explain.ts';
+import type { ToneJudge } from '../_shared/calls/tone-judge.ts';
 import type { TranscriptClient } from '../_shared/sarvam-analytics.ts';
 import type { Translator } from '../_shared/speech/translate.ts';
 import type { MunshiLine, ProxyDeps } from './sarvam-proxy.ts';
@@ -49,6 +50,8 @@ export interface DashboardDeps {
   readonly ownerCalls: OwnerCallReads;
   /** Munshi's transcripts from Sarvam (Munshi's app id); null when Munshi is not set up. */
   readonly munshiTranscripts: TranscriptClient | null;
+  /** The AI tone judge for call reports (Gemini); null when there is no Gemini key. */
+  readonly judgeTone?: ToneJudge | null;
 }
 
 export interface RouteContext {

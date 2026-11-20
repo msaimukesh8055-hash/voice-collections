@@ -2,6 +2,7 @@
 // DashboardRepository over the database HTTP API (service role). Every list has a fixed cap.
 // A call's tool events lose `call_token` (the call's own id, no use on screen) before they leave.
 import { z } from 'zod';
+import { ToneJudgementSchema } from '../calls/tone-judge.ts';
 import { CallStatusSchema, LanguageSchema } from '../schemas/shopkeeper.ts';
 import type {
   DashboardCall,
@@ -50,6 +51,7 @@ const JsonObject = z.record(z.string(), z.unknown()).catch({});
 const DetailRow = z.object({
   transcript: z.array(TurnSchema).nullable().catch(null),
   transcript_en: z.array(z.string().nullable()).nullable().catch(null),
+  tone_judgement: ToneJudgementSchema.nullable().catch(null),
 });
 const ToolRow = z.object({
   tool: z.string(),
@@ -90,7 +92,7 @@ async function readCall(
   const [callRows, toolRows, runRows] = await Promise.all([
     query(
       'getDashboardCall',
-      `calls?select=${CALL_COLUMNS},transcript,transcript_en&id=eq.${id(callId)}`,
+      `calls?select=${CALL_COLUMNS},transcript,transcript_en,tone_judgement&id=eq.${id(callId)}`,
     ),
     query(
       'listDashboardToolEvents',
@@ -110,6 +112,7 @@ async function readCall(
     ...call,
     transcript: detail?.transcript ?? null,
     transcriptEnglish: detail?.transcript_en ?? null,
+    toneJudgement: detail?.tone_judgement ?? null,
     toolEvents: tools.map((row) => ({
       tool: row.tool,
       args: withoutToken(row.args),
@@ -143,6 +146,13 @@ export function createSupabaseDashboardRepository(query: PostgrestClient): Dashb
       await query('saveEnglishTranscript', `calls?id=eq.${id(callId)}`, {
         method: 'PATCH',
         body: { transcript_en: lines },
+        prefer: 'return=minimal',
+      });
+    },
+    async saveToneJudgement(callId, judgement): Promise<void> {
+      await query('saveToneJudgement', `calls?id=eq.${id(callId)}`, {
+        method: 'PATCH',
+        body: { tone_judgement: judgement },
         prefer: 'return=minimal',
       });
     },

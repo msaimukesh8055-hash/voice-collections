@@ -2,6 +2,7 @@
 // OwnerCallReads over the database HTTP API (service role). Fixed caps on every list. Tool events
 // lose `call_token` before they leave, as for Asha's calls.
 import { z } from 'zod';
+import { ToneJudgementSchema } from '../calls/tone-judge.ts';
 import { OWNER_CALL_STATUSES } from './owner-call-repository.ts';
 import type { OwnerCallDetail, OwnerCallReads, OwnerCallRow } from './owner-call-reads.ts';
 import type { PostgrestClient } from './postgrest.ts';
@@ -34,6 +35,7 @@ const DetailRow = z.object({
   interaction_id: z.string().nullable(),
   transcript: z.array(TurnSchema).nullable().catch(null),
   transcript_en: z.array(z.string().nullable()).nullable().catch(null),
+  tone_judgement: ToneJudgementSchema.nullable().catch(null),
 });
 const ToolRow = z.object({
   tool: z.string(),
@@ -55,7 +57,7 @@ async function readDetail(
   const [callRows, toolRows] = await Promise.all([
     query(
       'getOwnerCallDetail',
-      `owner_calls?select=${COLUMNS},interaction_id,transcript,transcript_en` +
+      `owner_calls?select=${COLUMNS},interaction_id,transcript,transcript_en,tone_judgement` +
         `&id=eq.${id(ownerCallId)}&status=in.(${STARTED})`,
     ),
     query(
@@ -72,6 +74,7 @@ async function readDetail(
     interactionId: detail.interaction_id,
     transcript: detail.transcript,
     transcriptEnglish: detail.transcript_en,
+    toneJudgement: detail.tone_judgement,
     toolEvents: z.array(ToolRow).parse(toolRows.rows).map((row) => ({
       tool: row.tool,
       args: withoutToken(row.args),
@@ -101,5 +104,7 @@ export function createSupabaseOwnerCallReads(query: PostgrestClient): OwnerCallR
       patch('saveOwnerCallTranscript', ownerCallId, { transcript: turns }),
     saveOwnerCallEnglish: (ownerCallId, lines) =>
       patch('saveOwnerCallEnglish', ownerCallId, { transcript_en: lines }),
+    saveOwnerCallTone: (ownerCallId, judgement) =>
+      patch('saveOwnerCallTone', ownerCallId, { tone_judgement: judgement }),
   };
 }

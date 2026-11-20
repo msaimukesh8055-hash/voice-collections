@@ -18,6 +18,7 @@ import { createOpsEventWriter } from '../_shared/ops/store.ts';
 import { createTracing } from '../_shared/ops/tracing.ts';
 import { handleCallsApi } from './handler.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
+import { createToneJudge } from '../_shared/calls/tone-judge.ts';
 import type { CallsApiDeps } from './types.ts';
 
 /** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
@@ -69,6 +70,14 @@ const deps: CallsApiDeps = {
       ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log })
       : null,
     ownerCalls: createSupabaseOwnerCallReads(query),
+    judgeTone: env.GEMINI_API_KEY
+      ? createToneJudge({
+        sarvamApiKey: env.SARVAM_API_KEY ?? '',
+        geminiApiKey: env.GEMINI_API_KEY,
+        fetchImpl: fetch,
+        log,
+      })
+      : null,
     munshiTranscripts: env.SARVAM_MUNSHI_APP_ID
       ? createTranscriptClient({
         apiKey: env.SARVAM_AGENTS_API_KEY,

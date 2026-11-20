@@ -28,6 +28,7 @@ const CALL: DashboardCallDetail = {
   summary: 'Promised Monday',
   transcript: [{ role: 'assistant', content: 'Namaste' }],
   transcriptEnglish: null,
+  toneJudgement: null,
   toolEvents: [],
   followup: { path: 'rule', decision: 'check_promise', reasoning: 'Promise logged' },
 };
@@ -214,7 +215,7 @@ Deno.test('dashboard api › one call carries its scorecard and its own trace (l
     trace: unknown[];
   };
   assertEquals(detail.trace.length, 1);
-  assertEquals(detail.scorecard.groups.length, 7);
+  assertEquals(detail.scorecard.groups.length, 8);
   assertEquals(typeof detail.scorecard.verdict, 'string');
 });
 

@@ -67,7 +67,7 @@ Deno.test('munshi scorecard › a clean call: guardrails pass, verdict good, its
     assertEquals(statusOf(card, id), 'pass', id);
   }
   assertEquals(card.verdict, 'good');
-  assertEquals(card.gaps.length, 3);
+  assertEquals(card.gaps.length, 2);
 });
 
 Deno.test('munshi scorecard › tools needed vs ran uses his words', () => {
@@ -160,4 +160,50 @@ Deno.test("munshi scorecard › Saim's call of 9 Nov: list requests are not paym
   assertEquals(use(card, 'book_summary')?.needed, true);
   assertEquals(use(card, 'prepare_payment')?.needed, false);
   assertEquals(statusOf(card, 'amounts_from_tools'), 'pass');
+});
+
+Deno.test('munshi scorecard › the yes quoted is the reply to the read-back, not any "okay"', () => {
+  const card = scoreMunshiCall(ownerCall({
+    transcript: [
+      said('user', 'Okay, give me who is overdue.'),
+      said('assistant', 'Ramesh, Prasad and Suresh are overdue.'),
+      said('user', 'Add 2000 rupees credit for Ramesh.'),
+      said('assistant', 'Credit of 2,000 rupees for Ramesh, due 4 December. Correct?'),
+      said('user', 'Correct, and send it.'),
+    ],
+    tools: [
+      tool('prepare_credit', { amount: 2000, action_ref: 'A1' }),
+      tool('confirm_action', { saved: true }, { action_ref: 'A1' }),
+    ],
+  }));
+  assert(use(card, 'confirm_action')?.why.includes('Correct, and send it'));
+  assertEquals(statusOf(card, 'yes_before_save'), 'pass');
+});
+
+Deno.test('munshi scorecard › "credit scores" is a question about people', () => {
+  const card = scoreMunshiCall(ownerCall({
+    transcript: [said('user', 'Tell me the credit scores of Ramesh and Prasad.')],
+    tools: [tool('lookup_shopkeeper', { score: 72 }, { name: 'Ramesh' })],
+  }));
+  assertEquals(use(card, 'lookup_shopkeeper')?.needed, true);
+});
+
+Deno.test('munshi scorecard › no turn-length checks; an ask the book cannot answer is quoted', () => {
+  const card = scoreMunshiCall(ownerCall({
+    transcript: [
+      said('user', 'I want to see the list of people who have paid me already.'),
+      said(
+        'assistant',
+        "The book doesn't give a list of who already paid. Shall I check one person?",
+      ),
+    ],
+    tools: [],
+  }));
+  assertEquals(statusOf(card, 'longest_turn'), undefined);
+  assertEquals(statusOf(card, 'long_turns'), undefined);
+  assertEquals(statusOf(card, 'could_not_answer'), 'warn');
+  const value = card.groups.flatMap((group) => group.checks)
+    .find((one) => one.id === 'could_not_answer')?.value ?? '';
+  assert(value.includes('list of people who have paid'));
+  assertEquals(statusOf(scoreMunshiCall(ownerCall()), 'could_not_answer'), 'pass');
 });
