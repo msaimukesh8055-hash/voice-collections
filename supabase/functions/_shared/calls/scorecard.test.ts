@@ -116,6 +116,11 @@ Deno.test('amounts › digits, scale words and English number words; small numbe
   assertEquals(amountsIn('₹2,000 by 25th, 8 thousand, 48000 and 10 days'), [2000, 8000, 48000]);
   assertEquals(amountsIn('one thousand five hundred rupees, then two thousand'), [1500, 2000]);
   assertEquals(amountsIn('three lakh and fifty thousand'), [350000]);
+  assertEquals(amountsIn('totaling 60 thousand 500 rupees, Prasad 10 thousand and 500'), [
+    60500,
+    10500,
+  ]);
+  assertEquals(amountsIn('8 thousand 2 thousand'), [8000, 2000]);
   assertEquals(amountsIn('two minutes, Monday 9 November'), []);
   assertEquals(
     amountsIn('Paid ₹2,000 🔗 https://x.app/calls?id=ccf635af-303b-4d36#t=1795235521.B5l'),

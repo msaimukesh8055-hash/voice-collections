@@ -144,3 +144,20 @@ Deno.test('munshi scorecard › an amount no tool or the owner gave is a guardra
   }));
   assertEquals(statusOf(card, 'amounts_from_tools'), 'fail');
 });
+
+Deno.test("munshi scorecard › Saim's call of 9 Nov: list requests are not payments; pending people is the book", () => {
+  const card = scoreMunshiCall({
+    startedAt: '2026-11-09T11:48:00Z',
+    durationSeconds: 187,
+    transcript: [
+      { role: 'user', content: 'I would want to know the people who are pending today.' },
+      { role: 'assistant', content: 'Eight people are pending, totaling 60 thousand 500 rupees.' },
+      { role: 'user', content: 'I want the list of people who have already paid, send it.' },
+    ],
+    tools: [tool('book_summary', { pending_total: 60500 })],
+    steps: [],
+  });
+  assertEquals(use(card, 'book_summary')?.needed, true);
+  assertEquals(use(card, 'prepare_payment')?.needed, false);
+  assertEquals(statusOf(card, 'amounts_from_tools'), 'pass');
+});

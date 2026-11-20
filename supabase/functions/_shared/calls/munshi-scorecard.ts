@@ -55,9 +55,10 @@ const PREPARE = /^prepare_/;
 const YES =
   /\b(yes|yeah|yep|ok|okay|correct|right|confirm|do it|save it|haan|ha|theek)\b|అవును|సరే|ఓకే|హా|हाँ|हां|ठीक/i;
 const SEND = /whatsapp|send|bhej|పంపు|పంపించు|भेज/i;
+const LIST = /\b(list|people|who all|everyone)\b/i;
 const QUESTION = /\?|^\s*(how|what|did|has|is|kitna|ఎంత)\b/i;
 const TOTAL =
-  /\b(total|overall|whole book|everyone|all of them|who (is|are) (due|overdue)|summary|today'?s dues)\b|మొత్తం|అందరూ|कुल|सब का/i;
+  /\b(total|overall|whole book|everyone|all of them|who (is|are) (due|overdue)|summary|today'?s dues)\b|\b(people|who|list)\b.*\b(pending|overdue|due)\b|మొత్తం|అందరూ|कुल|सब का/i;
 const ONE_PERSON =
   /\bhow much\b|\bowes?\b|\bbalance\b|\bbaaki\b|\bdues? (of|for)\b|బాకీ|ఎంత|कितना|बाकी/i;
 const CREDIT =
@@ -118,7 +119,13 @@ const MUNSHI_NEEDS: readonly Need[] = [
     notNeeded: 'no question about one shopkeeper',
   },
   { tool: 'prepare_credit', trigger: asks(CREDIT), notNeeded: 'no new credit asked for' },
-  { tool: 'prepare_payment', trigger: asks(PAYMENT), notNeeded: 'no payment to record' },
+  {
+    tool: 'prepare_payment',
+    // "the list of people who have already paid" asks for a list, not a payment to record.
+    trigger: (lines) =>
+      said(lines, (line) => PAYMENT.test(line) && !QUESTION.test(line) && !LIST.test(line)),
+    notNeeded: 'no payment to record',
+  },
   { tool: 'prepare_delete', trigger: asks(DELETE), notNeeded: 'no entry to delete' },
   { tool: 'prepare_remind', trigger: asks(REMIND), notNeeded: 'no reminder asked for' },
   { tool: 'prepare_claim', trigger: asks(CLAIM), notNeeded: 'no payment claim to decide' },

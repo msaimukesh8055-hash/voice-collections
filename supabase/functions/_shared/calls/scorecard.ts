@@ -310,7 +310,7 @@ export function conversation(input: ScorecardInput): Check[] {
   const interruptions = raw.filter((line) => line.includes(INTERRUPTION)).length;
   const repeated = repeatedFigures(spoken);
   return [
-    check('longest_turn', `Longest Asha turn (aim ≤ ${LONG_TURN_CHARS} characters)`, [
+    check('longest_turn', `Longest agent turn (aim ≤ ${LONG_TURN_CHARS} characters)`, [
       longest <= LONG_TURN_CHARS ? 'pass' : 'warn',
       `${longest} characters`,
     ]),
@@ -381,7 +381,7 @@ function replyCheck(id: 'reply_p50' | 'reply_max', ended: TraceStep | undefined)
   const typical = id === 'reply_p50';
   const ms = numberField(ended, typical ? 'replyP50Ms' : 'replyMaxMs');
   const aim = typical ? REPLY_P50_GOOD_MS : REPLY_MAX_GOOD_MS;
-  const label = `Asha reply time, ${typical ? 'typical' : 'slowest'} (aim ≤ ${aim / 1000} s)`;
+  const label = `Agent reply time, ${typical ? 'typical' : 'slowest'} (aim ≤ ${aim / 1000} s)`;
   if (ms === null) return check(id, label, ['na', 'not measured for this call']);
   const okay = typical ? REPLY_P50_OK_MS : REPLY_MAX_OK_MS;
   const count = numberField(ended, 'replyCount') ?? 0;

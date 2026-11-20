@@ -44,7 +44,8 @@ const SCALES: Readonly<Record<string, number>> = {
   lakhs: 100_000,
 };
 
-const DIGITS = /(?:₹\s*)?(\d[\d,]*(?:\.\d+)?)(?:\s*(thousand|lakhs?))?/gi;
+const DIGITS =
+  /(?:₹\s*)?(\d[\d,]*(?:\.\d+)?)(?:\s*(thousand|lakhs?)(?:\s+(?:and\s+)?(\d{1,3})(?!\d|\s*(?:thousand|lakh)))?)?/gi;
 const WORD = /[a-z]+/g;
 /** Links carry ids and tokens full of digits; they are never amounts. */
 const LINK = /https?:\/\/\S+/gi;
@@ -54,7 +55,9 @@ function digitAmounts(text: string): number[] {
   for (const match of text.matchAll(DIGITS)) {
     const base = Number((match[1] ?? '').replaceAll(',', ''));
     const scale = match[2] ? SCALES[match[2].toLowerCase()] ?? 1 : 1;
-    if (Number.isFinite(base)) found.push(Math.round(base * scale));
+    // "60 thousand 500" is ₹60,500, as Munshi and Asha say it.
+    const rest = match[3] ? Number(match[3]) : 0;
+    if (Number.isFinite(base)) found.push(Math.round(base * scale) + rest);
   }
   return found;
 }
