@@ -12,6 +12,7 @@ import { EVALS_ROUTES } from './evals-routes.ts';
 import { getHealth } from './health-route.ts';
 import { OPS_ROUTES } from './ops-routes.ts';
 import { acceptMunshi, endMunshi, getMunshiSession } from './munshi-routes.ts';
+import { OWNER_CALL_ROUTES } from './owner-call-routes.ts';
 import { acceptCall, declineCall, endCall, getIncomingCall } from './phone-routes.ts';
 import { proxyCallUrl } from './sarvam-proxy.ts';
 import type { CallsApiDeps, RouteContext, RouteHandler } from './types.ts';
@@ -49,6 +50,12 @@ const ROUTES: readonly Route[] = [
   },
   { pattern: /^\/v1\/dashboard\/calls$/, methods: { GET: DASHBOARD_ROUTES.calls } },
   { pattern: /^\/v1\/dashboard\/calls\/([^/]+)$/, methods: { GET: DASHBOARD_ROUTES.call } },
+  // Live evals for Munshi (2026-11-20): the owner's calls to Munshi and one call's report.
+  { pattern: /^\/v1\/dashboard\/owner-calls$/, methods: { GET: OWNER_CALL_ROUTES.list } },
+  {
+    pattern: /^\/v1\/dashboard\/owner-calls\/([^/]+)$/,
+    methods: { GET: OWNER_CALL_ROUTES.detail },
+  },
   { pattern: /^\/v1\/dashboard\/settings$/, methods: { POST: DASHBOARD_ROUTES.settings } },
   // M9: the ops page, behind the same signed link.
   { pattern: /^\/v1\/dashboard\/evals$/, methods: { GET: EVALS_ROUTES.summary } },

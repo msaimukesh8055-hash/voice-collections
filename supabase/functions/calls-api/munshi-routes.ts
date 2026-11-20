@@ -5,14 +5,17 @@
 //                            preview bot) uses nothing up.
 //   POST /v1/munshi/accept   Start call: issued → accepted (compare-and-set, once, unexpired);
 //                            returns the agent variables and Munshi's Sarvam ids.
-//   POST /v1/munshi/ended    accepted / in progress → completed, with seconds and interaction id.
+//   POST /v1/munshi/ended    accepted / in progress → completed, with seconds and interaction id;
+//                            answers with the call report's id and a dashboard link token
+//                            (live evals, 2026-11-20), and logs the reply times.
 // A tampered, unknown, used or expired token gets the same answer as "used or expired".
+import { signDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import { verifyOwnerCallToken } from '../_shared/auth/owner-call-link.ts';
 import { istDayLabel, resolveNow } from '../_shared/clock.ts';
 import type { OwnerCall, OwnerCallStatus } from '../_shared/db/owner-call-repository.ts';
 import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
-import { EndedBodySchema } from './phone-routes.ts';
+import { EndedBodySchema, replyFields, replyStats } from './phone-routes.ts';
 import type { RouteContext } from './types.ts';
 
 export type LinkState = 'ready' | 'used' | 'expired';
@@ -89,7 +92,7 @@ export async function endMunshi(req: Request, ctx: RouteContext): Promise<Respon
   if (!body.success) return errorResponse('BAD_REQUEST', ctx.cors);
   const found = await findOwnerCall(req, ctx);
   if (!found) return errorResponse('NOT_FOUND', ctx.cors);
-  const { interactionId, seconds } = body.data;
+  const { interactionId, seconds, replyMs } = body.data;
   const ended = await ctx.deps.munshi.ownerCalls.transitionOwnerCall(found.id, LIVE, {
     status: 'completed',
     endedAt: ctx.deps.clock().toISOString(),
@@ -97,6 +100,15 @@ export async function endMunshi(req: Request, ctx: RouteContext): Promise<Respon
     ...(interactionId === undefined ? {} : { interactionId }),
   });
   if (!ended) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
-  ctx.deps.log('info', 'owner_call_ended', { ownerCallId: found.id, seconds });
-  return jsonResponse({ status: 'completed' }, 200, ctx.cors);
+  ctx.deps.log('info', 'owner_call_ended', {
+    ownerCallId: found.id,
+    seconds,
+    ...(replyMs && replyMs.length > 0 ? replyFields(replyStats(replyMs)) : {}),
+  });
+  const token = await signDashboardToken(ctx.deps.dashboard.linkSecret, ctx.deps.clock());
+  return jsonResponse(
+    { status: 'completed', report: { id: found.id, token } },
+    200,
+    ctx.cors,
+  );
 }

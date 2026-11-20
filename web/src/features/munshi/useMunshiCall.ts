@@ -4,6 +4,7 @@
 // from the click (browsers only allow the mic after a user action). The call ends by End call,
 // by Munshi, or at the 8-minute cap; then the seconds and Sarvam's interaction id are reported so
 // the owner call is closed and its token stops working for tools. The token is never logged.
+// Live evals (2026-11-20): the reply times go with them, and the answer's report link is shown.
 import { useEffect, useReducer, useRef, type Dispatch } from 'react';
 import { MAX_OWNER_CALL_SECONDS } from '@voice-agents/schema.ts';
 import { AppApiError, type AppApi } from '../../lib/appApi.ts';
@@ -14,6 +15,7 @@ import {
   type MunshiAction,
   munshiReducer,
   type MunshiView,
+  reportHref,
 } from './munshiState.ts';
 
 export const WARM_EVERY_MS = 2 * 60_000;
@@ -95,10 +97,15 @@ async function finishCall(
   if (live.finished) return;
   live.finished = true;
   const interactionId = live.session ? await live.session.stop() : null;
+  const replyMs = live.session ? live.session.replyTimes() : [];
   const seconds = live.startedAt === null ? 0 : (Date.now() - live.startedAt) / 1000;
   dispatch({ type: 'ended', seconds: Math.round(seconds), note });
   // Closing the owner call is what stops the token working; a failure is covered by the TTL.
-  await api.munshiEnded(live.token, { interactionId, seconds }).catch(() => undefined);
+  // The answer carries this call's report link (live evals).
+  const report = await api
+    .munshiEnded(live.token, { interactionId, seconds, replyMs })
+    .catch(() => null);
+  if (report) dispatch({ type: 'report', href: reportHref(report) });
 }
 
 function callEvents(context: CallContext): CallEvents {

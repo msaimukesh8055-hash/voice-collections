@@ -160,8 +160,9 @@ export function createSupabaseOpsRepository(query: PostgrestClient): OpsReposito
       return toSummary(SummaryRow.parse(rows));
     },
     async listCallSteps(callId): Promise<readonly TraceStep[]> {
-      const idPath = `ops_events?select=trace_id&detail->>callId=eq.${encodeURIComponent(callId)}` +
-        `&limit=${MAX_CALL_TRACES}`;
+      const one = encodeURIComponent(callId);
+      const idPath = `ops_events?select=trace_id&or=(detail->>callId.eq.${one},` +
+        `detail->>ownerCallId.eq.${one})&limit=${MAX_CALL_TRACES}`;
       const ids = z.array(TraceIdRow).parse((await query('listCallTraces', idPath)).rows);
       const traces = [...new Set(ids.map((row) => row.trace_id))];
       if (traces.length === 0) return [];

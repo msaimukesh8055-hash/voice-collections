@@ -70,12 +70,26 @@ function FollowUp({ call }: { readonly call: Detail }): React.JSX.Element {
   );
 }
 
-function Transcript({ call }: { readonly call: Detail }): React.JSX.Element {
+type Turns = NonNullable<Detail['transcript']>;
+
+/** A call's turns, the agent's on the left; English under Telugu and Hindi lines. Shared with the
+ * Munshi call report. */
+export function TranscriptCard({
+  turns,
+  english,
+  agent,
+  other,
+}: {
+  readonly turns: Turns | null;
+  readonly english: readonly (string | null)[] | null;
+  readonly agent: string;
+  readonly other: string;
+}): React.JSX.Element {
   return (
     <Card title="Transcript">
-      {call.transcript && call.transcript.length > 0 ? (
+      {turns && turns.length > 0 ? (
         <ol className="flex flex-col gap-2 text-sm">
-          {call.transcript.map((turn, index) => (
+          {turns.map((turn, index) => (
             <li
               // Turns have no id; their order never changes.
               key={index}
@@ -86,12 +100,12 @@ function Transcript({ call }: { readonly call: Detail }): React.JSX.Element {
               }
             >
               <span className="block text-xs text-ink-muted">
-                {turn.role === 'assistant' ? 'Asha' : call.shopkeeperName}
+                {turn.role === 'assistant' ? agent : other}
               </span>
               {turn.content}
-              {call.transcriptEnglish?.[index] ? (
+              {english?.[index] ? (
                 <span className="mt-1 block border-t border-border pt-1 text-xs text-ink-muted">
-                  {call.transcriptEnglish[index]}
+                  {english[index]}
                 </span>
               ) : null}
             </li>
@@ -124,7 +138,12 @@ export function CallDetail({ call }: { readonly call: Detail }): React.JSX.Eleme
       {call.scorecard ? <Scorecard card={call.scorecard} /> : null}
       <FollowUp call={call} />
       <Tools call={call} />
-      <Transcript call={call} />
+      <TranscriptCard
+        turns={call.transcript}
+        english={call.transcriptEnglish}
+        agent="Asha"
+        other={call.shopkeeperName}
+      />
       {call.trace && call.trace.length > 0 ? (
         <TraceSteps title="This call, step by step" steps={call.trace} />
       ) : null}

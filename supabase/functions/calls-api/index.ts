@@ -9,6 +9,8 @@ import { createEvalReads } from '../_shared/db/eval-reads.ts';
 import { createSupabaseOpsRepository } from '../_shared/db/supabase-ops-repository.ts';
 import { createSupabaseFollowupRepository } from '../_shared/db/supabase-followup-repository.ts';
 import { createSupabaseOwnerCallRepository } from '../_shared/db/supabase-owner-call-repository.ts';
+import { createSupabaseOwnerCallReads } from '../_shared/db/supabase-owner-call-reads.ts';
+import { createTranscriptClient } from '../_shared/sarvam-analytics.ts';
 import { loadCallsApiEnv } from '../_shared/env.ts';
 import { createFollowupKicker, followupWorkerUrl } from '../_shared/followup/kick.ts';
 import { logToConsole } from '../_shared/log.ts';
@@ -65,6 +67,17 @@ const deps: CallsApiDeps = {
     evals: createEvalReads(query),
     translate: env.SARVAM_API_KEY
       ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log })
+      : null,
+    ownerCalls: createSupabaseOwnerCallReads(query),
+    munshiTranscripts: env.SARVAM_MUNSHI_APP_ID
+      ? createTranscriptClient({
+        apiKey: env.SARVAM_AGENTS_API_KEY,
+        orgId: env.SARVAM_ORG_ID,
+        workspaceId: env.SARVAM_WORKSPACE_ID,
+        appId: env.SARVAM_MUNSHI_APP_ID,
+        fetchImpl: fetch,
+        log,
+      })
       : null,
     score: {
       listPromises: repo.listPromises,

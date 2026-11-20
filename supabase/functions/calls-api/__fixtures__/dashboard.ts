@@ -12,6 +12,9 @@ import {
   createFakeOpsRepository,
   type FakeOpsState,
 } from '../../_shared/db/fake-ops-repository.ts';
+import { fakeOwnerCallReads, type SavedOwnerCall } from '../../_shared/db/fake-owner-call-reads.ts';
+import type { OwnerCallDetail } from '../../_shared/db/owner-call-reads.ts';
+import type { TranscriptClient } from '../../_shared/sarvam-analytics.ts';
 import type { EvalCaseResult, EvalReads, EvalRun } from '../../_shared/db/eval-reads.ts';
 import type { CallStatus } from '../../_shared/schemas/shopkeeper.ts';
 import type { Translator } from '../../_shared/speech/translate.ts';
@@ -23,6 +26,7 @@ export interface DashboardSetup {
   readonly dashboard: DashboardDeps;
   readonly book: FakeBookState;
   readonly reads: FakeDashboardState;
+  readonly ownerCalls: SavedOwnerCall;
 }
 
 /** Stored eval runs (newest first) and each run's case results, for tests. */
@@ -45,10 +49,13 @@ export function dashboardSetup(
     ops?: Partial<FakeOpsState>;
     evals?: FakeEvals;
     translate?: Translator | null;
+    ownerCalls?: readonly OwnerCallDetail[];
+    munshiTranscripts?: TranscriptClient | null;
   } = {},
 ): DashboardSetup {
   const fakeBook = createFakeBookRepository(options.book);
   const fakeReads = createFakeDashboardRepository(options.reads);
+  const owners = fakeOwnerCallReads(options.ownerCalls);
   const dashboard: DashboardDeps = {
     linkSecret: LINK_SECRET,
     book: fakeBook.book,
@@ -60,6 +67,8 @@ export function dashboardSetup(
       listCallStatuses: (): Promise<readonly CallStatus[]> => Promise.resolve([]),
     },
     translate: options.translate === undefined ? null : options.translate,
+    ownerCalls: owners.reads,
+    munshiTranscripts: options.munshiTranscripts ?? null,
   };
-  return { dashboard, book: fakeBook.state, reads: fakeReads.state };
+  return { dashboard, book: fakeBook.state, reads: fakeReads.state, ownerCalls: owners.saved };
 }

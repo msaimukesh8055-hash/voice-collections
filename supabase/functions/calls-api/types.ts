@@ -4,8 +4,10 @@ import type { BookRepository, Owner } from '../_shared/db/book-repository.ts';
 import type { DashboardRepository } from '../_shared/db/dashboard-repository.ts';
 import type { EvalReads } from '../_shared/db/eval-reads.ts';
 import type { OpsRepository } from '../_shared/db/ops-repository.ts';
+import type { OwnerCallReads } from '../_shared/db/owner-call-reads.ts';
 import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ScoreReads } from '../_shared/reminders/score-explain.ts';
+import type { TranscriptClient } from '../_shared/sarvam-analytics.ts';
 import type { Translator } from '../_shared/speech/translate.ts';
 import type { MunshiLine, ProxyDeps } from './sarvam-proxy.ts';
 
@@ -43,6 +45,10 @@ export interface DashboardDeps {
   readonly score: ScoreReads;
   /** Sarvam Translate for the transcript's English (M6); null when no Sarvam key is set. */
   readonly translate: Translator | null;
+  /** Live evals for Munshi (2026-11-20): the owner's calls to Munshi, for the call report. */
+  readonly ownerCalls: OwnerCallReads;
+  /** Munshi's transcripts from Sarvam (Munshi's app id); null when Munshi is not set up. */
+  readonly munshiTranscripts: TranscriptClient | null;
 }
 
 export interface RouteContext {

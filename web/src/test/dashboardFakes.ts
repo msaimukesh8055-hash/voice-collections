@@ -7,6 +7,7 @@ import {
   type DashboardApi,
   NeedsLinkError,
   type Overview,
+  type OwnerCallDetail,
   type ShopkeeperDetail,
   type ShopkeeperList,
 } from '../lib/dashboardApi.ts';
@@ -308,6 +309,59 @@ export const EVALS: Evals = {
   ],
 };
 
+export const OWNER_CALL: OwnerCallDetail = {
+  id: 'ca000000-0000-4000-8000-0000000000b1',
+  status: 'completed',
+  issuedAt: '2026-11-20T04:59:00Z',
+  acceptedAt: '2026-11-20T05:00:00Z',
+  endedAt: '2026-11-20T05:02:20Z',
+  durationSeconds: 140,
+  cost: { inr: 12.39, estimate: false },
+  transcript: [
+    { role: 'assistant', content: 'Namaste Srinivas garu, Munshi here.' },
+    { role: 'user', content: 'How much does Ramesh owe?' },
+  ],
+  transcriptEnglish: null,
+  toolEvents: [
+    {
+      tool: 'lookup_shopkeeper',
+      args: { name: 'Ramesh' },
+      result: { ok: true, data: { outstanding: 8000 } },
+      durationMs: 210,
+      createdAt: '2026-11-20T05:00:30Z',
+    },
+  ],
+  scorecard: {
+    verdict: 'good',
+    passed: 12,
+    applicable: 12,
+    groups: [
+      {
+        name: 'Guardrails',
+        checks: [
+          {
+            id: 'read_back_first',
+            label: 'Every change read back before it was saved',
+            status: 'na',
+            value: 'nothing saved',
+          },
+        ],
+      },
+    ],
+    toolUse: [
+      {
+        tool: 'lookup_shopkeeper',
+        needed: true,
+        timesMs: [210],
+        status: 'pass',
+        why: '"How much does Ramesh owe?"',
+      },
+    ],
+    gaps: ['Tone is not judged yet.'],
+  },
+  trace: [],
+};
+
 export interface FakeDashboard {
   readonly dashboard: DashboardApi;
   readonly requests: string[];
@@ -334,6 +388,8 @@ export function fakeDashboard(): FakeDashboard {
       shopkeeper: (id) => answer(`shopkeeper:${id}`, SHOPKEEPER),
       calls: () => answer('calls', [CALL_ROW]),
       call: (id) => answer(`call:${id}`, CALL),
+      ownerCalls: () => answer('owner-calls', [OWNER_CALL]),
+      ownerCall: (id) => answer(`owner-call:${id}`, OWNER_CALL),
       ops: () => answer('ops', fake.ops),
       evals: () => answer('evals', fake.evals),
       trace: (id) => answer(`trace:${id}`, TRACE),

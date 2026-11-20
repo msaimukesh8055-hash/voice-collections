@@ -2,7 +2,7 @@
 // M8 A3 (security, 100%): the /munshi page's steps through the calls-api handler. The session
 // check changes nothing; accept works once, only from issued and unexpired; ended only from
 // accepted / in progress; a tampered, unknown or missing token gets nothing. Fakes only.
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { signOwnerCallToken } from '../_shared/auth/owner-call-link.ts';
 import { createFakeRepository, FAKE_NOW, fakeCall } from '../_shared/db/fake-repository.ts';
 import { FAKE_OWNER } from '../_shared/db/fake-book-repository.ts';
@@ -224,7 +224,11 @@ Deno.test('munshi › ended: accepted or in progress → completed with seconds 
       seconds: 180,
       interactionId: '20261107/abc-10:00:00-1',
     });
-    assertEquals(await json(response), { status: 'completed' });
+    const reply = await json(response);
+    assertEquals(reply['status'], 'completed');
+    const report = reply['report'] as { id: string; token: string };
+    assertEquals(report.id, s.rows()[0]?.id);
+    assert(/^\d+\.[\w-]{43}$/.test(report.token));
     assertEquals(s.rows()[0]?.status, 'completed');
     assertEquals(s.rows()[0]?.durationSeconds, 180);
     assertEquals(s.rows()[0]?.interactionId, '20261107/abc-10:00:00-1');

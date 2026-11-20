@@ -103,7 +103,8 @@ export interface OpsRepository {
   claimAlert(claim: AlertClaim): Promise<boolean>;
   /** Oldest first; empty when the trace is unknown or older than the two-week clean-up. */
   listTraceSteps(traceId: string): Promise<readonly TraceStep[]>;
-  /** Live evals: every step of every trace that names this call (detail.callId), oldest first,
+  /** Live evals: every step of every trace that names this call (detail.callId, or
+   * detail.ownerCallId for Munshi's calls), oldest first,
    * without the timers' own sweep requests. Empty when none is left (two-week clean-up). */
   listCallSteps(callId: string): Promise<readonly TraceStep[]>;
 }

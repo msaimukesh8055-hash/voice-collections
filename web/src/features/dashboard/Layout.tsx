@@ -10,6 +10,7 @@ export const PAGES = [
   { path: '/', label: 'Dashboard' },
   { path: '/shopkeepers', label: 'Shopkeepers' },
   { path: '/calls', label: 'Calls' },
+  { path: '/munshi-calls', label: 'Munshi calls' },
   { path: '/ops', label: 'Ops' },
   { path: '/evals', label: 'Evals' },
 ] as const;

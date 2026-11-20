@@ -159,6 +159,14 @@ function EndedScreen({ call }: { readonly call: MunshiCall }): React.JSX.Element
           </p>
         ) : null}
       </header>
+      {call.view.report ? (
+        <a
+          href={call.view.report}
+          className="self-center rounded-full bg-brand px-5 py-2 text-sm font-semibold text-on-brand"
+        >
+          See this call&apos;s report
+        </a>
+      ) : null}
       <LiveTranscript lines={transcript} shopkeeperName={YOU} agentName={MUNSHI} />
       <p className="text-center text-sm text-ink-muted">
         For another call, tap &quot;📞 Call Munshi&quot; on WhatsApp.

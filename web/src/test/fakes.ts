@@ -95,6 +95,7 @@ function fakeMunshiSteps(
       self().requests.push(
         `munshi-ended:${linkToken}:${report.interactionId ?? 'none'}:${seconds}`,
       );
+      return { id: 'ca000000-0000-4000-8000-0000000000b1', token: '1795300000.report-token' };
     },
     warmMunshiTools() {
       self().requests.push('munshi-warm');

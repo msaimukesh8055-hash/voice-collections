@@ -22,6 +22,8 @@ export interface MunshiView {
   readonly screen: MunshiScreen;
   readonly speaker: Speaker | null;
   readonly transcript: readonly TranscriptLine[];
+  /** Live evals (2026-11-20): this call's report page, once the server has closed the call. */
+  readonly report: string | null;
 }
 
 export type MunshiAction =
@@ -32,7 +34,8 @@ export type MunshiAction =
   | { readonly type: 'speaking'; readonly speaker: Speaker | null }
   | { readonly type: 'line'; readonly line: TranscriptLine }
   | { readonly type: 'ended'; readonly seconds: number; readonly note: string | null }
-  | { readonly type: 'failed'; readonly message: string };
+  | { readonly type: 'failed'; readonly message: string }
+  | { readonly type: 'report'; readonly href: string };
 
 export const MUNSHI = 'Munshi';
 export const YOU = 'You';
@@ -50,6 +53,7 @@ export const INITIAL_MUNSHI_VIEW: MunshiView = {
   screen: { phase: 'checking' },
   speaker: null,
   transcript: [],
+  report: null,
 };
 
 const HASH_TOKEN = /(?:^#|&)t=([^&]+)/;
@@ -81,7 +85,12 @@ const LINK_SCREENS: Readonly<Record<MunshiLinkState, MunshiScreen>> = {
   expired: { phase: 'used', message: EXPIRED_MESSAGE },
 };
 
-type ScreenAction = Exclude<MunshiAction, { readonly type: 'speaking' | 'line' }>;
+type ScreenAction = Exclude<MunshiAction, { readonly type: 'speaking' | 'line' | 'report' }>;
+
+/** The call report's address: `/munshi-calls?id=<owner call id>#t=<dashboard token>`. */
+export function reportHref(report: { readonly id: string; readonly token: string }): string {
+  return `/munshi-calls?id=${encodeURIComponent(report.id)}#t=${report.token}`;
+}
 
 function nextScreen(screen: MunshiScreen, action: ScreenAction): MunshiScreen {
   switch (action.type) {
@@ -107,6 +116,7 @@ function nextScreen(screen: MunshiScreen, action: ScreenAction): MunshiScreen {
 export function munshiReducer(view: MunshiView, action: MunshiAction): MunshiView {
   if (action.type === 'speaking') return { ...view, speaker: action.speaker };
   if (action.type === 'line') return { ...view, transcript: [...view.transcript, action.line] };
+  if (action.type === 'report') return { ...view, report: action.href };
   const screen = nextScreen(view.screen, action);
   if (screen === view.screen) return view;
   return { ...view, screen, speaker: screen.phase === 'live' ? view.speaker : null };

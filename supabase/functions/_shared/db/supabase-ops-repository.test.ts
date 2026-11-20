@@ -190,7 +190,10 @@ Deno.test("ops repository › a call's steps: the traces that name it, then thei
     return Promise.resolve({ rows: answers.shift() ?? [], contentRange: null });
   };
   const steps = await createSupabaseOpsRepository(query).listCallSteps(CALL_ID);
-  assertEquals(calls[0]?.[1], `ops_events?select=trace_id&detail->>callId=eq.${CALL_ID}&limit=40`);
+  assertEquals(
+    calls[0]?.[1],
+    `ops_events?select=trace_id&or=(detail->>callId.eq.${CALL_ID},detail->>ownerCallId.eq.${CALL_ID})&limit=40`,
+  );
   assertEquals(
     calls[1]?.[1],
     'ops_events?select=source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +

@@ -194,6 +194,10 @@ describe('MunshiPage', () => {
     expect(voice.stops).toBe(1);
     expect(api.requests).toContain(`munshi-ended:${LINK_TOKEN}:interaction-1:65`);
     expect(screen.getByText('Munshi · 1:05')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "See this call's report" })).toHaveAttribute(
+      'href',
+      '/munshi-calls?id=ca000000-0000-4000-8000-0000000000b1#t=1795300000.report-token',
+    );
   });
 
   it('a dropped call says so', async () => {

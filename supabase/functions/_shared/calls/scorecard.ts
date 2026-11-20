@@ -90,9 +90,9 @@ const OWNER_WILL_CALL = /call you back|will call|కాల్ చేస్తా
 const CLOSING = /end the call|కాల్ ముగించనా|call rakh doon|कॉल रख/i;
 const INTERRUPTION = '<interruption>';
 
-type Outcome = readonly [CheckStatus, string];
+export type Outcome = readonly [CheckStatus, string];
 
-function check(id: string, label: string, [status, value]: Outcome): Check {
+export function check(id: string, label: string, [status, value]: Outcome): Check {
   return { id, label, status, value };
 }
 
@@ -188,7 +188,7 @@ function recordingNotice(input: ScorecardInput): Check {
   return check('recording_notice', label, said ? ['pass', 'said'] : ['fail', 'not said']);
 }
 
-function amountsFromTools(input: ScorecardInput): Check {
+export function amountsFromTools(input: ScorecardInput): Check {
   const spoken = agentLines(input);
   const unknown = unknownAmounts(input, spoken);
   return check(
@@ -301,7 +301,7 @@ function repeatedFigures(spoken: readonly string[]): number[] {
   return [...perAmount].filter(([, turns]) => turns >= 3).map(([amount]) => amount);
 }
 
-function conversation(input: ScorecardInput): Check[] {
+export function conversation(input: ScorecardInput): Check[] {
   const raw = agentLines(input);
   const spoken = raw.map((line) => line.replaceAll(INTERRUPTION, '').trim());
   const lengths = spoken.map((line) => line.length);
@@ -345,7 +345,7 @@ function slowestTool(input: ScorecardInput): Check {
   ]);
 }
 
-function toolChecks(input: ScorecardInput): Check[] {
+export function toolChecks(input: ScorecardInput): Check[] {
   const failed = input.tools.filter((tool) => !ok(tool));
   const names = [...new Set(input.tools.map((tool) => tool.tool))].join(', ');
   const errors = failed.map((tool) => `${tool.tool} (${String(tool.result['code'] ?? 'refused')})`);
@@ -392,8 +392,8 @@ function replyCheck(id: 'reply_p50' | 'reply_max', ended: TraceStep | undefined)
   ]);
 }
 
-function latency(input: ScorecardInput): Check[] {
-  const ended = stepNamed(input.steps, 'call_ended');
+export function latency(input: ScorecardInput): Check[] {
+  const ended = stepNamed(input.steps, 'call_ended') ?? stepNamed(input.steps, 'owner_call_ended');
   return [callSetup(input), replyCheck('reply_p50', ended), replyCheck('reply_max', ended)];
 }
 
@@ -411,7 +411,7 @@ function llmSpend(
   return { inr: inrTotal, tokens, used: usage.length > 0 };
 }
 
-function costs(input: ScorecardInput): Check[] {
+export function costs(input: ScorecardInput): Check[] {
   const voice = callCost({ mode: input.mode, durationSeconds: input.durationSeconds });
   const minutes = Math.ceil((input.durationSeconds ?? 0) / 60);
   const llm = llmSpend(input.steps);
@@ -507,6 +507,21 @@ function verdictOf(groups: readonly CheckGroup[], extra: readonly Check[]): Verd
   return fails > 0 || warns >= WARNINGS_FOR_CHECK ? 'check' : 'good';
 }
 
+/** The verdict and totals over the groups plus any checks shown elsewhere on the page. */
+export function summarise(
+  groups: readonly CheckGroup[],
+  extra: readonly Check[],
+): Pick<Scorecard, 'verdict' | 'passed' | 'applicable'> {
+  const all = [...groups.flatMap((group) => group.checks), ...extra].filter((one) =>
+    one.status !== 'na'
+  );
+  return {
+    verdict: verdictOf(groups, extra),
+    passed: all.filter((one) => one.status === 'pass').length,
+    applicable: all.length,
+  };
+}
+
 export function scoreCall(input: ScorecardInput): Scorecard {
   const groups: CheckGroup[] = [
     { name: 'Guardrails', checks: guardrails(input) },
@@ -518,16 +533,5 @@ export function scoreCall(input: ScorecardInput): Scorecard {
     { name: 'Follow-up', checks: followUp(input) },
   ];
   const rows = toolUse(input);
-  const usage = toolUseChecks(rows);
-  const all = [...groups.flatMap((group) => group.checks), ...usage].filter((one) =>
-    one.status !== 'na'
-  );
-  return {
-    verdict: verdictOf(groups, usage),
-    passed: all.filter((one) => one.status === 'pass').length,
-    applicable: all.length,
-    groups,
-    toolUse: rows,
-    gaps: SCORECARD_GAPS,
-  };
+  return { ...summarise(groups, toolUseChecks(rows)), groups, toolUse: rows, gaps: SCORECARD_GAPS };
 }

@@ -53,6 +53,10 @@ const MunshiAcceptedSchema = z.object({
   sarvam: z.object({ orgId: z.string(), workspaceId: z.string(), appId: z.string() }),
 });
 const DoneSchema = z.object({ status: z.string() });
+/** Live evals (2026-11-20): closing a Munshi call answers with its report's id and link token. */
+const MunshiEndedSchema = DoneSchema.extend({
+  report: z.object({ id: z.string(), token: z.string() }).optional(),
+});
 const ErrorBodySchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 
 export type DemoInfo = z.infer<typeof DemoSchema>;
@@ -60,6 +64,10 @@ export type IncomingCall = NonNullable<z.infer<typeof IncomingSchema>['call']>;
 export type AcceptedCall = z.infer<typeof AcceptedSchema>;
 export type MunshiLinkState = z.infer<typeof MunshiSessionSchema>['state'];
 export type AcceptedMunshiCall = z.infer<typeof MunshiAcceptedSchema>;
+export interface MunshiReport {
+  readonly id: string;
+  readonly token: string;
+}
 
 export interface EndedReport {
   readonly interactionId: string | null;
@@ -88,7 +96,8 @@ export interface AppApi {
   munshiSession: (linkToken: string) => Promise<MunshiLinkState>;
   /** Start call: the link becomes used and the reply carries Munshi's variables. */
   munshiAccept: (linkToken: string) => Promise<AcceptedMunshiCall>;
-  munshiEnded: (linkToken: string, report: EndedReport) => Promise<void>;
+  /** Closes the call; resolves to its report's id and dashboard token, or null (older server). */
+  munshiEnded: (linkToken: string, report: EndedReport) => Promise<MunshiReport | null>;
   /** Wakes Munshi's tool server (on open and every 2 minutes while the page is open). */
   warmMunshiTools: () => void;
 }
@@ -194,7 +203,9 @@ function munshiSteps(
     munshiAccept: (linkToken) =>
       request.post('/v1/munshi/accept', MunshiAcceptedSchema, { linkToken }),
     munshiEnded: async (linkToken, report) => {
-      await request.post('/v1/munshi/ended', DoneSchema, { body: endedBody(report), linkToken });
+      const body = endedBody(report);
+      const done = await request.post('/v1/munshi/ended', MunshiEndedSchema, { body, linkToken });
+      return done.report ?? null;
     },
     warmMunshiTools: warm,
   };

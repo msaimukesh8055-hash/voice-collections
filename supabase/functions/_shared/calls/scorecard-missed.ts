@@ -18,7 +18,7 @@ export interface ToolUseRow {
   readonly why: string;
 }
 
-interface UseInput {
+export interface UseInput {
   readonly transcript: readonly Turn[] | null;
   readonly tools: readonly {
     readonly tool: string;
@@ -27,12 +27,12 @@ interface UseInput {
   }[];
 }
 
-interface Lines {
+export interface Lines {
   readonly caller: readonly string[];
   readonly asha: readonly string[];
 }
 
-interface Need {
+export interface Need {
   readonly tool: string;
   /** The words that call for the tool, or null when nothing did. */
   readonly trigger: (lines: Lines, input: UseInput) => string | null;
@@ -58,7 +58,7 @@ function quote(line: string): string {
 }
 
 /** The first caller line that matches, else (when given) the first Asha line that does. */
-function said(
+export function said(
   lines: Lines,
   caller: (line: string) => boolean,
   asha?: (line: string) => boolean,
@@ -82,7 +82,7 @@ function identityConfirmed(input: UseInput): boolean {
 }
 
 /** In Asha's order through a call. */
-const NEEDS: readonly Need[] = [
+const ASHA_NEEDS: readonly Need[] = [
   {
     tool: 'confirm_identity',
     trigger: (lines) => {
@@ -133,14 +133,14 @@ function row(need: Need, lines: Lines, input: UseInput): ToolUseRow {
     : { ...base, status: 'fail', why: `${trigger}, but it never ran` };
 }
 
-/** One row per Asha tool: needed or not, ran or not, and why. */
-export function toolUse(input: UseInput): ToolUseRow[] {
+/** One row per agent tool (Asha's by default): needed or not, ran or not, and why. */
+export function toolUse(input: UseInput, needs: readonly Need[] = ASHA_NEEDS): ToolUseRow[] {
   const turns = input.transcript ?? [];
   const lines: Lines = {
     caller: turns.filter((turn) => turn.role !== 'assistant').map((turn) => turn.content),
     asha: turns.filter((turn) => turn.role === 'assistant').map((turn) => turn.content),
   };
-  return NEEDS.map((need) => row(need, lines, input));
+  return needs.map((need) => row(need, lines, input));
 }
 
 /** The rows as checks, so they count in the scorecard's verdict and "N of M passed". */

@@ -1,6 +1,6 @@
 // web/src/App.tsx
 // Tiny path switch (no router library for seven pages, M6 Decision 9): /phone is the shopkeeper's
-// phone; /munshi is the owner's call line (M8, token in #t=…); /shopkeepers, /calls, /ops and /evals are
+// phone; /munshi is the owner's call line (M8, token in #t=…); /shopkeepers, /calls, /munshi-calls, /ops and /evals are
 // dashboard pages (?id=… opens one); anything else is the dashboard. Every page has the faint
 // logo watermark behind it (M7 B2).
 import { MUNSHI_PATH } from '@shared/auth/owner-call-token.ts';
@@ -11,6 +11,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage.tsx';
 import { EvalsPage } from './features/evals/EvalsPage.tsx';
 import { OpsPage } from './features/ops/OpsPage.tsx';
 import { MunshiPage } from './features/munshi/MunshiPage.tsx';
+import { MUNSHI_CALLS_PATH, MunshiCallsPage } from './features/munshi-calls/MunshiCallsPage.tsx';
 import { readMunshiToken } from './features/munshi/munshiState.ts';
 import { PhonePage } from './features/phone/PhonePage.tsx';
 import { ShopkeepersPage } from './features/shopkeepers/ShopkeepersPage.tsx';
@@ -50,6 +51,7 @@ function Page(props: AppProps): React.JSX.Element {
   }
   if (route === '/shopkeepers') return <ShopkeepersPage dashboard={dashboard} id={id} />;
   if (route === '/calls') return <CallsPage dashboard={dashboard} id={id} />;
+  if (route === MUNSHI_CALLS_PATH) return <MunshiCallsPage dashboard={dashboard} id={id} />;
   if (route === '/ops') return <OpsPage dashboard={dashboard} id={id} />;
   if (route === '/evals') return <EvalsPage dashboard={dashboard} />;
   return <DashboardPage api={api} dashboard={dashboard} />;

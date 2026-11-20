@@ -183,6 +183,36 @@ const CallDetailSchema = z.object({
     trace: z.array(TraceStepSchema).optional(),
   }),
 });
+/** Live evals for Munshi (2026-11-20): the owner's calls to Munshi and one call's report. */
+const OwnerCallRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  issuedAt: z.string(),
+  acceptedAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
+  durationSeconds: z.number().nullable(),
+  cost: CostSchema,
+});
+const OwnerCallListSchema = z.object({ calls: z.array(OwnerCallRowSchema) });
+const OwnerCallDetailSchema = z.object({
+  call: OwnerCallRowSchema.extend({
+    transcript: z
+      .array(z.object({ role: z.enum(['assistant', 'user']), content: z.string() }))
+      .nullable(),
+    transcriptEnglish: z.array(z.string().nullable()).nullable(),
+    toolEvents: z.array(
+      z.object({
+        tool: z.string(),
+        args: z.record(z.string(), z.unknown()),
+        result: z.record(z.string(), z.unknown()),
+        durationMs: z.number().nullable(),
+        createdAt: z.string(),
+      }),
+    ),
+    scorecard: ScorecardSchema,
+    trace: z.array(TraceStepSchema),
+  }),
+});
 const SettingsSchema = z.object({ settings: z.object({ englishUnderTelugu: z.boolean() }) });
 const ErrorBodySchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 
@@ -193,6 +223,8 @@ export type Overview = z.infer<typeof OverviewSchema>;
 export type ShopkeeperList = z.infer<typeof ShopkeeperListSchema>;
 export type ShopkeeperDetail = z.infer<typeof ShopkeeperDetailSchema>;
 export type CallDetail = z.infer<typeof CallDetailSchema>['call'];
+export type OwnerCallRow = z.infer<typeof OwnerCallRowSchema>;
+export type OwnerCallDetail = z.infer<typeof OwnerCallDetailSchema>['call'];
 
 export interface DashboardApi {
   readonly hasToken: () => boolean;
@@ -203,6 +235,9 @@ export interface DashboardApi {
   shopkeeper: (id: string) => Promise<ShopkeeperDetail>;
   calls: () => Promise<readonly CallRow[]>;
   call: (id: string) => Promise<CallDetail>;
+  /** Live evals for Munshi: the owner's calls to Munshi, and one call's report. */
+  ownerCalls: () => Promise<readonly OwnerCallRow[]>;
+  ownerCall: (id: string) => Promise<OwnerCallDetail>;
   setEnglishUnderTelugu: (on: boolean) => Promise<boolean>;
   /** M9: the ops page's numbers, and every step of one request. */
   ops: () => Promise<OpsSummary>;
@@ -363,6 +398,9 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     calls: async () => (await request('/v1/dashboard/calls', CallListSchema)).calls,
     call: async (callId) =>
       (await request(`/v1/dashboard/calls/${id(callId)}`, CallDetailSchema)).call,
+    ownerCalls: async () => (await request('/v1/dashboard/owner-calls', OwnerCallListSchema)).calls,
+    ownerCall: async (callId) =>
+      (await request(`/v1/dashboard/owner-calls/${id(callId)}`, OwnerCallDetailSchema)).call,
     ops: () => request('/v1/dashboard/ops', OpsSummarySchema),
     evals: () => request('/v1/dashboard/evals', EvalsSchema),
     trace: (traceId) => request(`/v1/dashboard/ops/traces/${id(traceId)}`, TraceSchema),
