@@ -7,7 +7,8 @@
 import { z } from 'zod';
 import { DASHBOARD_TOKEN_HEADER, isValidDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
-import { scoreCall } from '../_shared/calls/scorecard.ts';
+import { toCallScore } from '../_shared/calls/agent-health.ts';
+import { replyP50Of, scoreCall, type Scorecard } from '../_shared/calls/scorecard.ts';
 import { withTone } from '../_shared/calls/tone-judge.ts';
 import type { TraceStep } from '../_shared/db/ops-repository.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
@@ -19,7 +20,7 @@ import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import { computeDues } from '../_shared/ledger/dues.ts';
 import { computeInsights } from '../_shared/ledger/insights.ts';
 import { scoreFrom } from '../_shared/reminders/score-explain.ts';
-import { toneOf } from './tone-route.ts';
+import { keepScore, toneOf, toneScores } from './tone-route.ts';
 import type { RouteContext, RouteHandler } from './types.ts';
 
 const RECENT_CALLS = 10;
@@ -197,10 +198,20 @@ async function withEnglish(
   return { ...call, transcriptEnglish: lines };
 }
 
-async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
+export interface AshaReport {
+  readonly call: DashboardCallDetail;
+  readonly shopkeepers: readonly BookShopkeeper[];
+  readonly scorecard: Scorecard;
+  readonly steps: readonly TraceStep[];
+}
+
+/** One Asha call's report: English, steps, tone and scorecard; the score is kept for Agent
+ * health (best effort). Used by the call page and by the health page for calls not yet scored. */
+export async function ashaReport(
+  found: DashboardCallDetail,
+  ctx: RouteContext,
+): Promise<AshaReport> {
   const { book, reads } = ctx.deps.dashboard;
-  const found = await reads.getCall(String(ctx.params[0]));
-  if (!found) return errorResponse('NOT_FOUND', ctx.cors);
   const owner = await book.getOwner();
   const shopkeepers = owner ? await book.listShopkeepers(owner.id) : [];
   const names = [
@@ -227,6 +238,24 @@ async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
     steps,
   });
   const scorecard = withTone(scored, 'asha', tone);
+  await keepScore(
+    toCallScore({
+      agent: 'asha',
+      callId: call.id,
+      startedAt: call.queuedAt,
+      tone: toneScores(tone),
+      costInr: callCost(call).inr,
+      replyP50Ms: replyP50Of(steps),
+    }, scorecard),
+    ctx,
+  );
+  return { call, shopkeepers, scorecard, steps };
+}
+
+async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
+  const found = await ctx.deps.dashboard.reads.getCall(String(ctx.params[0]));
+  if (!found) return errorResponse('NOT_FOUND', ctx.cors);
+  const { call, shopkeepers, scorecard, steps } = await ashaReport(found, ctx);
   const { toneJudgement: _tone, ...shown } = call;
   return jsonResponse(
     { call: { ...callRow(shown, nameMap(shopkeepers)), scorecard, trace: steps } },

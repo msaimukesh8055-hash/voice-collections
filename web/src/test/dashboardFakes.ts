@@ -1,6 +1,8 @@
 // web/src/test/dashboardFakes.ts
 // A fake dashboard client for page tests (M6): fixed fake figures, a switch to act as "no link",
 // and a record of what the page asked for.
+import type { NewTestDraft, TestDraft } from '../lib/testDraftSchemas.ts';
+import type { HealthSummary } from '../lib/healthSchemas.ts';
 import {
   type CallDetail,
   type CallRow,
@@ -362,6 +364,75 @@ export const OWNER_CALL: OwnerCallDetail = {
   trace: [],
 };
 
+/** One Munshi call waiting to become a test. */
+export const TEST_DRAFTS: readonly TestDraft[] = [
+  {
+    id: 'd0000000-0000-4000-8000-000000000001',
+    source: 'munshi_call',
+    refId: 'e6d73ff4-0dd8-4565-99a9-ed6b00651029',
+    said: 'Who has paid me this month?',
+    problem: 'Check: Asks Munshi could answer (couldn\'t answer: "Who has paid me")',
+    expected: 'Say who paid this month',
+    status: 'waiting',
+    createdAt: '2026-11-20T10:00:00Z',
+  },
+];
+
+/** Agent health: Asha with a guardrail fail and repeated calls; Munshi with no calls yet. */
+export const HEALTH: HealthSummary = {
+  today: '2026-11-20',
+  waiting: 2,
+  agents: [
+    {
+      agent: 'asha',
+      calls: 4,
+      verdicts: { good: 2, check: 1, failed: 1 },
+      problems: [
+        {
+          id: 'identity_first',
+          label: 'Identity confirmed before dues',
+          group: 'Guardrails',
+          fails: 1,
+          warns: 0,
+          callIds: ['c0000000-0000-4000-8000-000000000001'],
+        },
+        {
+          id: 'repeated_calls',
+          label: 'No tool called twice in a row for the same thing',
+          group: 'Tools',
+          fails: 0,
+          warns: 2,
+          callIds: ['c1', 'c2'],
+        },
+      ],
+      guardrailFails: 1,
+      replyP50Ms: 1200,
+      averageCostInr: 16.5,
+      tone: [{ id: 'respectful', label: 'Polite and respectful', average: 4.5, calls: 4 }],
+      versions: [
+        { version: 7, calls: 3, good: 2, check: 1, failed: 0 },
+        { version: 6, calls: 1, good: 0, check: 0, failed: 1 },
+      ],
+      trend: [
+        { date: '2026-11-19', good: 1, check: 0, failed: 1 },
+        { date: '2026-11-20', good: 1, check: 1, failed: 0 },
+      ],
+    },
+    {
+      agent: 'munshi',
+      calls: 0,
+      verdicts: { good: 0, check: 0, failed: 0 },
+      problems: [],
+      guardrailFails: 0,
+      replyP50Ms: null,
+      averageCostInr: null,
+      tone: [],
+      versions: [],
+      trend: [],
+    },
+  ],
+};
+
 export interface FakeDashboard {
   readonly dashboard: DashboardApi;
   readonly requests: string[];
@@ -371,6 +442,8 @@ export interface FakeDashboard {
   ops: OpsSummary;
   /** What the evals page gets. */
   evals: Evals;
+  /** Drafts sent with "Add as a test case". */
+  drafts: NewTestDraft[];
 }
 
 export function fakeDashboard(): FakeDashboard {
@@ -380,6 +453,7 @@ export function fakeDashboard(): FakeDashboard {
     english: true,
     ops: OPS,
     evals: EVALS,
+    drafts: [],
     dashboard: {
       hasToken: () => !fake.needsLink,
       localDemo: () => Promise.resolve(false),
@@ -391,6 +465,12 @@ export function fakeDashboard(): FakeDashboard {
       ownerCalls: () => answer('owner-calls', [OWNER_CALL]),
       ownerCall: (id) => answer(`owner-call:${id}`, OWNER_CALL),
       ops: () => answer('ops', fake.ops),
+      agentHealth: () => answer('agent-health', HEALTH),
+      addTestDraft: (draft) => {
+        fake.drafts.push(draft);
+        return answer(`test-draft:${draft.source}`, undefined);
+      },
+      testDrafts: () => answer('test-drafts', TEST_DRAFTS),
       evals: () => answer('evals', fake.evals),
       trace: (id) => answer(`trace:${id}`, TRACE),
       setEnglishUnderTelugu: (on) => {

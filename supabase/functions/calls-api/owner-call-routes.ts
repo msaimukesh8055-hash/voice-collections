@@ -6,6 +6,8 @@
 // is best effort: if Sarvam or a read fails, the page shows the rest and the reason is logged.
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
 import { scoreMunshiCall } from '../_shared/calls/munshi-scorecard.ts';
+import { toCallScore } from '../_shared/calls/agent-health.ts';
+import { replyP50Of, type Scorecard } from '../_shared/calls/scorecard.ts';
 import { withTone } from '../_shared/calls/tone-judge.ts';
 import type { OwnerCallDetail } from '../_shared/db/owner-call-reads.ts';
 import type { TraceStep } from '../_shared/db/ops-repository.ts';
@@ -13,7 +15,7 @@ import { errorResponse, jsonResponse } from '../_shared/http.ts';
 import { englishLines, needsEnglish } from '../_shared/speech/transcript-english.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
 import { openInDemo } from './dashboard-routes.ts';
-import { toneOf } from './tone-route.ts';
+import { keepScore, toneOf, toneScores } from './tone-route.ts';
 import type { RouteContext } from './types.ts';
 
 const OWNER_CALLS_PAGE = 50;
@@ -70,9 +72,17 @@ async function stepsOf(ownerCallId: string, ctx: RouteContext): Promise<readonly
   }
 }
 
-async function ownerCallDetail(_req: Request, ctx: RouteContext): Promise<Response> {
-  const found = await ctx.deps.dashboard.ownerCalls.getOwnerCallDetail(String(ctx.params[0]));
-  if (!found) return errorResponse('NOT_FOUND', ctx.cors);
+export interface MunshiReport {
+  readonly call: OwnerCallDetail;
+  readonly scorecard: Scorecard;
+  readonly steps: readonly TraceStep[];
+}
+
+/** One Munshi call's report; the score is kept for Agent health (best effort). */
+export async function munshiReport(
+  found: OwnerCallDetail,
+  ctx: RouteContext,
+): Promise<MunshiReport> {
   const [call, steps] = await Promise.all([
     withTranscript(found, ctx).then((one) => withEnglish(one, ctx)),
     stepsOf(found.id, ctx),
@@ -91,6 +101,24 @@ async function ownerCallDetail(_req: Request, ctx: RouteContext): Promise<Respon
     steps,
   });
   const scorecard = withTone(scored, 'munshi', tone);
+  await keepScore(
+    toCallScore({
+      agent: 'munshi',
+      callId: call.id,
+      startedAt: call.acceptedAt ?? call.issuedAt,
+      tone: toneScores(tone),
+      costInr: withCost(call).cost.inr,
+      replyP50Ms: replyP50Of(steps),
+    }, scorecard),
+    ctx,
+  );
+  return { call, scorecard, steps };
+}
+
+async function ownerCallDetail(_req: Request, ctx: RouteContext): Promise<Response> {
+  const found = await ctx.deps.dashboard.ownerCalls.getOwnerCallDetail(String(ctx.params[0]));
+  if (!found) return errorResponse('NOT_FOUND', ctx.cors);
+  const { call, scorecard, steps } = await munshiReport(found, ctx);
   const { interactionId: _id, toneJudgement: _tone, ...shown } = call;
   return jsonResponse({ call: { ...withCost(shown), scorecard, trace: steps } }, 200, ctx.cors);
 }

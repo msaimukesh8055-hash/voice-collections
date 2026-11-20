@@ -1,5 +1,5 @@
 // evals/sarvam/munshi-cases.ts
-// Munshi's 15 cases on Sarvam Tests (M9 Build F), in the same shape as Asha's: who the simulated
+// Munshi's 16 cases on Sarvam Tests (M9 Build F), in the same shape as Asha's: who the simulated
 // owner is and what he says (played by Sarvam), the behaviours Sarvam's judge grades, the tools
 // that must run, and what the eval owner's book must look like afterwards (checked in code from
 // the database). The scenarios, owner lines and expected book changes are the text evals' own
@@ -222,6 +222,16 @@ const EXTRAS: Readonly<Record<string, CaseExtras>> = {
     behaviours: [
       b('Mentions time is nearly up', 'Munshi tells the owner the call time is nearly over.'),
       b('Ends politely', 'Munshi answers and closes the call politely when the owner says bye.'),
+    ],
+    mustCall: ['book_summary'],
+  },
+  '16': {
+    category: 'read',
+    behaviours: [
+      b(
+        'Says who has paid',
+        'Munshi says how much was paid this month and names the top payers, from the tool reply, without reading out a long list.',
+      ),
     ],
     mustCall: ['book_summary'],
   },

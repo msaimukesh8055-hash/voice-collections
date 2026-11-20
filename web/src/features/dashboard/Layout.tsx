@@ -11,6 +11,7 @@ export const PAGES = [
   { path: '/shopkeepers', label: 'Shopkeepers' },
   { path: '/calls', label: 'Asha calls' },
   { path: '/munshi-calls', label: 'Munshi calls' },
+  { path: '/health', label: 'Agent health' },
   { path: '/ops', label: 'Ops' },
   { path: '/evals', label: 'Evals' },
 ] as const;

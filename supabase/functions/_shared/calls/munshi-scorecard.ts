@@ -69,6 +69,9 @@ const LIST = /\b(list|people|who all|everyone)\b/i;
 const QUESTION = /\?|^\s*(how|what|did|has|is|kitna|ఎంత)\b/i;
 const TOTAL =
   /\b(total|overall|whole book|everyone|all of them|who (is|are) (due|overdue)|summary|today'?s dues)\b|\b(people|who|list)\b.*\b(pending|overdue|due)\b|మొత్తం|అందరూ|कुल|सब का/i;
+/** "Who has paid me this month?", "how much came in today": book_summary, focus paid. */
+const WHO_PAID =
+  /\bwho (all )?(has|have|had)? ?(paid|given)\b|\b(people|list)\b.*\bpaid\b|\bhow much (came in|was collected|collected)\b|ఎవరు కట్టారు|किसने (दिया|चुकाया)/i;
 const ONE_PERSON =
   /\bhow much\b|\bowes?\b|\bbalance\b|\bscores?\b|\bbaaki\b|\bdues? (of|for)\b|బాకీ|ఎంత|कितना|बाकी/i;
 const CREDIT =
@@ -129,7 +132,7 @@ function afterReadBack(pattern: RegExp): (lines: Lines, input: UseInput) => stri
 const MUNSHI_NEEDS: readonly Need[] = [
   {
     tool: 'book_summary',
-    trigger: (lines) => said(lines, (line) => TOTAL.test(line)),
+    trigger: (lines) => said(lines, (line) => TOTAL.test(line) || WHO_PAID.test(line)),
     notNeeded: 'no question about the whole book',
   },
   {
@@ -142,7 +145,11 @@ const MUNSHI_NEEDS: readonly Need[] = [
     tool: 'prepare_payment',
     // "the list of people who have already paid" asks for a list, not a payment to record.
     trigger: (lines) =>
-      said(lines, (line) => PAYMENT.test(line) && !QUESTION.test(line) && !LIST.test(line)),
+      said(
+        lines,
+        (line) =>
+          PAYMENT.test(line) && !QUESTION.test(line) && !LIST.test(line) && !WHO_PAID.test(line),
+      ),
     notNeeded: 'no payment to record',
   },
   { tool: 'prepare_delete', trigger: asks(DELETE), notNeeded: 'no entry to delete' },

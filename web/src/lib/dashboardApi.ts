@@ -12,6 +12,13 @@ import { REGION_HEADER } from '@shared/region.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
 import { type Evals, EvalsSchema } from './evalsSchemas.ts';
+import { type HealthSummary, HealthSummarySchema } from './healthSchemas.ts';
+import {
+  type NewTestDraft,
+  SavedSchema,
+  type TestDraft,
+  TestDraftListSchema,
+} from './testDraftSchemas.ts';
 import {
   type OpsSummary,
   OpsSummarySchema,
@@ -244,6 +251,11 @@ export interface DashboardApi {
   trace: (id: string) => Promise<Trace>;
   /** M9: stored eval runs, the latest case by case. */
   evals: () => Promise<Evals>;
+  /** Agent health (2026-11-20): both agents across their recent calls. */
+  agentHealth: () => Promise<HealthSummary>;
+  /** Live failures to tests (2026-11-20): save "Add as a test case"; list the drafts. */
+  addTestDraft: (draft: NewTestDraft) => Promise<void>;
+  testDrafts: () => Promise<readonly TestDraft[]>;
 }
 
 /** Thrown when the link is missing or expired: the page asks to reopen it from WhatsApp. */
@@ -360,6 +372,32 @@ function requestHeaders(
   return token ? { ...headers, [DASHBOARD_TOKEN_HEADER]: token } : headers;
 }
 
+type Requester = <T>(path: string, schema: z.ZodType<T>, init?: RequestInit) => Promise<T>;
+
+/** The writes: the Telugu setting, "Add as a test case" (2026-11-20) and the drafts list. */
+function writeCalls(
+  request: Requester,
+): Pick<DashboardApi, 'setEnglishUnderTelugu' | 'addTestDraft' | 'testDrafts'> {
+  return {
+    setEnglishUnderTelugu: async (on) => {
+      const body = JSON.stringify({ englishUnderTelugu: on });
+      const reply = await request('/v1/dashboard/settings', SettingsSchema, {
+        method: 'POST',
+        body,
+      });
+      return reply.settings.englishUnderTelugu;
+    },
+    addTestDraft: async (draft) => {
+      await request('/v1/dashboard/test-drafts', SavedSchema, {
+        method: 'POST',
+        body: JSON.stringify(draft),
+      });
+    },
+    testDrafts: async () =>
+      (await request('/v1/dashboard/test-drafts', TestDraftListSchema)).drafts,
+  };
+}
+
 export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
   const { baseUrl, anonKey, region, token, devToken, fetchImpl = fetch } = options;
   const tokens = tokenSource(token, devToken);
@@ -402,15 +440,9 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
     ownerCall: async (callId) =>
       (await request(`/v1/dashboard/owner-calls/${id(callId)}`, OwnerCallDetailSchema)).call,
     ops: () => request('/v1/dashboard/ops', OpsSummarySchema),
+    agentHealth: () => request('/v1/dashboard/health', HealthSummarySchema),
+    ...writeCalls(request),
     evals: () => request('/v1/dashboard/evals', EvalsSchema),
     trace: (traceId) => request(`/v1/dashboard/ops/traces/${id(traceId)}`, TraceSchema),
-    setEnglishUnderTelugu: async (on) => {
-      const body = JSON.stringify({ englishUnderTelugu: on });
-      const reply = await request('/v1/dashboard/settings', SettingsSchema, {
-        method: 'POST',
-        body,
-      });
-      return reply.settings.englishUnderTelugu;
-    },
   };
 }

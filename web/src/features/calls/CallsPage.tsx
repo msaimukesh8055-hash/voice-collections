@@ -4,6 +4,7 @@ import type { CallDetail as Detail, CallRow, DashboardApi } from '../../lib/dash
 import { CallsTable } from '../dashboard/CallsTable.tsx';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
+import { AddTestCase } from '../evals/AddTestCase.tsx';
 import { CallDetail } from './CallDetail.tsx';
 
 function One({
@@ -14,7 +15,16 @@ function One({
   readonly id: string;
 }): React.JSX.Element {
   const state = useLoad(() => dashboard.call(id), `call:${id}`);
-  return <LoadState state={state}>{(call: Detail) => <CallDetail call={call} />}</LoadState>;
+  return (
+    <LoadState state={state}>
+      {(call: Detail) => (
+        <CallDetail
+          call={call}
+          action={<AddTestCase dashboard={dashboard} source="asha_call" refId={call.id} />}
+        />
+      )}
+    </LoadState>
+  );
 }
 
 function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {

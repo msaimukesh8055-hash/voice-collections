@@ -2,7 +2,7 @@
 // book_summary's figures (M8, 100% target): the same money rules as WhatsApp (confirmed entries
 // only, oldest credit paid first), one round of reads, and a short `say`.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import type { BookShopkeeper } from '../db/book-repository.ts';
+import type { BookEntry, BookShopkeeper } from '../db/book-repository.ts';
 import {
   bookEntry,
   fakeBookEntries,
@@ -319,4 +319,39 @@ Deno.test('book_summary › 100 shopkeepers: at most 3 names, a true count, unde
   const { say, data } = await ask('overdue', { shopkeepers, entries });
   assertEquals(data['overdue_people'], 50);
   assertStringIncludes(say, ', and 47 more.');
+});
+
+Deno.test('book_summary › paid: confirmed payments this month, largest payer first, today apart', async () => {
+  function payment(
+    shopkeeperId: string,
+    amount: number,
+    when: { readonly entryDate: string; readonly status?: BookEntry['status'] },
+  ): BookEntry {
+    return bookEntry({ shopkeeperId, kind: 'payment', amount, status: 'confirmed', ...when });
+  }
+  const { say, data } = await ask('paid', {
+    entries: [
+      payment(RAMESH.id, 2000, { entryDate: '2026-11-01' }),
+      payment(RAMESH.id, 500, { entryDate: FAKE_TODAY }),
+      payment(LATHA.id, 4000, { entryDate: '2026-11-01' }),
+      payment(SURESH.id, 9000, { entryDate: '2026-10-30' }),
+      payment(SURESH.id, 700, { entryDate: FAKE_TODAY, status: 'claimed' }),
+    ],
+  });
+  assertEquals(data, {
+    focus: 'paid',
+    paid_people: 2,
+    paid_amount: 6500,
+    paid_today_people: 1,
+    paid_today_amount: 500,
+  });
+  assertStringIncludes(say, 'Paid this month: 6,500 rupees from 2 people.');
+  assertStringIncludes(say, 'Today: 1 person, 500 rupees.');
+  assert(say.indexOf('Latha') < say.indexOf('Ramesh'), say);
+});
+
+Deno.test('book_summary › paid: nobody yet this month', async () => {
+  const { say, data } = await ask('paid', { entries: [] });
+  assertEquals(say, 'Nobody has paid yet this month.');
+  assertEquals(data['paid_people'], 0);
 });

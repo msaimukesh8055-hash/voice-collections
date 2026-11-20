@@ -207,3 +207,12 @@ Deno.test('munshi scorecard › no turn-length checks; an ask the book cannot an
   assert(value.includes('list of people who have paid'));
   assertEquals(statusOf(scoreMunshiCall(ownerCall()), 'could_not_answer'), 'pass');
 });
+
+Deno.test('munshi scorecard › "who has paid" needs book_summary, not a payment to record', () => {
+  const card = scoreMunshiCall(ownerCall({
+    transcript: [said('user', 'Tell me who has paid me this month')],
+    tools: [tool('book_summary', { paid_people: 2 }, { focus: 'paid' })],
+  }));
+  assertEquals(use(card, 'book_summary')?.needed, true);
+  assertEquals(use(card, 'prepare_payment')?.needed, false);
+});

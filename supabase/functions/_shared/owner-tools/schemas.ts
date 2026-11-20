@@ -17,6 +17,7 @@ export const BOOK_FOCUSES = [
   'promises',
   'claims',
   'insights',
+  'paid',
 ] as const;
 export type BookFocus = (typeof BOOK_FOCUSES)[number];
 
@@ -56,11 +57,12 @@ const CancelRef = Ref.describe('The action_ref from the read-back he said no to,
 export const OWNER_TOOL_SPECS = {
   book_summary: {
     description: 'Whole-book answer in one step: pending total, who is due today or overdue, ' +
-      'promises, payment claims waiting, insights. Pick the focus that matches his question.',
+      'promises, payment claims waiting, insights, who has paid. Pick the focus that matches his question.',
     args: z.object({
       focus: z.enum(BOOK_FOCUSES).describe(
         'overview (pending, overdue, due today), due (due today), overdue, promises, claims ' +
-          '(payments shopkeepers told Asha about) or insights (this month, top defaulters)',
+          '(payments shopkeepers told Asha about), insights (this month, top defaulters) or paid ' +
+          '(who has paid this month and today)',
       ),
     }),
   },

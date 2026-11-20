@@ -1,6 +1,7 @@
 // web/src/features/ops/TraceView.tsx
 // /ops?id=<trace id>: every step of one request in order, from the first byte to the last
 // database write, across functions (a kick to the follow-up worker keeps the same trace).
+import { AddTestCase } from '../evals/AddTestCase.tsx';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { Trace, TraceStep } from '../../lib/opsSchemas.ts';
 import { dateTime } from '../dashboard/format.ts';
@@ -91,8 +92,25 @@ export function TraceSteps({
   );
 }
 
-function Timeline({ trace }: { readonly trace: Trace }): React.JSX.Element {
-  return <TraceSteps title="Trace" steps={trace.steps} traceId={trace.traceId} />;
+/** WhatsApp requests can be saved as a test case (Saim, 2026-11-20). */
+const WHATSAPP_SOURCE = 'whatsapp-webhook';
+
+function Timeline({
+  trace,
+  dashboard,
+}: {
+  readonly trace: Trace;
+  readonly dashboard: DashboardApi;
+}): React.JSX.Element {
+  const fromWhatsApp = trace.steps.some((step) => step.source === WHATSAPP_SOURCE);
+  return (
+    <>
+      <TraceSteps title="Trace" steps={trace.steps} traceId={trace.traceId} />
+      {fromWhatsApp ? (
+        <AddTestCase dashboard={dashboard} source="whatsapp" refId={trace.traceId} />
+      ) : null}
+    </>
+  );
 }
 
 export function TraceView({
@@ -111,7 +129,9 @@ export function TraceView({
       >
         ← All ops
       </a>
-      <LoadState state={state}>{(trace: Trace) => <Timeline trace={trace} />}</LoadState>
+      <LoadState state={state}>
+        {(trace: Trace) => <Timeline trace={trace} dashboard={dashboard} />}
+      </LoadState>
     </>
   );
 }

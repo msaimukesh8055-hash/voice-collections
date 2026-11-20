@@ -2,6 +2,12 @@
 // Dashboard deps for tests (M6): the fake credit book, fake dashboard reads, a fixed link secret.
 import type { ToneJudge } from '../../_shared/calls/tone-judge.ts';
 import {
+  fakeCallScoreRepository,
+  type FakeCallScores,
+} from '../../_shared/db/fake-call-score-repository.ts';
+import { fakeTestDraftRepository } from '../../_shared/db/fake-test-draft-repository.ts';
+import type { TestDraft } from '../../_shared/db/test-draft-repository.ts';
+import {
   createFakeBookRepository,
   type FakeBookState,
 } from '../../_shared/db/fake-book-repository.ts';
@@ -28,6 +34,8 @@ export interface DashboardSetup {
   readonly book: FakeBookState;
   readonly reads: FakeDashboardState;
   readonly ownerCalls: SavedOwnerCall;
+  readonly scores: FakeCallScores;
+  readonly drafts: TestDraft[];
 }
 
 /** Stored eval runs (newest first) and each run's case results, for tests. */
@@ -53,11 +61,14 @@ export function dashboardSetup(
     ownerCalls?: readonly OwnerCallDetail[];
     munshiTranscripts?: TranscriptClient | null;
     judgeTone?: ToneJudge | null;
+    callScores?: Partial<FakeCallScores>;
   } = {},
 ): DashboardSetup {
   const fakeBook = createFakeBookRepository(options.book);
   const fakeReads = createFakeDashboardRepository(options.reads);
   const owners = fakeOwnerCallReads(options.ownerCalls);
+  const scores = fakeCallScoreRepository(options.callScores);
+  const drafts = fakeTestDraftRepository();
   const dashboard: DashboardDeps = {
     linkSecret: LINK_SECRET,
     book: fakeBook.book,
@@ -72,6 +83,15 @@ export function dashboardSetup(
     ownerCalls: owners.reads,
     munshiTranscripts: options.munshiTranscripts ?? null,
     judgeTone: options.judgeTone ?? null,
+    callScores: scores.repo,
+    testDrafts: drafts.repo,
   };
-  return { dashboard, book: fakeBook.state, reads: fakeReads.state, ownerCalls: owners.saved };
+  return {
+    dashboard,
+    book: fakeBook.state,
+    reads: fakeReads.state,
+    ownerCalls: owners.saved,
+    scores: scores.state,
+    drafts: drafts.drafts,
+  };
 }

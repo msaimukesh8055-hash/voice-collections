@@ -6,6 +6,7 @@
 import type { DashboardApi, OwnerCallDetail, OwnerCallRow } from '../../lib/dashboardApi.ts';
 import { TranscriptCard } from '../calls/CallDetail.tsx';
 import { Scorecard } from '../calls/Scorecard.tsx';
+import { AddTestCase } from '../evals/AddTestCase.tsx';
 import { ToolUse } from '../calls/ToolUse.tsx';
 import { dateTime, duration, formatInr } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
@@ -42,7 +43,14 @@ function Facts({ call }: { readonly call: OwnerCallDetail }): React.JSX.Element 
   );
 }
 
-export function MunshiCallReport({ call }: { readonly call: OwnerCallDetail }): React.JSX.Element {
+export function MunshiCallReport({
+  call,
+  action,
+}: {
+  readonly call: OwnerCallDetail;
+  /** Shown under the scorecard, e.g. "Add as a test case". */
+  readonly action?: React.ReactNode;
+}): React.JSX.Element {
   return (
     <>
       <a href={MUNSHI_CALLS_PATH} className="text-sm font-medium text-brand underline">
@@ -50,6 +58,7 @@ export function MunshiCallReport({ call }: { readonly call: OwnerCallDetail }): 
       </a>
       <Facts call={call} />
       <Scorecard card={call.scorecard} />
+      {action}
       <ToolUse rows={call.scorecard.toolUse} events={call.toolEvents} />
       <TranscriptCard
         turns={call.transcript}
@@ -74,7 +83,12 @@ function One({
   const state = useLoad(() => dashboard.ownerCall(id), `owner-call:${id}`);
   return (
     <LoadState state={state}>
-      {(call: OwnerCallDetail) => <MunshiCallReport call={call} />}
+      {(call: OwnerCallDetail) => (
+        <MunshiCallReport
+          call={call}
+          action={<AddTestCase dashboard={dashboard} source="munshi_call" refId={call.id} />}
+        />
+      )}
     </LoadState>
   );
 }

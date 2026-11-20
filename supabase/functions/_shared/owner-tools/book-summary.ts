@@ -223,6 +223,57 @@ function insights(book: Book): Summary {
   );
 }
 
+function paymentsBetween(book: Book, from: string): readonly BookEntry[] {
+  return book.entries.filter((entry) =>
+    entry.kind === 'payment' && entry.status === 'confirmed' && entry.entryDate >= from &&
+    entry.entryDate <= book.today
+  );
+}
+
+/** Each payer's total, largest first. */
+function payerLines(payments: readonly BookEntry[], book: Book): string[] {
+  const byPerson = new Map<string, number>();
+  for (const entry of payments) {
+    byPerson.set(
+      entry.shopkeeperId,
+      (byPerson.get(entry.shopkeeperId) ?? 0) + toPaise(entry.amount),
+    );
+  }
+  return [...byPerson].sort((a, b) => b[1] - a[1]).map(([id, paise]) =>
+    `${shopkeeperLabel(id, book)} ${formatRupees(toRupees(paise))}`
+  );
+}
+
+/** Who has paid (Saim, 2026-11-20): confirmed payments this month, today's apart. Claims that
+ * are not yet confirmed are not counted, as everywhere else. */
+function paid(book: Book): Summary {
+  const month = paymentsBetween(book, `${book.today.slice(0, 7)}-01`);
+  if (month.length === 0) {
+    return summary('Nobody has paid yet this month.', { paid_people: 0, paid_amount: 0 });
+  }
+  const today = paymentsBetween(book, book.today);
+  const lines = payerLines(month, book);
+  const amount = sum(month.map((entry) => entry.amount));
+  const todayAmount = sum(today.map((entry) => entry.amount));
+  const todayPeople = new Set(today.map((entry) => entry.shopkeeperId)).size;
+  const todayLine = todayPeople === 0
+    ? 'Nobody has paid today.'
+    : `Today: ${people(todayPeople)}, ${formatRupees(todayAmount)}.`;
+  return summary(
+    fitParts([
+      `Paid this month: ${formatRupees(amount)} from ${people(lines.length)}.`,
+      todayLine,
+      `Paid the most: ${topLines(lines)}.`,
+    ]),
+    {
+      paid_people: lines.length,
+      paid_amount: amount,
+      paid_today_people: todayPeople,
+      paid_today_amount: todayAmount,
+    },
+  );
+}
+
 const FOCUS: Readonly<Record<BookFocus, (book: Book) => Summary>> = {
   overview,
   due: dueToday,
@@ -230,6 +281,7 @@ const FOCUS: Readonly<Record<BookFocus, (book: Book) => Summary>> = {
   promises,
   claims,
   insights,
+  paid,
 };
 
 export async function bookSummary(

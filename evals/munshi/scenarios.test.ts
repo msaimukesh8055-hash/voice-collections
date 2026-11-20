@@ -1,5 +1,5 @@
 // evals/munshi/scenarios.test.ts
-// The 15 scenarios of the M8 test list: unique ids in order, all three languages, every
+// The 16 scenarios (15 from the M8 test list, 16 from a live call): unique ids in order, all three languages, every
 // scenario with a line to say, and the outcomes the plan names.
 import { describe, expect, it } from 'vitest';
 import { checksFor } from './checks.ts';
@@ -12,9 +12,9 @@ function scenario(id: string): (typeof MUNSHI_SCENARIOS)[number] {
 }
 
 describe('Munshi eval scenarios', () => {
-  it('15 of them, 01 to 15, each with goals and at least one line', () => {
+  it('16 of them, 01 to 16, each with goals and at least one line', () => {
     expect(MUNSHI_SCENARIOS.map((candidate) => candidate.id)).toEqual(
-      Array.from({ length: 15 }, (_, n) => String(n + 1).padStart(2, '0')),
+      Array.from({ length: 16 }, (_, n) => String(n + 1).padStart(2, '0')),
     );
     expect(
       MUNSHI_SCENARIOS.every(
@@ -26,7 +26,7 @@ describe('Munshi eval scenarios', () => {
   it('cover Telugu, Hindi and English', () => {
     const count = (language: string): number =>
       MUNSHI_SCENARIOS.filter((candidate) => candidate.language === language).length;
-    expect([count('te'), count('hi'), count('en')]).toEqual([4, 3, 8]);
+    expect([count('te'), count('hi'), count('en')]).toEqual([4, 3, 9]);
   });
 
   it('expect the plan outcomes: one entry, two claims settled, a send, a reminder', () => {

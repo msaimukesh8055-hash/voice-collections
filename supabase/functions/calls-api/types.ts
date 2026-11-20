@@ -8,6 +8,8 @@ import type { OwnerCallReads } from '../_shared/db/owner-call-reads.ts';
 import type { FollowupKicker } from '../_shared/followup/kick.ts';
 import type { ScoreReads } from '../_shared/reminders/score-explain.ts';
 import type { ToneJudge } from '../_shared/calls/tone-judge.ts';
+import type { CallScoreRepository } from '../_shared/db/call-score-repository.ts';
+import type { TestDraftRepository } from '../_shared/db/test-draft-repository.ts';
 import type { TranscriptClient } from '../_shared/sarvam-analytics.ts';
 import type { Translator } from '../_shared/speech/translate.ts';
 import type { MunshiLine, ProxyDeps } from './sarvam-proxy.ts';
@@ -52,6 +54,10 @@ export interface DashboardDeps {
   readonly munshiTranscripts: TranscriptClient | null;
   /** The AI tone judge for call reports (Gemini); null when there is no Gemini key. */
   readonly judgeTone?: ToneJudge | null;
+  /** Agent health (2026-11-20): each call's kept score and the published prompt versions. */
+  readonly callScores: CallScoreRepository;
+  /** Live failures to tests (2026-11-20): "Add as a test case" drafts. */
+  readonly testDrafts: TestDraftRepository;
 }
 
 export interface RouteContext {

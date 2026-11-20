@@ -19,6 +19,8 @@ import { createTracing } from '../_shared/ops/tracing.ts';
 import { handleCallsApi } from './handler.ts';
 import { createTranslator } from '../_shared/speech/translate.ts';
 import { createToneJudge } from '../_shared/calls/tone-judge.ts';
+import { createSupabaseCallScoreRepository } from '../_shared/db/supabase-call-score-repository.ts';
+import { createSupabaseTestDraftRepository } from '../_shared/db/supabase-test-draft-repository.ts';
 import type { CallsApiDeps } from './types.ts';
 
 /** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
@@ -70,6 +72,8 @@ const deps: CallsApiDeps = {
       ? createTranslator({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log })
       : null,
     ownerCalls: createSupabaseOwnerCallReads(query),
+    callScores: createSupabaseCallScoreRepository(query),
+    testDrafts: createSupabaseTestDraftRepository(query),
     judgeTone: env.GEMINI_API_KEY
       ? createToneJudge({
         sarvamApiKey: env.SARVAM_API_KEY ?? '',

@@ -1,13 +1,15 @@
 // web/src/features/ops/OpsPage.tsx
 // /ops (M9 Build A): is the product healthy right now? Error rate, tool latency against the
 // 500 ms target, how often an LLM answer was rejected, the follow-up queue, spend against the
-// cap, and the latest errors, each opening its trace (/ops?id=<trace id>). Read-only.
+// cap, and the latest errors, each opening its trace (/ops?id=<trace id>). Read-only. A tile at
+// the top links to Agent health (/health), which scores how well the agents do their job.
 import type { ReactNode } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { OpsSummary } from '../../lib/opsSchemas.ts';
 import { dateTime, formatInr } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
+import { AgentQualityLink } from '../health/HealthPage.tsx';
 import { TraceView } from './TraceView.tsx';
 import { percent, statusOfRate, type Tone, TONE_CLASSES } from './opsFormat.ts';
 
@@ -268,7 +270,12 @@ function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
 
 function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {
   const state = useLoad(dashboard.ops, 'ops');
-  return <LoadState state={state}>{(ops: OpsSummary) => <Summary ops={ops} />}</LoadState>;
+  return (
+    <>
+      <AgentQualityLink dashboard={dashboard} />
+      <LoadState state={state}>{(ops: OpsSummary) => <Summary ops={ops} />}</LoadState>
+    </>
+  );
 }
 
 export function OpsPage({

@@ -1,5 +1,5 @@
 // evals/sarvam/munshi-run.ts
-// npm run evals:munshi-sarvam -- --version <n>   Munshi's 15 cases on Sarvam Tests (M9 Build F).
+// npm run evals:munshi-sarvam -- --version <n>   Munshi's 16 cases on Sarvam Tests (M9 Build F).
 // Creates one flagged eval owner per case (fake book + owner-call token), runs the suite against
 // the given Munshi agent version (a draft works), checks our database afterwards, prints the
 // table, stores the run (target "munshi") and exits 1 unless the release gate passes.

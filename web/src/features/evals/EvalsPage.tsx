@@ -3,6 +3,7 @@
 // database checks) and the WhatsApp brain (code checks): the release gate, the latest run case
 // by case with the judge's reason for every failure, and the recent runs as a trend. Read-only;
 // all names and amounts on this page are fake eval data.
+import type { TestDraft } from '../../lib/testDraftSchemas.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { EvalCase, EvalRun, Evals, EvalTarget } from '../../lib/evalsSchemas.ts';
 import { dateTime } from '../dashboard/format.ts';
@@ -176,11 +177,76 @@ function Summary({ evals }: { readonly evals: Evals }): React.JSX.Element {
   );
 }
 
+const SOURCE_NAMES: Readonly<Record<TestDraft['source'], string>> = {
+  asha_call: 'Asha call',
+  munshi_call: 'Munshi call',
+  whatsapp: 'WhatsApp message',
+};
+
+function draftHref(draft: TestDraft): string {
+  const page = { asha_call: '/calls', munshi_call: '/munshi-calls', whatsapp: '/ops' }[
+    draft.source
+  ];
+  return `${page}?id=${encodeURIComponent(draft.refId)}`;
+}
+
+function DraftList({ drafts }: { readonly drafts: readonly TestDraft[] }): React.JSX.Element {
+  if (drafts.length === 0) {
+    return (
+      <p className="text-sm text-ink-muted">
+        Nothing waiting. Use &quot;Add as a test case&quot; on a call report or a WhatsApp trace.
+      </p>
+    );
+  }
+  return (
+    <ul className="flex flex-col gap-3 text-sm">
+      {drafts.map((draft) => (
+        <li key={draft.id} className="rounded-xl bg-canvas p-3 ring-1 ring-border">
+          <p className="flex flex-wrap justify-between gap-2">
+            <a href={draftHref(draft)} className="font-medium text-brand underline">
+              {SOURCE_NAMES[draft.source]} · {dateTime(draft.createdAt)}
+            </a>
+            <span className="text-xs text-ink-muted">{draft.status}</span>
+          </p>
+          <p className="mt-1">&ldquo;{draft.said}&rdquo;</p>
+          <p className="mt-1 whitespace-pre-line text-xs text-ink-muted">{draft.problem}</p>
+          {draft.expected ? <p className="mt-1 text-xs">Should: {draft.expected}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Live failures waiting to become scripted tests (Saim, 2026-11-20). */
+function LiveDrafts({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {
+  const state = useLoad(dashboard.testDrafts, 'test-drafts');
+  const waiting =
+    state.kind === 'ready' ? state.data.filter((one) => one.status === 'waiting') : [];
+  return (
+    <Card title={`From live use (${waiting.length} waiting)`}>
+      <p className="mb-3 text-sm text-ink-muted">
+        Calls and WhatsApp messages that went wrong. Each becomes a scripted test once its wording
+        is approved, then runs in the release gate every time.
+      </p>
+      <LoadState state={state}>
+        {(drafts: readonly TestDraft[]) => <DraftList drafts={drafts} />}
+      </LoadState>
+    </Card>
+  );
+}
+
 export function EvalsPage({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {
   const state = useLoad(dashboard.evals, 'evals');
   return (
     <Layout current="/evals" dashboard={dashboard}>
-      <LoadState state={state}>{(evals: Evals) => <Summary evals={evals} />}</LoadState>
+      <LoadState state={state}>
+        {(evals: Evals) => (
+          <>
+            <Summary evals={evals} />
+            <LiveDrafts dashboard={dashboard} />
+          </>
+        )}
+      </LoadState>
     </Layout>
   );
 }

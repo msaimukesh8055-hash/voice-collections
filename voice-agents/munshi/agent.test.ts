@@ -128,7 +128,7 @@ describe('Munshi tools', () => {
     expect(summary?.body.find((field) => field.key === 'focus')).toMatchObject({
       type: 'string',
       required: true,
-      enum: ['overview', 'due', 'overdue', 'promises', 'claims', 'insights'],
+      enum: ['overview', 'due', 'overdue', 'promises', 'claims', 'insights', 'paid'],
     });
   });
 });
@@ -144,9 +144,9 @@ describe('Munshi greeting', () => {
   });
 });
 
-describe('Munshi prompt v1', () => {
-  it('is version v1', () => {
-    expect(PROMPT_VERSION).toBe('v1');
+describe('Munshi prompt v2', () => {
+  it('is version v2', () => {
+    expect(PROMPT_VERSION).toBe('v2');
   });
 
   it('never sets the reply language (Sarvam refuses it)', () => {

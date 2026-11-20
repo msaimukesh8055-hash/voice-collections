@@ -1,6 +1,7 @@
 // voice-agents/munshi/prompt.ts
-// Munshi prompt v1 (M8, approved by Saim 2026-11-07, "Approve all"; Hindi/Telugu still need the
-// native-speaker check). Word for word as in docs/milestones/M8.md "Munshi prompt v1"; the only
+// Munshi prompt v2: v1 (M8, approved by Saim 2026-11-07, "Approve all"; Hindi/Telugu still need the
+// native-speaker check) plus one line for "who has paid" (wording approved by Saim 2026-11-20,
+// "Go ahead"; not yet published to Sarvam). Word for word as in docs/milestones/M8.md "Munshi prompt v1"; the only
 // filled-in part is {CLOSING_LINES}, built from CLOSING_QUESTIONS as in Asha v5.
 // Rules kept from Asha (Sarvam constraints): no line sets the reply language (Sarvam refuses one;
 // it detects the caller's language and switches itself); tools are written "call tool:<name>";
@@ -12,7 +13,7 @@ import {
   SUPPORTED_LANGUAGES,
 } from '../../supabase/functions/_shared/schemas/shopkeeper.ts';
 
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = 'v2';
 
 /** The question before ending a call, in every call language (Saim, 2026-11-07). */
 export const CLOSING_QUESTIONS = {
@@ -36,6 +37,7 @@ export const MUNSHI_PROMPT = `You are Munshi, the man who keeps the credit book 
 
 # Answering: one tool per question
 - About the whole book (pending total, who is due or overdue, promises, claims waiting, collection, top defaulters): call tool:book_summary with the matching focus.
+- When he asks who has paid, or how much came in: call tool:book_summary with focus paid. Say the total and the top few names; offer the full list on WhatsApp only if he asks.
 - About one shopkeeper (dues, entries, promise, what happened on Asha's calls): call tool:lookup_shopkeeper with the name as he said it.
 - If a tool gives you a few names, ask which one he means. Never guess a name.
 - Before a tool you may say one short word, like "Haa, one second". After the reply, answer straight away.

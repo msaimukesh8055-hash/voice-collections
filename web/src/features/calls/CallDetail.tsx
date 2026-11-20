@@ -6,6 +6,7 @@
 // (queued, accepted, each tool, hang-up, follow-up, WhatsApp) at the bottom. "Tools: needed vs ran"
 // sits above the transcript (Saim, 2026-11-20).
 // Telugu and Hindi lines show their English (Sarvam Translate) underneath, in small grey text.
+import type { ReactNode } from 'react';
 import type { CallDetail as Detail } from '../../lib/dashboardApi.ts';
 import { dateTime, duration, formatInr } from '../dashboard/format.ts';
 import { Card } from '../dashboard/Layout.tsx';
@@ -128,7 +129,14 @@ function Tools({ call }: { readonly call: Detail }): React.JSX.Element {
   );
 }
 
-export function CallDetail({ call }: { readonly call: Detail }): React.JSX.Element {
+export function CallDetail({
+  call,
+  action,
+}: {
+  readonly call: Detail;
+  /** Shown under the scorecard, e.g. "Add as a test case". */
+  readonly action?: ReactNode;
+}): React.JSX.Element {
   return (
     <>
       <a href="/calls" className="text-sm font-medium text-brand underline">
@@ -136,6 +144,7 @@ export function CallDetail({ call }: { readonly call: Detail }): React.JSX.Eleme
       </a>
       <Facts call={call} />
       {call.scorecard ? <Scorecard card={call.scorecard} /> : null}
+      {action}
       <FollowUp call={call} />
       <Tools call={call} />
       <TranscriptCard

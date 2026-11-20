@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-20 · Agent health, live failures → tests, "who has paid" · 🔨 Built (not committed)**
+New **Agent health** page (linked from Ops): per agent over the last 50 calls — went well / check / failed, top problems with links to the calls, guardrail fails, reply speed, cost, tone and results per prompt version, 14-day trend; every scorecard is now kept in `call_scores`. **Add as a test case** on Asha and Munshi call reports and WhatsApp traces saves a draft (`test_drafts`) listed on Evals as "From live use"; it joins the gate only after Saim approves its wording.
+Munshi can answer **who has paid this month** (`book_summary` focus `paid`, prompt v2 + eval case 16) · prompt v2 not yet published to Sarvam — Saim's step
+
 **2026-11-20 · Live evals — scorecard fixes, AI tone judge, Munshi's gaps · ✅ Shipped**
 From the 1:50 pm Munshi call: Indian amounts in parts ("12 lakh 71 thousand") read as one, the real yes quoted, "credit scores" counted, repeated tool calls warned, reply-time count always logged. Tone now judged by Gemini once per call and kept (warns only, never fails); Munshi drops the turn-length checks; "Calls" renamed "Asha calls".
 Product gap found on that call: Munshi has no list of **who has paid** (the owner asked first thing); the report now flags any ask Munshi couldn't answer · tone judge prompt v1 is a draft for Saim

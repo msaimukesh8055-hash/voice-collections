@@ -422,6 +422,12 @@ function replyCheck(id: 'reply_p50' | 'reply_max', ended: TraceStep | undefined)
   ]);
 }
 
+/** The page's typical reply time for this call, as logged when it ended; null if not measured. */
+export function replyP50Of(steps: readonly TraceStep[]): number | null {
+  const ended = stepNamed(steps, 'call_ended') ?? stepNamed(steps, 'owner_call_ended');
+  return numberField(ended, 'replyP50Ms');
+}
+
 export function latency(input: ScorecardInput): Check[] {
   const ended = stepNamed(input.steps, 'call_ended') ?? stepNamed(input.steps, 'owner_call_ended');
   return [callSetup(input), replyCheck('reply_p50', ended), replyCheck('reply_max', ended)];

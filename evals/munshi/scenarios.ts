@@ -1,5 +1,5 @@
 // evals/munshi/scenarios.ts
-// The 15 scripted owner scenarios of Munshi's text evals (M8 test list "C1 scenarios"). Each:
+// The 16 scripted owner scenarios of Munshi's text evals (M8 test list "C1 scenarios"). Each:
 // the call language, what the simulated owner (Srinivas) wants and the lines he must say, what
 // the book must look like afterwards (critical) and how Munshi should get there. The common
 // checks (checks.ts) run on every scenario too. Figures refer to the fake eval book
@@ -261,5 +261,17 @@ export const MUNSHI_SCENARIOS: readonly MunshiScenario[] = [
       scriptedLines: ["What's due today?", 'Ok bye.'],
     },
     flow: [usesTool('book_summary'), passesOnNote(WRAP_UP_NOTE, TIME_UP, 'mentions_time_up')],
+  },
+  {
+    // Added 2026-11-20 from a live call: the owner's first question was who had paid, and
+    // Munshi could not answer.
+    id: '16',
+    title: 'Who has paid this month (English)',
+    language: 'en',
+    owner: {
+      goals: ['Ask who has paid you this month.', FINISH],
+      scriptedLines: ['Who has paid me this month?'],
+    },
+    flow: [usesTool('book_summary', { args: { focus: 'paid' }, count: 1 })],
   },
 ];
