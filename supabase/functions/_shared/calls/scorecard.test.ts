@@ -130,6 +130,7 @@ Deno.test("scorecard › Ramesh's call: every guardrail passes, the verdict is g
     'Outcome',
     'Conversation',
     'Tools',
+    'Missed tools',
     'Latency',
     'Cost',
     'Follow-up',
@@ -155,7 +156,7 @@ Deno.test("scorecard › Ramesh's call: every guardrail passes, the verdict is g
   assertEquals(valueOf(card, 'summary_writer'), 'Sarvam (main model)');
   assertEquals(valueOf(card, 'followup_time'), '4 s');
   assertEquals(valueOf(card, 'call_setup'), '212 ms');
-  assertEquals(card.gaps.length, 3);
+  assertEquals(card.gaps.length, 4);
 });
 
 Deno.test('scorecard › cost: 4 minutes of voice plus the follow-up tokens', () => {
@@ -274,4 +275,72 @@ Deno.test('scorecard › outside calling hours is a warning; a slow reply time f
   }));
   assertEquals(statusOf(card, 'calling_hours'), 'warn');
   assertEquals([statusOf(card, 'reply_p50'), statusOf(card, 'reply_max')], ['fail', 'fail']);
+});
+
+Deno.test("missed tools › Ramesh's call: identity, promise and callback all ran; no payment claim needed", () => {
+  const card = scoreCall(rameshCall());
+  assertEquals(
+    ['missed_identity', 'missed_promise', 'missed_payment_claim', 'missed_callback'].map((id) =>
+      statusOf(card, id)
+    ),
+    ['pass', 'pass', 'na', 'pass'],
+  );
+  assertEquals(valueOf(card, 'missed_promise'), 'log_promise ran');
+});
+
+Deno.test('missed tools › a promise, a payment and a dispute with no tool calls each fail, quoting the caller', () => {
+  const card = scoreCall(rameshCall({
+    tools: [],
+    transcript: [
+      said('assistant', 'Namaste. Am I speaking with Ramesh garu?'),
+      said('user', 'I will pay 3000 rupees on Friday.'),
+      said('user', 'I already paid 2000 last week by UPI.'),
+      said('user', 'That amount is wrong, I want to talk to Srinivas.'),
+    ],
+  }));
+  for (
+    const id of ['missed_identity', 'missed_promise', 'missed_payment_claim', 'missed_callback']
+  ) {
+    assertEquals(statusOf(card, id), 'fail', id);
+  }
+  assertEquals(
+    valueOf(card, 'missed_promise'),
+    '"I will pay 3000 rupees on Friday." but log_promise never ran',
+  );
+  assertEquals(card.verdict, 'check');
+});
+
+Deno.test('missed tools › "I cannot pay" or "I will pay later" is not a promise to save', () => {
+  const card = scoreCall(rameshCall({
+    transcript: [said('user', "I can't pay now."), said('user', 'I will pay later.')],
+  }));
+  assertEquals(statusOf(card, 'missed_promise'), 'na');
+});
+
+Deno.test('missed tools › Telugu: a promise with "రేపు" and no log_promise fails', () => {
+  const card = scoreCall(rameshCall({
+    tools: [tool('confirm_identity', { identity: 'confirmed' })],
+    transcript: [said('user', 'రేపు రెండు వేలు కడతాను')],
+  }));
+  assertEquals(statusOf(card, 'missed_promise'), 'fail');
+});
+
+Deno.test("missed tools › Ramesh's short dispute replies count; Asha promising a callback needs the tool", () => {
+  for (const line of ["No, I don't think so.", 'What is the correct amount?']) {
+    const card = scoreCall(rameshCall({ tools: [], transcript: [said('user', line)] }));
+    assertEquals(statusOf(card, 'missed_callback'), 'fail', line);
+  }
+  const silent = scoreCall(rameshCall({
+    tools: [tool('confirm_identity', { identity: 'confirmed' })],
+    transcript: [
+      said('user', 'Okay.'),
+      said('assistant', 'Srinivas Reddy garu will call you back.'),
+      said('assistant', 'So, two thousand rupees on Wednesday, 25th November. Is that correct?'),
+    ],
+  }));
+  assertEquals(
+    valueOf(silent, 'missed_callback'),
+    '"Srinivas Reddy garu will call you back." but request_owner_callback never ran',
+  );
+  assertEquals(statusOf(silent, 'missed_promise'), 'fail');
 });
