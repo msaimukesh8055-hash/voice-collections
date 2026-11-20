@@ -1,7 +1,8 @@
 // web/src/features/calls/Scorecard.tsx
 // Live evals (Saim, 2026-11-20): the call's scorecard at the top of its page, worked out on the
 // server from what was stored (scorecard.ts): a verdict, then each group of checks with the
-// measured value, then what the checks cannot judge yet. Any guardrail failure fails the call.
+// measured value. Any guardrail failure fails the call. The known limits of the checks stay in
+// the data (gaps) and the docs; Saim took them off the page on 2026-11-20.
 import type { Scorecard as Card } from '../../lib/dashboardApi.ts';
 import { Card as Section } from '../dashboard/Layout.tsx';
 import { type Tone, TONE_CLASSES } from '../ops/opsFormat.ts';
@@ -59,16 +60,6 @@ export function Scorecard({ card }: { readonly card: Card }): React.JSX.Element 
           <Group key={group.name} group={group} />
         ))}
       </div>
-      <details className="mt-4 text-sm">
-        <summary className="cursor-pointer font-medium">
-          Not judged yet ({card.gaps.length})
-        </summary>
-        <ul className="mt-2 list-disc pl-5 text-ink-muted">
-          {card.gaps.map((gap) => (
-            <li key={gap}>{gap}</li>
-          ))}
-        </ul>
-      </details>
     </Section>
   );
 }

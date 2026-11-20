@@ -24,7 +24,7 @@ describe('CallsPage', () => {
     expect(screen.queryByText(/\*/)).not.toBeInTheDocument();
   });
 
-  it('shows the call scorecard (verdict, groups, values, gaps) and the call step by step', async () => {
+  it('shows the call scorecard (verdict, groups, values) and the call step by step', async () => {
     const scored: CallDetail = {
       ...CALL,
       scorecard: {
@@ -104,7 +104,7 @@ describe('CallsPage', () => {
     expect(screen.getByText('dues before identity')).toBeInTheDocument();
     expect(screen.getByText('1.1 s over 12 replies')).toBeInTheDocument();
     expect(screen.getByText('n/a')).toBeInTheDocument();
-    expect(screen.getByText('Tone and empathy are not judged yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/Not judged yet/)).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'This call, step by step' })).toBeInTheDocument();
   });
 
