@@ -2,7 +2,7 @@
 // The owner's WhatsApp summary after every call (SPEC §8.5, M5 Decision 4; reshaped by dry-run
 // fix 7, 2026-11-04), in the owner's language:
 //   📞 Asha called Ramesh (Ramesh Kirana)       [🧪 Simulated call]
-//   Result: <one line>   Summary: 2–3 short lines on what was said
+//   Result: <one line>   Summary: 2–3 short lines on what was said (each figure checked, CP3 B-H2)
 //   Next: <one action>   Score: 54 (Watch)   🔗 Transcript: <link to that call's page>
 // The tone level is not on WhatsApp any more (the dashboard shows it). The summary lines and the
 // agent's reason come from the LLM already in the owner's language; the English twin is the same
@@ -17,6 +17,7 @@ import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
 import { blocks, type Button, type Reply, withEnglish } from '../whatsapp/replies.ts';
 import type { CallFacts } from './facts.ts';
+import { checkedSaidLines } from './said-check.ts';
 import { type NextStep, outcomeOf } from './rules.ts';
 import { type SummaryPhrases, summaryPhrasesFor } from './summary-phrases.ts';
 
@@ -80,8 +81,9 @@ function present(lines: ReadonlyArray<string | null>): string[] {
 }
 
 function saidLines(input: SummaryInput, language: Language, phrases: SummaryPhrases): string[] {
-  const lines = language === 'en' ? input.said?.en : input.said?.owner;
-  if (!lines || lines.length === 0) return [];
+  const written = language === 'en' ? input.said?.en : input.said?.owner;
+  const lines = checkedSaidLines(written ?? [], input.facts);
+  if (lines.length === 0) return [];
   return [`${phrases.summary}:`, ...lines.map((line) => `• ${line}`)];
 }
 

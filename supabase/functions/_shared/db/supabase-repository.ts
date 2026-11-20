@@ -3,7 +3,12 @@
 // browser). Ids reaching query strings are UUIDs validated upstream, and still encoded.
 // Compare-and-set updates filter on the expected state, so a lost race updates no row.
 import { z } from 'zod';
-import { createRowInserter, type PostgrestClient, RepositoryError } from './postgrest.ts';
+import {
+  createRowInserter,
+  type PostgrestClient,
+  RepositoryError,
+  totalFrom,
+} from './postgrest.ts';
 import { memoryQueries } from './supabase-memory.ts';
 import type { LedgerEntry } from '../schemas/ledger.ts';
 import {
@@ -41,13 +46,6 @@ const DEFAULT_SETTINGS = {
 } as const;
 
 const id = encodeURIComponent;
-
-/** Total from a Content-Range header such as "0-2/3" or "*\/3". */
-function totalFrom(contentRange: string | null, operation: string): number {
-  const total = Number(contentRange?.split('/')[1]);
-  if (!Number.isInteger(total)) throw new RepositoryError(operation, 'no count');
-  return total;
-}
 
 const COUNT_REQUEST = { method: 'HEAD', prefer: 'count=exact' } as const;
 

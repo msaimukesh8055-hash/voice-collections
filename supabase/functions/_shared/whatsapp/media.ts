@@ -4,7 +4,7 @@
 // reply or the insights pie chart) to get a media id. Files are held in memory only, never
 // stored. Failures are logged with Meta's error code only (the token must never leak).
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import { GRAPH_API_BASE } from './client.ts';
 
 /** A voice note over this is refused before it is downloaded or transcribed (M6 Decision 10). */
@@ -32,10 +32,6 @@ const Uploaded = z.object({ id: z.string().min(1) });
 
 function auth(config: MediaConfig): Record<string, string> {
   return { authorization: `Bearer ${config.accessToken}` };
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
 }
 
 class MetaMediaError extends Error {

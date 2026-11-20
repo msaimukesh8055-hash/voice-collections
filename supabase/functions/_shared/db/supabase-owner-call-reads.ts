@@ -1,8 +1,8 @@
 // supabase/functions/_shared/db/supabase-owner-call-reads.ts
 // OwnerCallReads over the database HTTP API (service role). Fixed caps on every list. Tool events
-// lose `call_token` before they leave, as for Asha's calls.
+// lose `call_token` before they leave, as for Asha's calls (call-detail-rows.ts).
 import { z } from 'zod';
-import { ToneJudgementSchema } from '../calls/tone-judge.ts';
+import { ToolEventRow, TRANSCRIPT_FIELDS } from './call-detail-rows.ts';
 import { OWNER_CALL_STATUSES } from './owner-call-repository.ts';
 import type { OwnerCallDetail, OwnerCallReads, OwnerCallRow } from './owner-call-reads.ts';
 import type { PostgrestClient } from './postgrest.ts';
@@ -29,26 +29,7 @@ const Row = z.object({
   durationSeconds: row.duration_seconds,
 }));
 
-const TurnSchema = z.object({ role: z.enum(['assistant', 'user']), content: z.string() });
-const JsonObject = z.record(z.string(), z.unknown()).catch({});
-const DetailRow = z.object({
-  interaction_id: z.string().nullable(),
-  transcript: z.array(TurnSchema).nullable().catch(null),
-  transcript_en: z.array(z.string().nullable()).nullable().catch(null),
-  tone_judgement: ToneJudgementSchema.nullable().catch(null),
-});
-const ToolRow = z.object({
-  tool: z.string(),
-  args: JsonObject,
-  result: JsonObject,
-  duration_ms: z.number().int().nullable(),
-  created_at: z.string(),
-});
-
-function withoutToken(args: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  const { call_token: _token, ...rest } = args;
-  return rest;
-}
+const DetailRow = z.object({ interaction_id: z.string().nullable(), ...TRANSCRIPT_FIELDS });
 
 async function readDetail(
   query: PostgrestClient,
@@ -75,13 +56,7 @@ async function readDetail(
     transcript: detail.transcript,
     transcriptEnglish: detail.transcript_en,
     toneJudgement: detail.tone_judgement,
-    toolEvents: z.array(ToolRow).parse(toolRows.rows).map((row) => ({
-      tool: row.tool,
-      args: withoutToken(row.args),
-      result: row.result,
-      durationMs: row.duration_ms,
-      createdAt: row.created_at,
-    })),
+    toolEvents: z.array(ToolEventRow).parse(toolRows.rows),
   };
 }
 

@@ -33,6 +33,13 @@ export interface PostgrestResponse {
   readonly contentRange: string | null;
 }
 
+/** Total from a Content-Range header such as "0-2/3" or "*\/3". */
+export function totalFrom(contentRange: string | null, operation: string): number {
+  const total = Number(contentRange?.split('/')[1]);
+  if (!Number.isInteger(total)) throw new RepositoryError(operation, 'no count');
+  return total;
+}
+
 /** `operation` names the call in errors; `path` is relative to /rest/v1/. */
 export type PostgrestClient = (
   operation: string,

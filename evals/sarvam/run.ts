@@ -18,6 +18,7 @@ import { createEvalDb, type EvalDb } from './eval-db.ts';
 import { summarise } from './gate.ts';
 import { formatTable, toStoredRun } from './report.ts';
 import { resumeRun, runSuite } from './runner.ts';
+import { serverClock } from './server-clock.ts';
 
 const OWNER = {
   name: 'Srinivas Reddy',
@@ -77,11 +78,14 @@ async function main(): Promise<void> {
   const cases = chosenCases();
   const agent = { appId: requireEnv('SARVAM_APP_ID'), appVersion: agentVersion() };
   const { db, sarvam } = clients();
-  const now = new Date();
+  // Server time, not this computer's: eval call tokens are checked by the server's clock
+  // (CP3 E-M2; the PC was 4 minutes behind on 2026-11-20).
+  const clock = await serverClock(requireEnv('SUPABASE_URL'), write);
+  const now = clock();
   const today = istDate(resolveNow(await db.getDemoClock(), now));
   const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
   write(`Asha ${PROMPT_VERSION}, agent version ${agent.appVersion}: ${cases.length} cases`);
-  const deps = { sarvam, db, sleep, now: () => new Date(), onProgress: write };
+  const deps = { sarvam, db, sleep, now: clock, onProgress: write };
   const started = startedRun();
   const outcome = started
     ? await resumeRun(cases, started, deps)

@@ -124,6 +124,9 @@ export function ownerContext(options: ContextOptions = {}): CountedContext {
     ...(options.entries ? { entries: options.entries } : {}),
   });
   const fakeActions = createFakeVoiceActionRepository(options.actions ?? []);
+  const realNow = options.realNow ?? FAKE_NOW;
+  // Fake time passes only through pause(), so clock() is realNow plus the waits.
+  const waited = { ms: 0 };
   const ctx: OwnerToolContext = {
     reads: readsFor(options, fakeBook.book, calls),
     writes: writesFor(options, { book: fakeBook.book, actions: fakeActions.actions }, {
@@ -134,10 +137,14 @@ export function ownerContext(options: ContextOptions = {}): CountedContext {
     owner: FAKE_OWNER,
     ownerCall: options.ownerCall ?? fakeOwnerCall(),
     today: options.today ?? FAKE_TODAY,
-    realNow: options.realNow ?? FAKE_NOW,
+    realNow,
     pause: function pause(ms: number): Promise<void> {
       calls.push(`pause ${ms}`);
+      waited.ms += ms;
       return Promise.resolve();
+    },
+    clock: function clock(): Date {
+      return new Date(realNow.getTime() + waited.ms);
     },
   };
   return { ctx, calls, book: fakeBook.state, actions: fakeActions.state, queued, kicked };
@@ -146,5 +153,8 @@ export function ownerContext(options: ContextOptions = {}): CountedContext {
 /** The same context a little later (same book and actions): the owner's next turn. */
 export function later(context: CountedContext, ms: number): CountedContext {
   const realNow = new Date(context.ctx.realNow.getTime() + ms);
-  return { ...context, ctx: { ...context.ctx, realNow } };
+  function clock(): Date {
+    return realNow;
+  }
+  return { ...context, ctx: { ...context.ctx, realNow, clock } };
 }

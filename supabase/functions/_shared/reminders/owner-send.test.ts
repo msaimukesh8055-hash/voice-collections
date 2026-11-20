@@ -164,3 +164,19 @@ Deno.test('owner-send › pending with nobody owing: one message, no list', asyn
 
   assertEquals([outcome, run.sent.length], ['sent', 1]);
 });
+
+Deno.test('owner-send › a failed message-log write does not stop the rest being sent (CP3 B-L2)', async () => {
+  const run = job(sendAction('pending'));
+  const logged: string[] = [];
+  const deps: OwnerSendDeps = {
+    ...run.deps,
+    book: { ...run.deps.book, recordOutbound: () => Promise.reject(new Error('db blip')) },
+    log: (_level, event) => logged.push(event),
+  };
+
+  assertEquals(await sendOwnerRequest(run.action.id, deps), 'sent');
+
+  const expected = await typed({ kind: 'pending' });
+  assertEquals(run.sent.length, expected.length);
+  assertEquals(logged.filter((event) => event === 'owner_send_log_failed').length, expected.length);
+});

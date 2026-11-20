@@ -3,7 +3,7 @@
 // typed, texts are cut to Meta's limits, and every call has a timeout. Failures are logged with
 // Meta's error code only: Meta's messages can quote the recipient, and the token must never leak.
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import {
   type Button,
   type ListRow,
@@ -127,7 +127,7 @@ export function createWhatsAppClient(config: WhatsAppClientConfig): WhatsAppClie
         }
         return SentSchema.parse(await response.json()).messages[0].id;
       } catch (error) {
-        const name = error instanceof Error ? error.name : 'unknown';
+        const name = errorName(error);
         config.log('error', 'whatsapp_send_failed', { kind: reply.kind, error: name });
         return null;
       }

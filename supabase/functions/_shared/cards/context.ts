@@ -2,7 +2,7 @@
 // Everything one owner message needs, loaded once per message by the webhook.
 import type { BookRepository, BookShopkeeper, Owner } from '../db/book-repository.ts';
 import type { OwnerCallRepository } from '../db/owner-call-repository.ts';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import type { ReminderDeps } from '../reminders/deps.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
@@ -59,7 +59,7 @@ export async function booksLinkFor(ctx: BotContext, shopkeeperId: string): Promi
     return await ctx.web.shopkeeperLink(shopkeeperId);
   } catch (error) {
     ctx.log('warn', 'books_link_failed', {
-      error: error instanceof Error ? error.name : 'unknown',
+      error: errorName(error),
     });
     return null;
   }

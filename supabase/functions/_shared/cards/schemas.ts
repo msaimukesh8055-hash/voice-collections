@@ -38,5 +38,3 @@ export const NewShopkeeperPayloadSchema = z.object({
 
 export type Draft = z.infer<typeof DraftSchema>;
 export type EntryPayload = z.infer<typeof EntryPayloadSchema>;
-export type PickPayload = z.infer<typeof PickPayloadSchema>;
-export type NewShopkeeperPayload = z.infer<typeof NewShopkeeperPayloadSchema>;

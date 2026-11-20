@@ -46,6 +46,10 @@ export interface OwnerToolContext {
   readonly realNow: Date;
   /** Waits (real time in the function; instant in tests). Used by the prepare grace wait. */
   readonly pause: (ms: number) => Promise<void>;
+  /** Real time now, read fresh. A stored change is dated by this, not by realNow: after the
+   * grace wait realNow is 1.5 s old, which would let the 2-second "no yes yet" lock pass on a
+   * prepare-and-confirm in one step (CP3 S-H1). */
+  readonly clock: () => Date;
 }
 
 export const OWNER_TOOL_ERRORS = {

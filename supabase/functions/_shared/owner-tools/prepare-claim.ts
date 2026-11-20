@@ -8,7 +8,7 @@
 // prepare_payment uses storeClaim too: a payment he reports that matches an open claim (same
 // shopkeeper, same amount) is that claim, so it is accepted rather than saved twice (gate case 12).
 // Rounds: prepare ① name + ref ② his entries ③ store; confirm ② claim + entries ③ settleClaim.
-import type { BookEntry } from '../db/book-repository.ts';
+import { type BookEntry, newestFirst } from '../db/book-repository.ts';
 import { formatRupees, formatShortDay } from '../format.ts';
 import { toPaise } from '../ledger/dues.ts';
 import {
@@ -24,7 +24,6 @@ import {
   type VoicePayload,
   withStatus,
 } from './actions.ts';
-import { newestFirst } from './lookup-shopkeeper.ts';
 import { balanceChange, balanceNow } from './read-back.ts';
 import { paidBy, topLines } from './say.ts';
 import type { ClaimDecision, OwnerToolArgs } from './schemas.ts';

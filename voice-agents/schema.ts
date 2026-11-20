@@ -64,8 +64,6 @@ export const AgentConfigSchema = z.object({
   toolSecretName: NonEmptyText,
 });
 
-export type AgentVariable = z.infer<typeof AgentVariableSchema>;
 export type BodyField = z.infer<typeof BodyFieldSchema>;
 export type ApiTool = z.infer<typeof ApiToolSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
-export type SarvamLanguage = z.infer<typeof SarvamLanguageSchema>;

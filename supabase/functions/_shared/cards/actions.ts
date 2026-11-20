@@ -32,6 +32,7 @@ import {
 } from './schemas.ts';
 import { createEntryCard } from './start.ts';
 import { RemindAllPayloadSchema, startRemindAll } from '../reminders/remind.ts';
+import { errorName } from '../log.ts';
 
 type CardTap = Extract<Tap, { kind: 'card' | 'pick' }>;
 /** pickIndex: the tapped list row (-1 for buttons). */
@@ -91,7 +92,7 @@ async function save(action: PendingAction, ctx: BotContext): Promise<readonly Re
   } catch (error) {
     ctx.log('error', 'card_save_failed', {
       actionId: action.id,
-      error: error instanceof Error ? error.name : 'unknown',
+      error: errorName(error),
     });
     await ctx.book.transitionPendingAction(action.id, 'saved', 'open');
     return [textReply(phrases.saveFailed)];

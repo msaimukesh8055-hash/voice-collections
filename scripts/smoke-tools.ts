@@ -7,6 +7,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { addDays, istDate } from '../supabase/functions/_shared/clock.ts';
 import { RAMESH_STORY } from './seed/ramesh.ts';
+import { createReporter, requireEnv } from './lib/smoke.ts';
 import { shopkeeperId } from './seed/generate-seed.ts';
 
 const RAMESH_ID = shopkeeperId(0);
@@ -38,18 +39,8 @@ interface Reply {
   readonly region: string | null;
 }
 
-let failures = 0;
-
-function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing ${name} in .env`);
-  return value;
-}
-
-function report(passed: boolean, line: string): void {
-  if (!passed) failures += 1;
-  process.stdout.write(`${passed ? 'ok  ' : 'FAIL'} ${line}\n`);
-}
+// Shared with the other smoke scripts (CP2 backlog item 12).
+const { report, failures } = createReporter();
 
 function warn(line: string): void {
   process.stdout.write(`warn ${line}\n`);
@@ -311,6 +302,6 @@ if (token) {
 }
 
 process.stdout.write(
-  failures === 0 ? '\nTools smoke passed\n' : `\nTools smoke FAILED (${failures})\n`,
+  failures() === 0 ? '\nTools smoke passed\n' : `\nTools smoke FAILED (${failures()})\n`,
 );
-process.exit(failures === 0 ? 0 : 1);
+process.exit(failures() === 0 ? 0 : 1);

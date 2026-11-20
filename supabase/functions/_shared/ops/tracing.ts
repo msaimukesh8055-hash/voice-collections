@@ -4,7 +4,7 @@
 // trace; events are written to ops_events after the response, never before it, so a tool reply
 // is not slowed by the write. A failed write is logged and dropped: tracing must never fail a
 // request.
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import {
   currentTrace,
   drainTrace,
@@ -100,7 +100,7 @@ export function createTracing(config: TracingConfig): Tracing {
     } catch (error) {
       // Console only: logging this through the trace would queue an event for the same failing
       // table.
-      const name = error instanceof Error ? error.name : 'unknown';
+      const name = errorName(error);
       config.baseLog('error', 'ops_events_write_failed', { error: name, lost: events.length });
     }
   }

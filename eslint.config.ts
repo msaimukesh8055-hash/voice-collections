@@ -17,12 +17,8 @@ const SIZE_RULES = {
 /** Edge Functions: `deno lint` owns style/import rules; ESLint only checks the size limits. */
 const EDGE_FUNCTION_FILES = ['supabase/functions/**/*.ts'];
 
-/** Test files and test fakes may be longer per function (describe blocks, in-memory fakes). */
-const TEST_FILES = [
-  '**/*.test.ts',
-  '**/*.test.tsx',
-  'supabase/functions/_shared/db/fake-repository.ts',
-];
+/** Test files may be longer per function (describe blocks). */
+const TEST_FILES = ['**/*.test.ts', '**/*.test.tsx'];
 
 export default tseslint.config(
   {

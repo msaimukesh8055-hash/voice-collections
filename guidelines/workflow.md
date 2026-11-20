@@ -35,7 +35,7 @@ designer (short plan + test list) ─► [STOP 1: approve plan]
 - [ ] All tests pass; critical areas (money, identity, compliance, webhook auth, validation) at 100% coverage
 - [ ] `coding-standards.md` quality checklist satisfied
 - [ ] `security.md` pre-commit checks satisfied
-- [ ] Deployed pieces (Edge Functions, Vapi config) actually deployed and responding
+- [ ] Deployed pieces (Edge Functions, Sarvam agent versions) actually deployed and responding
 - [ ] Smoke test passed end-to-end
 
 A milestone that fails the gate is **not done**, regardless of time pressure. If the time box runs out, cut scope (SPEC cut order) — never quality.
@@ -115,4 +115,4 @@ docs/
 
 ## Fallbacks
 
-If a tool or service is unavailable (Vapi, Supabase, Gemini quota), say so plainly, continue with what works locally, and record the gap in the milestone report. The pipeline does not stop silently.
+If a tool or service is unavailable (Sarvam, Meta, Supabase, Gemini quota), say so plainly, continue with what works locally, and record the gap in the milestone report. The pipeline does not stop silently.

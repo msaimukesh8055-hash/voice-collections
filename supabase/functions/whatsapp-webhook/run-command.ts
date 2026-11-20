@@ -7,7 +7,9 @@ import type { Command, CommandKind } from '../_shared/brain/commands.ts';
 import { booksLinkFor, type BotContext } from '../_shared/cards/context.ts';
 import { startEntry } from '../_shared/cards/start.ts';
 import { piePng, pieSlices } from '../_shared/charts/pie.ts';
-import type { BookShopkeeper } from '../_shared/db/book-repository.ts';
+import type { BookEntry, BookShopkeeper } from '../_shared/db/book-repository.ts';
+import type { Score } from '../_shared/ledger/score.ts';
+import { errorName } from '../_shared/log.ts';
 import { computeInsights } from '../_shared/ledger/insights.ts';
 import { dashboardReply, insightsReplies } from '../_shared/ledger/insights-reply.ts';
 import { matchShopkeepers } from '../_shared/ledger/match.ts';
@@ -37,6 +39,21 @@ type Handler<K extends CommandKind> = (
   ctx: BotContext,
 ) => Promise<readonly Reply[]>;
 
+/** The lookup's score, or null when it cannot be read: the lookup then shows without its score
+ * line instead of failing outright (CP2 backlog item 14). */
+async function scoreOrNull(
+  shopkeeperId: string,
+  entries: readonly BookEntry[],
+  ctx: BotContext,
+): Promise<Score | null> {
+  try {
+    return await scoreWithEntries(shopkeeperId, entries, ctx);
+  } catch (error) {
+    ctx.log('warn', 'lookup_score_failed', { error: errorName(error) });
+    return null;
+  }
+}
+
 /** One shopkeeper's lookup, then "What next for Ramesh?" with its buttons (M7). */
 export async function showShopkeeper(
   shopkeeper: BookShopkeeper,
@@ -49,7 +66,7 @@ export async function showShopkeeper(
     ctx.reminder.repo.getLastNote(shopkeeper.id),
     booksLinkFor(ctx, shopkeeper.id),
   ]);
-  const score = await scoreWithEntries(shopkeeper.id, entries, ctx);
+  const score = await scoreOrNull(shopkeeper.id, entries, ctx);
   const { today } = ctx;
   const view = { shopkeeper, entries, lastPromise, lastNote, score, today, language, booksLink };
   return shopkeeperReplies(view);

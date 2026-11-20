@@ -163,7 +163,10 @@ function createApiCall(config: SarvamTestsConfig): ApiCall {
       const response = await send(request).catch(() => null);
       if (response?.ok) return request.schema.parse(await response.json());
       const status = response?.status ?? NETWORK_DOWN;
-      const canWait = status === RATE_LIMITED || status === NETWORK_DOWN;
+      // No reply to a POST may still mean Sarvam acted on it: resending "start run" could start
+      // a second paid run (CP3 E-M4). Only reads are retried after no reply; a 429 is safe.
+      const canResend = request.body === undefined || status === RATE_LIMITED;
+      const canWait = (status === RATE_LIMITED || status === NETWORK_DOWN) && canResend;
       if (!canWait || attempt >= MAX_RATE_LIMIT_RETRIES) throw new SarvamTestsError(step, status);
       const seconds = response ? retryAfterSeconds(response) : DEFAULT_RETRY_AFTER_S;
       config.onWait?.(seconds);

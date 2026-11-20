@@ -4,7 +4,7 @@
 // mapped to te / hi / en for the reply. Model and mode are one setting each, picked by the voice
 // spike (M6 Decision 2). The audio and the transcript are never logged or stored.
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
 export const SARVAM_STT_URL = 'https://api.sarvam.ai/speech-to-text';
@@ -65,10 +65,6 @@ function formOf(config: SttConfig, audio: AudioFile): FormData {
     form.append('keyterms', JSON.stringify(config.keyterms.slice(0, MAX_KEYTERMS)));
   }
   return form;
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
 }
 
 export function createTranscriber(config: SttConfig): Transcriber {

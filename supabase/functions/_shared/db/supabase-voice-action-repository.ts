@@ -5,7 +5,7 @@
 // without a ref is refused rather than trusted.
 import { z } from 'zod';
 import { ACTION_STATUSES } from './book-repository.ts';
-import { type PostgrestClient, RepositoryError } from './postgrest.ts';
+import { type PostgrestClient, RepositoryError, totalFrom } from './postgrest.ts';
 import { firstRow, IdRow } from './supabase-rows.ts';
 import {
   VOICE_ACTION_KINDS,
@@ -37,12 +37,6 @@ const VOICE_ACTION_ROW = z.object({
   createdAt: row.created_at,
   expiresAt: row.expires_at,
 }));
-
-function totalFrom(contentRange: string | null, operation: string): number {
-  const total = Number(contentRange?.split('/')[1]);
-  if (!Number.isInteger(total)) throw new RepositoryError(operation, 'no count');
-  return total;
-}
 
 function writes(
   query: PostgrestClient,

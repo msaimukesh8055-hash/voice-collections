@@ -15,7 +15,7 @@ import type { OwnerCallRepository } from '../_shared/db/owner-call-repository.ts
 import type { Repository } from '../_shared/db/repository.ts';
 import type { ErrorCode } from '../_shared/errors.ts';
 import { errorResponse, jsonResponse } from '../_shared/http.ts';
-import type { Logger } from '../_shared/log.ts';
+import { errorName, type Logger } from '../_shared/log.ts';
 import { CALL_TOKEN_HEADER, SARVAM_RUNTIME_URL } from '../_shared/sarvam.ts';
 
 /** The page asks for the URL right after Accept; a token left unused this long is stale. */
@@ -177,7 +177,7 @@ async function fetchSignedUrl(url: string, deps: ProxyDeps): Promise<SignedUrl |
     return body.success ? body.data : 'UPSTREAM_ERROR';
   } catch (error) {
     deps.log('warn', 'sarvam_url_failed', {
-      error: error instanceof Error ? error.name : 'unknown',
+      error: errorName(error),
     });
     return 'UPSTREAM_ERROR';
   }

@@ -9,7 +9,7 @@
 // The transcript can lag behind the call: 404 or no messages yet = "not ready", and the worker
 // tries again. Nothing from Sarvam's body is logged (it holds the conversation).
 import { z } from 'zod';
-import type { Logger } from './log.ts';
+import { errorName, type Logger } from './log.ts';
 
 export const SARVAM_ANALYTICS_BASE = 'https://apps.sarvam.ai/api/analytics/v1';
 const ANALYTICS_TIMEOUT_MS = 10_000;
@@ -85,7 +85,7 @@ function toTurns(messages: z.infer<typeof TranscriptSchema>['messages']): readon
 function reasonOf(error: unknown): string {
   if (error instanceof AnalyticsError) return error.message;
   if (error instanceof z.ZodError) return 'unexpected_shape';
-  return error instanceof Error ? error.name : 'unknown';
+  return errorName(error);
 }
 
 export function createTranscriptClient(config: AnalyticsConfig): TranscriptClient {

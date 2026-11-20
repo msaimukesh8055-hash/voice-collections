@@ -1,9 +1,11 @@
 # .github/workflows/evals.yml
 # The AI evals, started by hand (M9 Build D): they call Sarvam and the live database, and each
-# Asha run spends Sarvam credits, so they never run on every push. A failed release gate fails
-# the job. Needs these repository secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-# SARVAM_AGENTS_API_KEY, SARVAM_ORG_ID, SARVAM_WORKSPACE_ID, SARVAM_APP_ID, SARVAM_API_KEY,
-# GEMINI_API_KEY.
+# Asha or Munshi run spends Sarvam credits, so they never run on every push. A failed release
+# gate fails the job. Needs these repository secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+# SARVAM_AGENTS_API_KEY, SARVAM_ORG_ID, SARVAM_WORKSPACE_ID, SARVAM_APP_ID, SARVAM_MUNSHI_APP_ID,
+# SARVAM_API_KEY, GEMINI_API_KEY.
+# Secrets are given only to the step that runs an eval, never to checkout or `npm ci`, so an
+# install script cannot read them (CP3 E-M3).
 name: Evals
 
 on:
@@ -12,10 +14,10 @@ on:
       target:
         description: What to test
         type: choice
-        options: [brain, asha]
+        options: [brain, asha, munshi]
         default: brain
-      asha_version:
-        description: Asha agent version in Sarvam (asha only)
+      agent_version:
+        description: Agent version in Sarvam (asha and munshi only)
         type: string
         default: ''
 
@@ -26,16 +28,7 @@ jobs:
   evals:
     name: ${{ inputs.target }} evals
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SARVAM_AGENTS_API_KEY: ${{ secrets.SARVAM_AGENTS_API_KEY }}
-      SARVAM_ORG_ID: ${{ secrets.SARVAM_ORG_ID }}
-      SARVAM_WORKSPACE_ID: ${{ secrets.SARVAM_WORKSPACE_ID }}
-      SARVAM_APP_ID: ${{ secrets.SARVAM_APP_ID }}
-      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,9 +38,31 @@ jobs:
       - run: npm ci
       - name: Brain evals
         if: inputs.target == 'brain'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node evals/brain/run.ts
       - name: Asha evals
         if: inputs.target == 'asha'
         env:
-          ASHA_VERSION: ${{ inputs.asha_version }}
-        run: node evals/sarvam/run.ts --version "$ASHA_VERSION"
+          AGENT_VERSION: ${{ inputs.agent_version }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SARVAM_AGENTS_API_KEY: ${{ secrets.SARVAM_AGENTS_API_KEY }}
+          SARVAM_ORG_ID: ${{ secrets.SARVAM_ORG_ID }}
+          SARVAM_WORKSPACE_ID: ${{ secrets.SARVAM_WORKSPACE_ID }}
+          SARVAM_APP_ID: ${{ secrets.SARVAM_APP_ID }}
+        run: node evals/sarvam/run.ts --version "$AGENT_VERSION"
+      - name: Munshi evals
+        if: inputs.target == 'munshi'
+        env:
+          AGENT_VERSION: ${{ inputs.agent_version }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SARVAM_AGENTS_API_KEY: ${{ secrets.SARVAM_AGENTS_API_KEY }}
+          SARVAM_ORG_ID: ${{ secrets.SARVAM_ORG_ID }}
+          SARVAM_WORKSPACE_ID: ${{ secrets.SARVAM_WORKSPACE_ID }}
+          SARVAM_MUNSHI_APP_ID: ${{ secrets.SARVAM_MUNSHI_APP_ID }}
+        run: node evals/sarvam/munshi-run.ts --version "$AGENT_VERSION"

@@ -113,6 +113,26 @@ Deno.test('prepare grace › no wait when nothing could be confirmed yet', async
   assertEquals(context.calls.some((call) => call.startsWith('pause')), false);
 });
 
+Deno.test('prepare grace › a change made after the wait is dated after it, so the 2 s lock holds (S-H1)', async () => {
+  const context = ownerContext();
+  await preparePayment(context.ctx, { name: 'Ramesh', amount: 100, full: undefined });
+  const now = later(context, 5_000);
+  const afterWait = new Date(now.ctx.realNow.getTime() + 1_500);
+  function clockAfterWait(): Date {
+    return afterWait;
+  }
+
+  await preparePayment({ ...now.ctx, clock: clockAfterWait }, {
+    name: 'Ramesh',
+    amount: 600,
+    full: undefined,
+  });
+  // 2.2 s after the request began, but only 0.7 s after the change was stored.
+  const outcome = await confirmAction(later(context, 7_200).ctx, { action_ref: 'r2' });
+
+  assertEquals(outcome.result.ok ? 'ok' : outcome.result.code, 'TOO_SOON');
+});
+
 Deno.test('schemas › an optional field sent as "" or null counts as left out', () => {
   const args = OWNER_TOOL_SPECS.prepare_delete.args;
 

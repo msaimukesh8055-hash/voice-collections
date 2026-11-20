@@ -478,7 +478,7 @@ describe('runner', () => {
 });
 
 describe('network blips', () => {
-  it('the Sarvam client waits and retries when there is no reply at all', async () => {
+  it('the Sarvam client waits and retries a read when there is no reply at all', async () => {
     let calls = 0;
     const waits: number[] = [];
     const api = createSarvamTests({
@@ -489,13 +489,30 @@ describe('network blips', () => {
         calls += 1;
         return calls === 1
           ? Promise.reject(new TypeError('fetch failed'))
-          : Promise.resolve(Response.json({ run_id: 'run-1' }, { status: 202 }));
+          : Promise.resolve(Response.json({ status: 'running' }));
       },
       sleep: () => Promise.resolve(),
       onWait: (seconds) => waits.push(seconds),
     });
-    expect(await api.startRun('s', AGENT, 'n')).toBe('run-1');
+    await api.getRun('s', 'r').catch(() => null);
+    expect(calls).toBe(2);
     expect(waits).toEqual([30]);
+  });
+
+  it('never resends "start run" after no reply, so a paid run cannot start twice (CP3 E-M4)', async () => {
+    let calls = 0;
+    const api = createSarvamTests({
+      apiKey: 'key',
+      orgId: 'org-1',
+      workspaceId: 'ws-1',
+      fetchImpl: () => {
+        calls += 1;
+        return Promise.reject(new TypeError('fetch failed'));
+      },
+      sleep: () => Promise.resolve(),
+    });
+    await expect(api.startRun('s', AGENT, 'n')).rejects.toThrow('HTTP 0');
+    expect(calls).toBe(1);
   });
 
   it('the eval database retries a missing reply, but not an answer that says no', async () => {

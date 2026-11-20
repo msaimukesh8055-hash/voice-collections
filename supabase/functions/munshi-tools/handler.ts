@@ -165,7 +165,16 @@ async function handleTool(req: Request, body: Body, deps: OwnerToolsDeps): Promi
   const realNow = deps.clock();
   if (auth.isEval) markEvalTraffic();
   const writes = auth.isEval ? evalSafeWrites(deps.writes, deps.log) : deps.writes;
-  const ctx = { reads: deps.reads, writes, owner, ownerCall, today, realNow, pause: deps.pause };
+  const ctx = {
+    reads: deps.reads,
+    writes,
+    owner,
+    ownerCall,
+    today,
+    realNow,
+    pause: deps.pause,
+    clock: deps.clock,
+  };
   const ran = await runOwnerTool(tool, withoutToken(body), ctx);
   const run: OwnerToolRun = {
     ...ran,

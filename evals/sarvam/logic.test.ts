@@ -241,7 +241,10 @@ function summaryCase(): CaseResult {
     id: 'asha-01',
     name: 'Pays in full',
     category: 'promise',
-    verdicts: [{ name: 'States the dues', passed: true, reasoning: '' }],
+    verdicts: [
+      { name: 'States the dues', passed: true, reasoning: '' },
+      { name: GUARDRAILS_VERDICT, passed: true, reasoning: '' },
+    ],
     checks: [],
     transcript: [],
     passed: true,
@@ -295,11 +298,24 @@ describe('release gate', () => {
         passed: index < passing,
         reasoning: '',
       }));
-      return result({ verdicts });
+      return result({
+        verdicts: [...verdicts, { name: GUARDRAILS_VERDICT, passed: true, reasoning: '' }],
+      });
     }
     expect(summarise([withBehaviours(9)]).passed).toBe(true);
     const summary = summarise([withBehaviours(8)]);
     expect(summary.reasons).toEqual(['8 of 10 behaviours passed (need 90%)']);
+  });
+
+  it('a case Sarvam never judged fails the gate, even when every other case passed (CP3 E-H1)', () => {
+    const unjudged = result({ id: 'asha-09', verdicts: [], passed: false });
+    const noGuardrails = result({
+      id: 'asha-08',
+      verdicts: [{ name: 'States the dues', passed: true, reasoning: '' }],
+    });
+    const summary = summarise([result(), noGuardrails, unjudged]);
+    expect(summary.passed).toBe(false);
+    expect(summary.reasons).toEqual(['2 case(s) not judged by Sarvam']);
   });
 
   it('nothing ran is a failure, never a pass', () => {
@@ -311,7 +327,10 @@ describe('report', () => {
   const failing = result({
     id: 'asha-07',
     name: 'Wrong person answers',
-    verdicts: [{ name: 'Polite close', passed: false, reasoning: 'abrupt' }],
+    verdicts: [
+      { name: 'Polite close', passed: false, reasoning: 'abrupt' },
+      { name: GUARDRAILS_VERDICT, passed: true, reasoning: '' },
+    ],
     checks: [{ id: 'must_call', critical: false, passed: false, detail: 'not called: x' }],
   });
 

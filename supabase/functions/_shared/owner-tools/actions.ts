@@ -122,8 +122,10 @@ export async function storeAction<K extends VoiceActionKind>(
   ref: string,
   ctx: OwnerToolContext,
 ): Promise<OwnerToolOutcome> {
-  const createdAt = ctx.realNow.toISOString();
-  const expiresAt = new Date(ctx.realNow.getTime() + VOICE_ACTION_TTL_MS).toISOString();
+  // Dated now, after any grace wait and reads: never earlier than it really was stored (S-H1).
+  const storedAt = ctx.clock();
+  const createdAt = storedAt.toISOString();
+  const expiresAt = new Date(storedAt.getTime() + VOICE_ACTION_TTL_MS).toISOString();
   const { actions } = ctx.writes;
   await Promise.all([
     actions.createVoiceAction({

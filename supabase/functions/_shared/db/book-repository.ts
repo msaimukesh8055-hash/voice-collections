@@ -30,6 +30,11 @@ export interface BookEntry extends LedgerEntry {
   readonly createdAt: string;
 }
 
+/** Newest first: entry date, then when it was written (the same order everywhere). */
+export function newestFirst(a: BookEntry, b: BookEntry): number {
+  return b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt);
+}
+
 export { PROMISE_STATUSES, type PromiseStatus } from '../schemas/ledger.ts';
 
 export interface LastPromise {

@@ -83,3 +83,23 @@ Deno.test('score views › only the rows shown are scored (no extra database rea
   await routeMessage(text('pending'), ctx, { llm: NO_LLM, demoNow: NOW, hear: NO_HEARING });
   assertEquals(asked.length, 2);
 });
+
+Deno.test('score views › a lookup whose score cannot be read still answers, without the score line (CP2 backlog 14)', async () => {
+  const setup = scoredSetup();
+  const ctx = {
+    ...setup.ctx,
+    reminder: {
+      ...setup.ctx.reminder,
+      listCallStatuses: (): Promise<never> => Promise.reject(new Error('db down')),
+    },
+  };
+  const result = await routeMessage(text('Ramesh'), ctx, {
+    llm: NO_LLM,
+    demoNow: NOW,
+    hear: NO_HEARING,
+  });
+  const said = replyText(result.replies);
+  assertStringIncludes(said, 'Ramesh');
+  assert(!said.includes('Score:'), said);
+  assertEquals(setup.logs.map((entry) => entry.event).includes('lookup_score_failed'), true);
+});

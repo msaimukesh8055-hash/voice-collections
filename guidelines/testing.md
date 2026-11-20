@@ -5,7 +5,7 @@ Two different kinds of testing exist in this project. Keep them separate.
 | | Unit / integration / E2E tests | Agent evals |
 |---|---|---|
 | Question answered | Does the **code** work? | Does the **AI agent** behave? |
-| Uses real LLM? | Never — LLM and Vapi are faked | Yes (free Gemini tier) |
+| Uses real LLM? | Never — LLMs, Sarvam and Meta are faked | Yes (free Gemini tier) |
 | Speed | Milliseconds | Minutes |
 | Lives in | next to the code (`*.test.ts`) | `evals/` |
 | Run with | `npm test` / `deno test` | `npm run evals` |
@@ -18,7 +18,7 @@ Two different kinds of testing exist in this project. Keep them separate.
   - Identity verification (`verify_customer`)
   - Compliance rules: calling hours, attempt limits, third-party disclosure, "verify before disclose"
   - Follow-up rules and follow-up tool guards (hours, attempt limits, policy windows)
-  - Webhook authentication (Vapi secret check)
+  - Webhook and tool authentication (Meta signature check, Sarvam tool bearer secret, call tokens)
   - Tool argument / LLM-output validation
 
 ## Test types

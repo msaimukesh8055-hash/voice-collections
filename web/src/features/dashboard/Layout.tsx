@@ -21,8 +21,6 @@ const AGENT_OPS_PAGES = [
   { path: '/evals', label: 'Evals' },
 ] as const;
 
-export const PAGES = [...BUSINESS_PAGES, ...AGENT_OPS_PAGES] as const;
-
 const LINK =
   'rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-brand-soft aria-[current=page]:bg-brand aria-[current=page]:text-on-brand aria-[current=page]:ring-1 aria-[current=page]:ring-gold focus-visible:outline-2 focus-visible:outline-brand';
 

@@ -5,7 +5,7 @@
 // has Kavitha only in Telugu, so Hindi and English stay on v3 Kavitha (Saim, voice spike). The
 // spike can override model and speaker. Text is never logged.
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { LANGUAGE_CODES } from './translate.ts';
 
@@ -44,10 +44,6 @@ function fromBase64(text: string): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
 }
 
 /** MP3 bytes for the text, or null (logged) on any failure: a voice reply is best effort. */

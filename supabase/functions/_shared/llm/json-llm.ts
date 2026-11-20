@@ -8,7 +8,7 @@
 // `reasoning_effort: null` turns reasoning off (~0.5 s, clean JSON; with reasoning on it spent
 // 400 tokens thinking and returned nothing). Gemini 2.5 Flash with thinking off: ~1.3 s.
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 
 export const SARVAM_CHAT_URL = 'https://api.sarvam.ai/v1/chat/completions';
 export const SARVAM_MODEL = 'sarvam-105b';
@@ -269,7 +269,7 @@ function geminiProvider(config: JsonLlmConfig): Provider {
 function failureOf(error: unknown): string {
   if (error instanceof ProviderError) return error.message;
   if (error instanceof z.ZodError) return 'unexpected_shape';
-  return error instanceof Error ? error.name : 'unknown';
+  return errorName(error);
 }
 
 async function tryProvider<T>(

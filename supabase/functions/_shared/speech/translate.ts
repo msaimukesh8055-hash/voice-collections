@@ -6,7 +6,7 @@
 // translation that loses, repeats or invents a marker is thrown away (null): the caller then
 // shows the original alone. Translate failing never blocks a reply. Logs never carry the text.
 import { z } from 'zod';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 
 export const SARVAM_TRANSLATE_URL = 'https://api.sarvam.ai/translate';
@@ -112,10 +112,6 @@ async function callSarvam(
   });
   if (!response.ok) throw new Error(`http ${response.status}`);
   return TranslateReply.parse(await response.json()).translated_text;
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
 }
 
 export function createTranslator(config: TranslateConfig): Translator {

@@ -46,7 +46,7 @@ export interface SimulatorDeps {
   readonly startNext: () => void;
 }
 
-export type SimulationOutcome = 'done' | 'idle' | 'not_found' | 'failed';
+export type SimulationOutcome = 'done' | 'idle' | 'paused' | 'not_found' | 'failed';
 
 export function chatFn(
   providers: readonly ChatProvider[],
@@ -199,6 +199,9 @@ export async function runNextSimulation(deps: SimulatorDeps): Promise<Simulation
     deps.log('warn', 'simulated_call_stale', { callId });
     deps.kickFollowup(callId);
   });
+  // /pause stops calls already queued too, not only new ones (M9 B1; CP3 B-H1). They stay
+  // queued, and the every-minute sweep starts them after /resume.
+  if ((await deps.repo.getDemoSettings()).callsPaused === true) return 'paused';
   const callId = await deps.store.claimSimulatedCall(MAX_SIMULATED_AT_ONCE, staleBefore);
   if (!callId) return 'idle';
   try {

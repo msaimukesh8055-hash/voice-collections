@@ -348,7 +348,8 @@ export function createEvalBook(options: EvalBookOptions = {}): EvalBook {
     ownerCall: fakeOwnerCall({ acceptedAt, issuedAt: acceptedAt }),
   });
   return {
-    contextAt: (realNow) => ({ ...context.ctx, realNow }),
+    // clock() must follow the simulated time too: stored changes are dated by it (CP3 S-H1).
+    contextAt: (realNow) => ({ ...context.ctx, realNow, clock: () => realNow }),
     state: {
       book: context.book,
       actions: context.actions,

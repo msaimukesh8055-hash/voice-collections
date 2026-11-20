@@ -3,7 +3,7 @@
 // filter on the expected status (compare-and-set), so a lost race updates no row. Counts use
 // HEAD + count=exact, like the calls table's daily cap.
 import { z } from 'zod';
-import { type PostgrestClient, RepositoryError } from './postgrest.ts';
+import { type PostgrestClient, RepositoryError, totalFrom } from './postgrest.ts';
 import {
   ACTIVE_OWNER_CALL_STATUSES,
   OWNER_CALL_STATUSES,
@@ -36,12 +36,6 @@ export const OWNER_CALL_ROW = z.object({
   acceptedAt: row.accepted_at,
   urlIssuedAt: row.url_issued_at,
 }));
-
-function totalFrom(contentRange: string | null, operation: string): number {
-  const total = Number(contentRange?.split('/')[1]);
-  if (!Number.isInteger(total)) throw new RepositoryError(operation, 'no count');
-  return total;
-}
 
 /** Column names for a status change; only the fields present are sent. */
 function toColumns(patch: OwnerCallPatch): Record<string, string | number> {

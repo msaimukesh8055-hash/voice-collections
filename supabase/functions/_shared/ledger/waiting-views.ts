@@ -6,7 +6,7 @@
 //   /promises open promises falling due this week and promises broken in the last 14 days
 //             (the lists come from reminders/promise-lists.ts, judged by the promise checker)
 // Pure: the caller loads the book. Text comes with its English rendering for the twin.
-import type { BookEntry, BookShopkeeper } from '../db/book-repository.ts';
+import { type BookEntry, type BookShopkeeper, newestFirst } from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
 import { phrasesFor } from '../whatsapp/phrases.ts';
@@ -36,10 +36,6 @@ export interface ClaimsInput {
   readonly shopkeepers: readonly BookShopkeeper[];
   readonly entries: readonly BookEntry[];
   readonly language: Language;
-}
-
-function newestFirst(a: BookEntry, b: BookEntry): number {
-  return b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt);
 }
 
 /** Claims waiting for the owner, each with its card. Only this owner's shopkeepers' claims. */

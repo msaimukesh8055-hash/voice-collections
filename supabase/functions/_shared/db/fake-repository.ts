@@ -251,21 +251,32 @@ function fakeMemory(state: FakeState): MemoryMethods {
   };
 }
 
-/** Returns the fake plus its live state, so tests can assert on what was written. */
-export function createFakeRepository(overrides: Partial<FakeState> = {}): {
-  readonly repo: Repository;
-  readonly state: FakeState;
-} {
-  const state = initialState(overrides);
-  const findCall = (id: string): FakeCall | undefined =>
-    state.calls.find((call) => call.callId === id);
-  const updateCall = (id: string, update: (call: FakeCall) => FakeCall): void => {
-    state.calls = state.calls.map((call) => (call.callId === id ? update(call) : call));
-  };
-  const claimsFor = (callId: string): readonly FakeLedgerEntry[] =>
-    state.ledger.filter((row) => row.callId === callId);
+function findCall(state: FakeState, callId: string): FakeCall | undefined {
+  return state.calls.find((call) => call.callId === callId);
+}
 
-  const repo: Repository = {
+function updateCall(state: FakeState, callId: string, update: (call: FakeCall) => FakeCall): void {
+  state.calls = state.calls.map((call) => (call.callId === callId ? update(call) : call));
+}
+
+function claimsFor(state: FakeState, callId: string): readonly FakeLedgerEntry[] {
+  return state.ledger.filter((row) => row.callId === callId);
+}
+
+type CallReads = Pick<
+  Repository,
+  | 'getDemoSettings'
+  | 'getShopkeeper'
+  | 'countCallsSince'
+  | 'countCallUrlsIssuedSince'
+  | 'getCallSession'
+  | 'findRingingCall'
+  | 'listOpenLiveCalls'
+>;
+
+/** Settings, shopkeepers and call reads. */
+function fakeCallReads(state: FakeState): CallReads {
+  return {
     getDemoSettings: () => Promise.resolve(state.settings),
     getShopkeeper: (id) =>
       Promise.resolve(state.shopkeepers.find((shopkeeper) => shopkeeper.id === id) ?? null),
@@ -281,20 +292,8 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
           call.urlIssuedAt !== null && Date.parse(call.urlIssuedAt) >= since.getTime()
         ).length,
       ),
-    createCall: (call) => {
-      const created = fakeCall({
-        ...call,
-        callId: crypto.randomUUID(),
-        status: 'queued',
-        queuedAt: state.clock().toISOString(),
-        ringingAt: null,
-        acceptedAt: null,
-      });
-      state.calls = [...state.calls, created];
-      return Promise.resolve(created.callId);
-    },
     getCallSession: (callId) => {
-      const call = findCall(callId);
+      const call = findCall(state, callId);
       return Promise.resolve(call ? toSession(call) : null);
     },
     findRingingCall: (shopkeeperId) => {
@@ -310,26 +309,52 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
         .slice(0, OPEN_LIVE_CALLS_LIMIT);
       return Promise.resolve(open.map(toSession));
     },
+  };
+}
+
+/** Creating a call and its compare-and-set changes. */
+function fakeCallWrites(
+  state: FakeState,
+): Pick<Repository, 'createCall' | 'transitionCall' | 'recordIdentity'> {
+  return {
+    createCall: (call) => {
+      const created = fakeCall({
+        ...call,
+        callId: crypto.randomUUID(),
+        status: 'queued',
+        queuedAt: state.clock().toISOString(),
+        ringingAt: null,
+        acceptedAt: null,
+      });
+      state.calls = [...state.calls, created];
+      return Promise.resolve(created.callId);
+    },
     transitionCall: (callId, from, patch) => {
-      const call = findCall(callId);
+      const call = findCall(state, callId);
       if (!call || !from.includes(call.status)) return Promise.resolve(false);
-      updateCall(callId, (current) => applyPatch(current, patch));
+      updateCall(state, callId, (current) => applyPatch(current, patch));
       return Promise.resolve(true);
     },
     recordIdentity: (callId, expected, next) => {
-      const call = findCall(callId);
+      const call = findCall(state, callId);
       const matches = call?.identityStatus === expected.status &&
         call.identityUnsureCount === expected.unsureCount;
       if (!matches) return Promise.resolve(false);
-      updateCall(callId, (current) => ({
+      updateCall(state, callId, (current) => ({
         ...current,
         identityStatus: next.status,
         identityUnsureCount: next.unsureCount,
       }));
       return Promise.resolve(true);
     },
-    getLedger: (shopkeeperId) =>
-      Promise.resolve(state.ledger.filter((row) => row.shopkeeperId === shopkeeperId)),
+  };
+}
+
+/** The call's promise: one per call, replaced with the latest terms. */
+function fakePromises(
+  state: FakeState,
+): Pick<Repository, 'getPromiseForCall' | 'insertPromise' | 'updatePromiseForCall'> {
+  return {
     getPromiseForCall: (callId) => {
       const saved = state.promises.find((promise) => promise.callId === callId);
       return Promise.resolve(
@@ -350,8 +375,25 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
       );
       return Promise.resolve(true);
     },
+  };
+}
+
+type LedgerAndEvents = Pick<
+  Repository,
+  | 'getLedger'
+  | 'getClaimForCall'
+  | 'insertPaymentClaim'
+  | 'insertOwnerCallback'
+  | 'insertToolEvent'
+>;
+
+/** The ledger, payment claims, owner callbacks and tool events. */
+function fakeLedgerAndEvents(state: FakeState): LedgerAndEvents {
+  return {
+    getLedger: (shopkeeperId) =>
+      Promise.resolve(state.ledger.filter((row) => row.shopkeeperId === shopkeeperId)),
     getClaimForCall: (callId) => {
-      const saved = claimsFor(callId)[0];
+      const saved = claimsFor(state, callId)[0];
       return Promise.resolve(
         saved
           ? { amount: saved.amount, paidDate: saved.entryDate, mode: saved.paymentMode ?? 'cash' }
@@ -359,7 +401,7 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
       );
     },
     insertPaymentClaim: (claim) => {
-      if (claimsFor(claim.callId).length > 0) return Promise.resolve(false);
+      if (claimsFor(state, claim.callId).length > 0) return Promise.resolve(false);
       const row: FakeLedgerEntry = {
         shopkeeperId: claim.shopkeeperId,
         callId: claim.callId,
@@ -381,6 +423,20 @@ export function createFakeRepository(overrides: Partial<FakeState> = {}): {
       state.toolEvents = [...state.toolEvents, event];
       return Promise.resolve();
     },
+  };
+}
+
+/** Returns the fake plus its live state, so tests can assert on what was written. */
+export function createFakeRepository(overrides: Partial<FakeState> = {}): {
+  readonly repo: Repository;
+  readonly state: FakeState;
+} {
+  const state = initialState(overrides);
+  const repo: Repository = {
+    ...fakeCallReads(state),
+    ...fakeCallWrites(state),
+    ...fakePromises(state),
+    ...fakeLedgerAndEvents(state),
     ...fakeMemory(state),
   };
   return { repo, state };

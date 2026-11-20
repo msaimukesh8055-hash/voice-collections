@@ -6,7 +6,7 @@ Applies to all code in this repo — frontend (React + Vite + Tailwind), backend
 
 - **TypeScript only**, `strict: true`. No plain JavaScript files.
 - **No `any`.** Use real types. For "may be missing" values use `Thing | null` and narrow with guard clauses. Derive types from Zod schemas (`z.infer<typeof Schema>`) so runtime checks and types never drift.
-- **File path comment** on line 1 of every source file, e.g. `// supabase/functions/vapi-webhook/index.ts`.
+- **File path comment** on line 1 of every source file, e.g. `// supabase/functions/whatsapp-webhook/index.ts`.
 - **No anonymous inline handlers in JSX.** Always a named function: `onClick={handleStartCall}`, never `onClick={() => ...}`.
 - **No hardcoded secrets, URLs or keys.** Environment variables only (see `security.md`).
 - **Fake data only.** No real names, phone numbers, PAN, Aadhaar or account numbers anywhere.
@@ -61,7 +61,7 @@ Applies to all code in this repo — frontend (React + Vite + Tailwind), backend
 
 ## Validation
 
-- Validate **every** external input at the boundary with Zod: HTTP request bodies, Vapi webhook payloads, tool arguments, LLM JSON output, env vars.
+- Validate **every** external input at the boundary with Zod: HTTP request bodies, Meta WhatsApp webhook payloads, Sarvam tool calls, tool arguments, LLM JSON output, env vars.
 - Fail fast with a clear error code.
 - Never trust external data — API responses, user input, LLM output, file content.
 
@@ -86,12 +86,12 @@ Applies to all code in this repo — frontend (React + Vite + Tailwind), backend
 - No premature optimisation.
 - No database queries inside loops; batch or join.
 - Every query feeding a list has a `limit`.
-- Every external HTTP call (Gemini, Vapi) has a timeout.
+- Every external HTTP call (Sarvam, Meta, Gemini) has a timeout.
 
 ## API design
 
 - Data endpoints: REST, plural nouns, versioned: `/v1/calls`, `/v1/loans/:id`.
-- Vapi's server URL is a single webhook by design; it dispatches by message type and tool name via a lookup map (see ADR).
+- Each agent's tools reach one function (`sarvam-tools` for Asha, `munshi-tools` for Munshi) that dispatches by tool name via a lookup map, not a switch (see the ADRs).
 
 ## Quality checklist (before marking work done)
 

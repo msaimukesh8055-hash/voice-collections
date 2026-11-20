@@ -9,6 +9,7 @@ SPEC §9 and `security.md` make calling hours (08:00–19:00 IST) and attempt li
 ## Decision
 - Two database switches on `demo_settings`: `calling_hours_enabled` and `call_limits_enabled`. Both default to **off** while building and testing.
 - The rules themselves stay in code, fully tested (including boundary times and the 4th/8th attempt). The smoke test switches calling hours on and proves a 21:00 call is blocked.
+- **Which clock each rule uses** (added at CP3, 2026-11-20, from CP2 M1): attempt limits, the daily cap on failed DOB attempts and the live-session cap count on the **real** clock, because `calls.queued_at` is real time (`_shared/calls/queue-call.ts`). The demo clock only moves calling hours and "today" for dues, so moving it can never reset a limit.
 - Do-not-call is **always on**. So are verify-before-disclose and the daily cap on failed DOB attempts. None of them can be switched off.
 - **Switch-on point:** both switches are turned **on** for the demo and go-live. M4 adds them to the demo controls, and the M7 go-live checklist confirms they are on.
 

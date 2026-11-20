@@ -166,6 +166,14 @@ Deno.test('simulator › nothing queued → idle, nothing started', async () => 
   assertEquals([s.next.length, s.kicked.length], [0, 0]);
 });
 
+Deno.test('simulator › /pause holds calls already queued: nothing starts, the call stays queued (CP3 B-H1)', async () => {
+  const s = setup();
+  s.repo.state.settings = { ...s.repo.state.settings, callsPaused: true };
+  assertEquals(await runNextSimulation(s.deps), 'paused');
+  assertEquals([s.next.length, s.kicked.length, s.ashaRequests.length], [0, 0, 0]);
+  assertEquals(s.store.state.calls[0]?.status, 'queued');
+});
+
 Deno.test('simulator › a stale simulated call is ended and its follow-up kicked', async () => {
   const stale = queued({ status: 'in_progress', acceptedAt: '2026-11-02T06:00:00.000Z' });
   const s = setup({ calls: [stale] });

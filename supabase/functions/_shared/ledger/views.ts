@@ -4,7 +4,12 @@
 // entries, last promise, score, open claims, last call note, with [Confirm received] [Not received]). All figures
 // come from dues.ts / cleared.ts with the demo-clock "today" passed in; scores are worked out by
 // the caller (score.ts, the same as "why is X N?") and passed in, so this file stays pure.
-import type { BookEntry, BookShopkeeper, LastPromise } from '../db/book-repository.ts';
+import {
+  type BookEntry,
+  type BookShopkeeper,
+  type LastPromise,
+  newestFirst,
+} from '../db/book-repository.ts';
 import { formatInr, formatShortDay } from '../format.ts';
 import {
   claimButtonId,
@@ -199,10 +204,6 @@ function entryLine(entry: ShownEntry, phrases: Phrases): string {
   return `• ${formatShortDay(entry.entryDate)} · ${kind} ${formatInr(entry.amount)}${due}${
     marks[entry.status]
   }`;
-}
-
-function newestFirst(a: BookEntry, b: BookEntry): number {
-  return b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt);
 }
 
 function promiseLine(promise: LastPromise | null, phrases: Phrases): string {

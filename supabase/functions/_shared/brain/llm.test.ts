@@ -2,7 +2,8 @@
 // Fake fetch only (testing.md: no real LLM in unit tests).
 import { assert, assertEquals } from '@std/assert';
 import type { LogFields, Logger } from '../log.ts';
-import { createBrainLlm, GEMINI_URL, SARVAM_BRAIN_MODEL, SARVAM_CHAT_URL } from './llm.ts';
+import { GEMINI_URL, SARVAM_CHAT_URL, SARVAM_MODEL } from '../llm/json-llm.ts';
+import { createBrainLlm } from './llm.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
 const MESSAGE = 'రమేష్ 2000 కట్టాడు';
@@ -66,7 +67,7 @@ Deno.test('llm › Sarvam gets the model, key header, reasoning off and the date
   await llm(MESSAGE, NOW);
   const body = calls[0]?.body ?? {};
   assertEquals([body['model'], body['reasoning_effort'], body['temperature']], [
-    SARVAM_BRAIN_MODEL,
+    SARVAM_MODEL,
     null,
     0,
   ]);

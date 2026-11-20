@@ -7,7 +7,7 @@
 // describeHistoryForOwner. An unclear name returns choices and no figures.
 import { buildCallHistory, type CallHistory } from '../calls/call-history.ts';
 import { describeHistoryForOwner } from '../calls/call-history-owner.ts';
-import type { BookEntry, BookShopkeeper } from '../db/book-repository.ts';
+import { type BookEntry, type BookShopkeeper, newestFirst } from '../db/book-repository.ts';
 import { formatRupees, formatShortDay } from '../format.ts';
 import { computeDues, type Dues } from '../ledger/dues.ts';
 import { historyStart } from '../ledger/history.ts';
@@ -60,11 +60,6 @@ function claimsPart(entries: readonly BookEntry[]): string {
     return `${formatRupees(entry.amount)} paid on ${day}${paidBy(entry.paymentMode)}`;
   });
   return lines.length === 0 ? '' : `Payment claims waiting for you: ${lines.join('; ')}.`;
-}
-
-/** Newest first: entry date, then when it was written (the same order everywhere in Munshi). */
-export function newestFirst(a: BookEntry, b: BookEntry): number {
-  return b.entryDate.localeCompare(a.entryDate) || b.createdAt.localeCompare(a.createdAt);
 }
 
 /** The last 3 confirmed entries (claimed, rejected and reversed ones are not live). */

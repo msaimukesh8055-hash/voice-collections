@@ -4,7 +4,7 @@
 // WORKER_SECRET as a bearer token and runs in the background (the caller never waits for it). A
 // failed kick is logged; the call stays "pending", so the 5b cron sweep (or a manual
 // POST /followup-worker/sweep) still picks it up.
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import { currentTrace } from '../ops/trace.ts';
 import { TRACE_HEADER } from '../ops/tracing.ts';
 
@@ -55,7 +55,7 @@ function createPoster(config: KickerConfig): (path: string, delayMs: number) => 
         config.log('warn', 'followup_kick_failed', { path, status: response.status });
       }
     } catch (error) {
-      const name = error instanceof Error ? error.name : 'unknown';
+      const name = errorName(error);
       config.log('warn', 'followup_kick_failed', { path, error: name });
     }
   };

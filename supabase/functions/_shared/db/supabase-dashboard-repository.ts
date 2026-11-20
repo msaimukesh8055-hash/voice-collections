@@ -1,8 +1,7 @@
 // supabase/functions/_shared/db/supabase-dashboard-repository.ts
 // DashboardRepository over the database HTTP API (service role). Every list has a fixed cap.
-// A call's tool events lose `call_token` (the call's own id, no use on screen) before they leave.
+// A call's tool events lose `call_token` before they leave (call-detail-rows.ts).
 import { z } from 'zod';
-import { ToneJudgementSchema } from '../calls/tone-judge.ts';
 import { CallStatusSchema, LanguageSchema } from '../schemas/shopkeeper.ts';
 import type {
   DashboardCall,
@@ -11,6 +10,7 @@ import type {
   DashboardPromise,
   DashboardRepository,
 } from './dashboard-repository.ts';
+import { ToolEventRow, TRANSCRIPT_FIELDS } from './call-detail-rows.ts';
 import type { PostgrestClient } from './postgrest.ts';
 import { firstRow } from './supabase-rows.ts';
 
@@ -45,21 +45,7 @@ const CallRow = z.object({
   summary: row.summary,
 }));
 
-const TurnSchema = z.object({ role: z.enum(['assistant', 'user']), content: z.string() });
-const JsonObject = z.record(z.string(), z.unknown()).catch({});
-
-const DetailRow = z.object({
-  transcript: z.array(TurnSchema).nullable().catch(null),
-  transcript_en: z.array(z.string().nullable()).nullable().catch(null),
-  tone_judgement: ToneJudgementSchema.nullable().catch(null),
-});
-const ToolRow = z.object({
-  tool: z.string(),
-  args: JsonObject,
-  result: JsonObject,
-  duration_ms: z.number().int().nullable(),
-  created_at: z.string(),
-});
+const DetailRow = z.object(TRANSCRIPT_FIELDS);
 const RunRow = z.object({
   path: z.enum(['rule', 'agent']),
   decision: z.string(),
@@ -79,11 +65,6 @@ const PromiseRow = z.object({
 const NoteRow = z.object({ note: z.string(), created_at: z.string() }).transform(
   (row): DashboardNote => ({ note: row.note, createdAt: row.created_at }),
 );
-
-function withoutToken(args: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  const { call_token: _token, ...rest } = args;
-  return rest;
-}
 
 async function readCall(
   query: PostgrestClient,
@@ -106,20 +87,13 @@ async function readCall(
   ]);
   const call = firstRow(CallRow, callRows.rows);
   if (!call) return null;
-  const tools = z.array(ToolRow).parse(toolRows.rows);
   const detail = firstRow(DetailRow, callRows.rows);
   return {
     ...call,
     transcript: detail?.transcript ?? null,
     transcriptEnglish: detail?.transcript_en ?? null,
     toneJudgement: detail?.tone_judgement ?? null,
-    toolEvents: tools.map((row) => ({
-      tool: row.tool,
-      args: withoutToken(row.args),
-      result: row.result,
-      durationMs: row.duration_ms,
-      createdAt: row.created_at,
-    })),
+    toolEvents: z.array(ToolEventRow).parse(toolRows.rows),
     followup: firstRow(RunRow, runRows.rows),
   };
 }

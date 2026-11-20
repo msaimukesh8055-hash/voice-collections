@@ -6,7 +6,7 @@
 //        so a slow LLM never makes Meta retry.
 import { timingSafeEqual } from '@std/crypto/timing-safe-equal';
 import { errorResponse, withErrorBoundary } from '../_shared/http.ts';
-import type { Logger } from '../_shared/log.ts';
+import { errorName, type Logger } from '../_shared/log.ts';
 import { type WebhookPayload, WebhookPayloadSchema } from '../_shared/whatsapp/inbound.ts';
 import { isValidSignature, SIGNATURE_HEADER } from '../_shared/whatsapp/signature.ts';
 
@@ -60,7 +60,7 @@ async function receive(req: Request, deps: WebhookDeps): Promise<Response> {
   deps.defer(
     deps.process(payload).catch((error: unknown) => {
       deps.log('error', 'whatsapp_background_failed', {
-        error: error instanceof Error ? error.name : 'unknown',
+        error: errorName(error),
       });
     }),
   );

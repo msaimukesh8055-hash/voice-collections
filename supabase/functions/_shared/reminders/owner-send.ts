@@ -15,7 +15,7 @@ import { computeInsights } from '../ledger/insights.ts';
 import { insightsReplies } from '../ledger/insights-reply.ts';
 import type { Score } from '../ledger/score.ts';
 import { pendingOpenList, pendingReply, shopkeeperReplies, shownPending } from '../ledger/views.ts';
-import type { Logger } from '../log.ts';
+import { errorName, type Logger } from '../log.ts';
 import { VOICE_PAYLOADS, type VoicePayload } from '../owner-tools/actions.ts';
 import type { SendWhat } from '../owner-tools/schemas.ts';
 import type { CallStatus } from '../schemas/shopkeeper.ts';
@@ -152,12 +152,12 @@ async function send(replies: readonly Reply[], deps: OwnerSendDeps): Promise<voi
   const { senderHash } = await identifySender(deps.owner.ownerNumber, deps.owner);
   for (const reply of replies) {
     const waMessageId = await deps.whatsapp.send(deps.owner.ownerNumber, reply);
-    await deps.book.recordOutbound({
-      waMessageId,
-      senderHash,
-      msgType: reply.kind,
-      istDay: istDate(now),
-    });
+    // The message has gone; a failed log write must not stop the rest (CP3 B-L2).
+    await deps.book
+      .recordOutbound({ waMessageId, senderHash, msgType: reply.kind, istDay: istDate(now) })
+      .catch(function logged(error: unknown): void {
+        deps.log('warn', 'owner_send_log_failed', { error: errorName(error) });
+      });
   }
 }
 

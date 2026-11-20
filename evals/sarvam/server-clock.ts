@@ -25,3 +25,19 @@ export function offsetClock(offsetMs: number, localNow: () => number = Date.now)
     return new Date(localNow() + offsetMs);
   };
 }
+
+/** Say so when this computer's clock is more than this far off the server's. */
+const CLOCK_WARN_MS = 5_000;
+
+/** Server time for a gate runner (Asha and Munshi), with a line when this computer is off. */
+export async function serverClock(
+  supabaseUrl: string,
+  write: (line: string) => void,
+): Promise<() => Date> {
+  const offsetMs = await serverClockOffsetMs(supabaseUrl, fetch);
+  if (Math.abs(offsetMs) > CLOCK_WARN_MS) {
+    const seconds = Math.round(offsetMs / 1000);
+    write(`This computer's clock is ${seconds} s off the server's; using server time.`);
+  }
+  return offsetClock(offsetMs);
+}
