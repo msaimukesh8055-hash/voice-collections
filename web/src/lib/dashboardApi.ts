@@ -146,6 +146,18 @@ const ScorecardSchema = z.object({
       ),
     }),
   ),
+  /** Tools: needed vs ran (2026-11-20); missing on servers from before that day. */
+  toolUse: z
+    .array(
+      z.object({
+        tool: z.string(),
+        needed: z.boolean(),
+        timesMs: z.array(z.number().nullable()),
+        status: z.enum(['pass', 'warn', 'fail', 'na']),
+        why: z.string(),
+      }),
+    )
+    .default([]),
   gaps: z.array(z.string()),
 });
 

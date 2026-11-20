@@ -3,13 +3,15 @@
 // follow-up agent's decision (rule or agent, and why); the WhatsApp summary; the transcript; and
 // every tool Asha called with what it sent and got back (the call token is removed server-side).
 // Live evals (2026-11-20): the call's scorecard under the facts, and this call's own ops steps
-// (queued, accepted, each tool, hang-up, follow-up, WhatsApp) at the bottom.
+// (queued, accepted, each tool, hang-up, follow-up, WhatsApp) at the bottom. "Tools: needed vs ran"
+// sits above the transcript (Saim, 2026-11-20).
 // Telugu and Hindi lines show their English (Sarvam Translate) underneath, in small grey text.
 import type { CallDetail as Detail } from '../../lib/dashboardApi.ts';
 import { dateTime, duration, formatInr } from '../dashboard/format.ts';
 import { Card } from '../dashboard/Layout.tsx';
 import { TraceSteps } from '../ops/TraceView.tsx';
 import { Scorecard } from './Scorecard.tsx';
+import { RawCalls, ToolUse } from './ToolUse.tsx';
 
 const LANGUAGE_NAMES = { te: 'Telugu', hi: 'Hindi', en: 'English' } as const;
 
@@ -103,23 +105,11 @@ function Transcript({ call }: { readonly call: Detail }): React.JSX.Element {
 }
 
 function Tools({ call }: { readonly call: Detail }): React.JSX.Element {
+  const rows = call.scorecard?.toolUse ?? [];
+  if (rows.length > 0) return <ToolUse rows={rows} events={call.toolEvents} />;
   return (
     <Card title={`Tool calls (${call.toolEvents.length})`}>
-      <ul className="flex flex-col gap-2 text-sm">
-        {call.toolEvents.map((event) => (
-          <li key={`${event.createdAt}:${event.tool}`}>
-            <details className="rounded-xl bg-canvas p-3">
-              <summary className="cursor-pointer font-medium">
-                {event.tool}
-                {event.durationMs === null ? '' : ` · ${event.durationMs} ms`}
-              </summary>
-              <pre className="mt-2 overflow-x-auto text-xs">
-                {JSON.stringify({ sent: event.args, got: event.result }, null, 2)}
-              </pre>
-            </details>
-          </li>
-        ))}
-      </ul>
+      <RawCalls events={call.toolEvents} />
     </Card>
   );
 }
@@ -133,10 +123,8 @@ export function CallDetail({ call }: { readonly call: Detail }): React.JSX.Eleme
       <Facts call={call} />
       {call.scorecard ? <Scorecard card={call.scorecard} /> : null}
       <FollowUp call={call} />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Transcript call={call} />
-        <Tools call={call} />
-      </div>
+      <Tools call={call} />
+      <Transcript call={call} />
       {call.trace && call.trace.length > 0 ? (
         <TraceSteps title="This call, step by step" steps={call.trace} />
       ) : null}

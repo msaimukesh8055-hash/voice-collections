@@ -214,7 +214,7 @@ Deno.test('dashboard api › one call carries its scorecard and its own trace (l
     trace: unknown[];
   };
   assertEquals(detail.trace.length, 1);
-  assertEquals(detail.scorecard.groups.length, 8);
+  assertEquals(detail.scorecard.groups.length, 7);
   assertEquals(typeof detail.scorecard.verdict, 'string');
 });
 

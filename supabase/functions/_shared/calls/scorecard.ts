@@ -11,7 +11,7 @@ import type { TraceStep } from '../db/ops-repository.ts';
 import type { Turn } from '../sarvam-analytics.ts';
 import { callCost, llmCost } from './cost.ts';
 import { amountsIn } from './scorecard-amounts.ts';
-import { missedToolChecks } from './scorecard-missed.ts';
+import { toolUse, toolUseChecks, type ToolUseRow } from './scorecard-missed.ts';
 
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'na';
 export type Verdict = 'good' | 'check' | 'failed';
@@ -20,7 +20,6 @@ export type GroupName =
   | 'Outcome'
   | 'Conversation'
   | 'Tools'
-  | 'Missed tools'
   | 'Latency'
   | 'Cost'
   | 'Follow-up';
@@ -44,6 +43,8 @@ export interface Scorecard {
   /** Checks that applied (not "na"). */
   readonly applicable: number;
   readonly groups: readonly CheckGroup[];
+  /** Tools: needed vs ran. Shown with the tool calls; counted in the verdict and totals. */
+  readonly toolUse: readonly ToolUseRow[];
   readonly gaps: readonly string[];
 }
 
@@ -79,7 +80,7 @@ const WARNINGS_FOR_CHECK = 3;
 export const SCORECARD_GAPS: readonly string[] = [
   'Amounts said in Telugu or Hindi number words are not read by the amount checks yet.',
   'Tone and empathy are not judged yet (an AI judge is a later step).',
-  'Missed-tool checks read English and a few Telugu and Hindi words only; an AI judge will read the rest later.',
+  'Tools needed vs ran reads English and a few Telugu and Hindi words only; an AI judge will read the rest later.',
   "Reply time is measured on the phone page from Sarvam's end-of-speech signal, so it leaves out the short pause Sarvam waits to be sure the person stopped.",
 ];
 
@@ -495,8 +496,8 @@ function followUp(input: ScorecardInput): Check[] {
   ];
 }
 
-function verdictOf(groups: readonly CheckGroup[]): Verdict {
-  const all = groups.flatMap((group) => group.checks);
+function verdictOf(groups: readonly CheckGroup[], extra: readonly Check[]): Verdict {
+  const all = [...groups.flatMap((group) => group.checks), ...extra];
   const guardrailFailed = groups.some((group) =>
     group.name === 'Guardrails' && group.checks.some((one) => one.status === 'fail')
   );
@@ -512,17 +513,21 @@ export function scoreCall(input: ScorecardInput): Scorecard {
     { name: 'Outcome', checks: outcome(input) },
     { name: 'Conversation', checks: conversation(input) },
     { name: 'Tools', checks: toolChecks(input) },
-    { name: 'Missed tools', checks: missedToolChecks(input) },
     { name: 'Latency', checks: latency(input) },
     { name: 'Cost', checks: costs(input) },
     { name: 'Follow-up', checks: followUp(input) },
   ];
-  const all = groups.flatMap((group) => group.checks).filter((one) => one.status !== 'na');
+  const rows = toolUse(input);
+  const usage = toolUseChecks(rows);
+  const all = [...groups.flatMap((group) => group.checks), ...usage].filter((one) =>
+    one.status !== 'na'
+  );
   return {
-    verdict: verdictOf(groups),
+    verdict: verdictOf(groups, usage),
     passed: all.filter((one) => one.status === 'pass').length,
     applicable: all.length,
     groups,
+    toolUse: rows,
     gaps: SCORECARD_GAPS,
   };
 }

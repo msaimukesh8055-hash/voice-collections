@@ -61,6 +61,36 @@ describe('CallsPage', () => {
             ],
           },
         ],
+        toolUse: [
+          {
+            tool: 'confirm_identity',
+            needed: true,
+            timesMs: [238],
+            status: 'pass',
+            why: '"Yes, I am Ramesh."',
+          },
+          {
+            tool: 'log_promise',
+            needed: true,
+            timesMs: [444, 618, 125],
+            status: 'pass',
+            why: '"I will pay 2000 rupees by 25th November"',
+          },
+          {
+            tool: 'record_payment_claim',
+            needed: true,
+            timesMs: [],
+            status: 'fail',
+            why: '"I already paid", but it never ran',
+          },
+          {
+            tool: 'request_owner_callback',
+            needed: false,
+            timesMs: [],
+            status: 'na',
+            why: 'no dispute, hardship or request for the owner',
+          },
+        ],
         gaps: ['Tone and empathy are not judged yet.'],
       },
       trace: TRACE.steps,
@@ -76,6 +106,55 @@ describe('CallsPage', () => {
     expect(screen.getByText('n/a')).toBeInTheDocument();
     expect(screen.getByText('Tone and empathy are not judged yet.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'This call, step by step' })).toBeInTheDocument();
+  });
+
+  it('shows "Tools: needed vs ran" above the transcript, with why and a silent miss in red', async () => {
+    const fake = fakeDashboard();
+    const base = await fake.dashboard.call(CALL.id);
+    const scored: CallDetail = {
+      ...base,
+      scorecard: {
+        verdict: 'check',
+        passed: 3,
+        applicable: 4,
+        groups: [],
+        toolUse: [
+          {
+            tool: 'log_promise',
+            needed: true,
+            timesMs: [444, 618, 125],
+            status: 'pass',
+            why: '"I will pay 2000"',
+          },
+          {
+            tool: 'record_payment_claim',
+            needed: true,
+            timesMs: [],
+            status: 'fail',
+            why: '"I already paid", but it never ran',
+          },
+          {
+            tool: 'request_owner_callback',
+            needed: false,
+            timesMs: [],
+            status: 'na',
+            why: 'not needed',
+          },
+        ],
+        gaps: [],
+      },
+    };
+    const dashboard = { ...fake.dashboard, call: () => Promise.resolve(scored) };
+    render(<CallsPage dashboard={dashboard} id={CALL.id} />);
+    const tools = await screen.findByRole('heading', { name: 'Tools: needed vs ran' });
+    const transcript = screen.getByRole('heading', { name: 'Transcript' });
+    expect(
+      tools.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText('✓ ×3 (444 ms / 618 ms / 125 ms)')).toBeInTheDocument();
+    expect(screen.getByText('✗ never ran')).toBeInTheDocument();
+    expect(screen.getByText('"I already paid", but it never ran')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('an older call without a scorecard or steps still shows the rest', async () => {

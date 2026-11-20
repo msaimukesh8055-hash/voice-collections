@@ -130,7 +130,6 @@ Deno.test("scorecard › Ramesh's call: every guardrail passes, the verdict is g
     'Outcome',
     'Conversation',
     'Tools',
-    'Missed tools',
     'Latency',
     'Cost',
     'Follow-up',
@@ -277,18 +276,26 @@ Deno.test('scorecard › outside calling hours is a warning; a slow reply time f
   assertEquals([statusOf(card, 'reply_p50'), statusOf(card, 'reply_max')], ['fail', 'fail']);
 });
 
-Deno.test("missed tools › Ramesh's call: identity, promise and callback all ran; no payment claim needed", () => {
+function use(card: Scorecard, name: string): Scorecard['toolUse'][number] | undefined {
+  return card.toolUse.find((row) => row.tool === name);
+}
+
+Deno.test("tools needed vs ran › Ramesh's call: 4 needed and ran, payment claim not needed", () => {
   const card = scoreCall(rameshCall());
-  assertEquals(
-    ['missed_identity', 'missed_promise', 'missed_payment_claim', 'missed_callback'].map((id) =>
-      statusOf(card, id)
-    ),
-    ['pass', 'pass', 'na', 'pass'],
-  );
-  assertEquals(valueOf(card, 'missed_promise'), 'log_promise ran');
+  assertEquals(card.toolUse.map((row) => [row.tool, row.needed, row.status]), [
+    ['confirm_identity', true, 'pass'],
+    ['get_dues', true, 'pass'],
+    ['log_promise', true, 'pass'],
+    ['record_payment_claim', false, 'na'],
+    ['request_owner_callback', true, 'pass'],
+  ]);
+  assertEquals(use(card, 'confirm_identity')?.why, '"Yes, I am Ramesh."');
+  assertEquals(use(card, 'log_promise')?.timesMs, [444, 618]);
+  assertEquals(use(card, 'record_payment_claim')?.why, 'never said they had paid');
+  assertEquals(card.groups.some((group) => group.name.includes('ools needed')), false);
 });
 
-Deno.test('missed tools › a promise, a payment and a dispute with no tool calls each fail, quoting the caller', () => {
+Deno.test('tools needed vs ran › a promise, a payment and a dispute with no tool calls each fail, quoting the words', () => {
   const card = scoreCall(rameshCall({
     tools: [],
     transcript: [
@@ -299,36 +306,42 @@ Deno.test('missed tools › a promise, a payment and a dispute with no tool call
     ],
   }));
   for (
-    const id of ['missed_identity', 'missed_promise', 'missed_payment_claim', 'missed_callback']
+    const name of [
+      'confirm_identity',
+      'log_promise',
+      'record_payment_claim',
+      'request_owner_callback',
+    ]
   ) {
-    assertEquals(statusOf(card, id), 'fail', id);
+    assertEquals(use(card, name)?.status, 'fail', name);
   }
   assertEquals(
-    valueOf(card, 'missed_promise'),
-    '"I will pay 3000 rupees on Friday." but log_promise never ran',
+    use(card, 'log_promise')?.why,
+    '"I will pay 3000 rupees on Friday.", but it never ran',
   );
+  assert(card.passed < card.applicable);
   assertEquals(card.verdict, 'check');
 });
 
-Deno.test('missed tools › "I cannot pay" or "I will pay later" is not a promise to save', () => {
+Deno.test('tools needed vs ran › "I can’t pay now" or "I will pay later" is not a promise to save', () => {
   const card = scoreCall(rameshCall({
     transcript: [said('user', "I can't pay now."), said('user', 'I will pay later.')],
   }));
-  assertEquals(statusOf(card, 'missed_promise'), 'na');
+  assertEquals(use(card, 'log_promise')?.needed, false);
 });
 
-Deno.test('missed tools › Telugu: a promise with "రేపు" and no log_promise fails', () => {
+Deno.test('tools needed vs ran › Telugu: a promise with "రేపు" and no log_promise fails', () => {
   const card = scoreCall(rameshCall({
     tools: [tool('confirm_identity', { identity: 'confirmed' })],
     transcript: [said('user', 'రేపు రెండు వేలు కడతాను')],
   }));
-  assertEquals(statusOf(card, 'missed_promise'), 'fail');
+  assertEquals(use(card, 'log_promise')?.status, 'fail');
 });
 
-Deno.test("missed tools › Ramesh's short dispute replies count; Asha promising a callback needs the tool", () => {
+Deno.test('tools needed vs ran › short dispute replies count; Asha promising a callback needs the tool', () => {
   for (const line of ["No, I don't think so.", 'What is the correct amount?']) {
     const card = scoreCall(rameshCall({ tools: [], transcript: [said('user', line)] }));
-    assertEquals(statusOf(card, 'missed_callback'), 'fail', line);
+    assertEquals(use(card, 'request_owner_callback')?.status, 'fail', line);
   }
   const silent = scoreCall(rameshCall({
     tools: [tool('confirm_identity', { identity: 'confirmed' })],
@@ -339,8 +352,23 @@ Deno.test("missed tools › Ramesh's short dispute replies count; Asha promising
     ],
   }));
   assertEquals(
-    valueOf(silent, 'missed_callback'),
-    '"Srinivas Reddy garu will call you back." but request_owner_callback never ran',
+    use(silent, 'request_owner_callback')?.why,
+    'Asha said "Srinivas Reddy garu will call you back.", but it never ran',
   );
-  assertEquals(statusOf(silent, 'missed_promise'), 'fail');
+  assertEquals(use(silent, 'log_promise')?.status, 'fail');
+  assertEquals(use(silent, 'get_dues')?.status, 'fail');
+});
+
+Deno.test('tools needed vs ran › dues skipped because the call went to the owner first is fine', () => {
+  const card = scoreCall(rameshCall({
+    tools: [
+      tool('confirm_identity', { identity: 'confirmed' }),
+      tool('request_owner_callback', { reason: 'hardship' }),
+    ],
+    transcript: [said('user', 'My father is in hospital.')],
+  }));
+  assertEquals([use(card, 'get_dues')?.status, use(card, 'get_dues')?.why], [
+    'na',
+    'skipped: handed to the owner first',
+  ]);
 });
