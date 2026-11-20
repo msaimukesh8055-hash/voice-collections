@@ -60,26 +60,39 @@ function Step({
   );
 }
 
-function Timeline({ trace }: { readonly trace: Trace }): React.JSX.Element {
-  const start = trace.steps[0]?.createdAt ?? '';
-  const failed = trace.steps.filter((step) => step.status === 'error').length;
+/** Steps in order with their time since the first one; shared with the call page (live evals). */
+export function TraceSteps({
+  title,
+  steps,
+  traceId = null,
+}: {
+  readonly title: string;
+  readonly steps: readonly TraceStep[];
+  readonly traceId?: string | null;
+}): React.JSX.Element {
+  const start = steps[0]?.createdAt ?? '';
+  const failed = steps.filter((step) => step.status === 'error').length;
   return (
-    <Card title="Trace">
+    <Card title={title}>
       <p className="text-sm text-ink-muted">
         {start ? `${dateTime(start)} · ` : ''}
-        {trace.steps.length} steps ·{' '}
+        {steps.length} steps ·{' '}
         <span className={TONE_CLASSES[failed > 0 ? 'bad' : 'good']}>
           {failed > 0 ? `${failed} failed` : 'no errors'}
         </span>
       </p>
-      <p className="break-all font-mono text-xs text-ink-muted">{trace.traceId}</p>
+      {traceId ? <p className="break-all font-mono text-xs text-ink-muted">{traceId}</p> : null}
       <ol className="mt-3 divide-y divide-border">
-        {trace.steps.map((step, index) => (
+        {steps.map((step, index) => (
           <Step key={`${step.createdAt}:${step.step}:${index}`} step={step} start={start} />
         ))}
       </ol>
     </Card>
   );
+}
+
+function Timeline({ trace }: { readonly trace: Trace }): React.JSX.Element {
+  return <TraceSteps title="Trace" steps={trace.steps} traceId={trace.traceId} />;
 }
 
 export function TraceView({

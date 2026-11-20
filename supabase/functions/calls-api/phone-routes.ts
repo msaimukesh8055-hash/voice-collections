@@ -13,6 +13,8 @@ import type { CallStatus } from '../_shared/schemas/shopkeeper.ts';
 import type { RouteContext } from './types.ts';
 
 const MAX_CALL_SECONDS = 3600;
+const MAX_REPLY_MS = 60_000;
+const MAX_REPLIES = 100;
 const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
 const LIVE: readonly CallStatus[] = ['accepted', 'in_progress'];
 
@@ -22,9 +24,33 @@ export const EndedBodySchema = z.object({
   // them, so the page's report failed and calls stayed in_progress (fixed in M5).
   interactionId: z.string().refine(isInteractionId).optional(),
   seconds: z.number().int().min(0).max(MAX_CALL_SECONDS),
+  /** Live evals: Asha's reply times in ms as the phone page heard them (2026-11-20). */
+  replyMs: z.array(z.number().int().min(0).max(MAX_REPLY_MS)).max(MAX_REPLIES).optional(),
 });
 
 const NO_CALL = { call: null } as const;
+
+/** Reply-time summary kept on the call's trace (no new column): count, median, p90, slowest. */
+export function replyStats(
+  times: readonly number[],
+): { count: number; p50: number; p90: number; max: number } {
+  const sorted = [...times].sort((a, b) => a - b);
+  const at = (share: number): number =>
+    sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))] ?? 0;
+  return { count: sorted.length, p50: at(0.5), p90: at(0.9), max: sorted.at(-1) ?? 0 };
+}
+
+/** The call_ended log fields for the reply times (log fields are flat). */
+export function replyFields(
+  stats: ReturnType<typeof replyStats>,
+): { replyCount: number; replyP50Ms: number; replyP90Ms: number; replyMaxMs: number } {
+  return {
+    replyCount: stats.count,
+    replyP50Ms: stats.p50,
+    replyP90Ms: stats.p90,
+    replyMaxMs: stats.max,
+  };
+}
 
 /** Every ended call (completed, declined, missed) gets a follow-up (M5 Decision 4). */
 function followupQueued(ctx: RouteContext): Pick<CallPatch, 'followupStatus' | 'followupNextAt'> {
@@ -129,7 +155,7 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
   if (!body.success) return errorResponse('BAD_REQUEST', ctx.cors);
   const call = await findCall(ctx);
   if (!call) return errorResponse('NOT_FOUND', ctx.cors);
-  const { interactionId, seconds } = body.data;
+  const { interactionId, seconds, replyMs } = body.data;
   // Never overwrite an id already stored (e.g. one fetched from Sarvam's analytics later).
   const keepsId = call.interactionId !== null || interactionId === undefined;
   const ended = await ctx.deps.repo.transitionCall(call.callId, LIVE, {
@@ -140,7 +166,11 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
     ...followupQueued(ctx),
   });
   if (!ended) return errorResponse('CALL_STATE_CONFLICT', ctx.cors);
-  ctx.deps.log('info', 'call_ended', { callId: call.callId, seconds });
+  ctx.deps.log('info', 'call_ended', {
+    callId: call.callId,
+    seconds,
+    ...(replyMs && replyMs.length > 0 ? replyFields(replyStats(replyMs)) : {}),
+  });
   ctx.deps.kickFollowup(call.callId);
   return jsonResponse({ status: 'completed' }, 200, ctx.cors);
 }

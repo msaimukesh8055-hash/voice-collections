@@ -116,9 +116,99 @@ const NEVER_LIST = `# Never
 - Share any amount before confirm_identity says confirmed.
 - Offer discounts, waivers or anything {{owner_name}} garu has not offered.`;
 
-describe('Asha prompt v8', () => {
-  it('is version v8 (v7 + identity before anything else, and saying the owner will call)', () => {
-    expect(PROMPT_VERSION).toBe('v8');
+/** The text between two headings (or to the end when `to` is missing). */
+function sectionOf(from: string, to: string): string {
+  return ASHA_PROMPT.slice(ASHA_PROMPT.indexOf(from), ASHA_PROMPT.indexOf(to));
+}
+
+/** One numbered step (or bullet) of the call flow, to the end of its line. */
+function lineStarting(start: string): string {
+  const at = ASHA_PROMPT.indexOf(start);
+  return ASHA_PROMPT.slice(at, ASHA_PROMPT.indexOf('\n', at));
+}
+
+describe('Asha prompt v9', () => {
+  it('is version v9 (v8 + short turns and the three v8 eval fixes)', () => {
+    expect(PROMPT_VERSION).toBe('v9');
+  });
+
+  it('v9: "How you speak" comes before the call flow and keeps every turn short', () => {
+    expect(ASHA_PROMPT.indexOf('# How you speak')).toBeGreaterThan(-1);
+    expect(ASHA_PROMPT.indexOf('# How you speak')).toBeLessThan(ASHA_PROMPT.indexOf('# Call flow'));
+    const section = sectionOf('# How you speak', '# Call flow');
+    expect(section).toContain(
+      'at most two short sentences in a turn, then stop and let them answer',
+    );
+    expect(section).toContain(
+      'Never put the figures, a past promise and a question in the same turn.',
+    );
+  });
+
+  it('v9: stops when interrupted and does not repeat itself', () => {
+    const section = sectionOf('# How you speak', '# Call flow');
+    expect(section).toContain('If they start speaking while you are talking, stop and listen.');
+    expect(section).toContain('Do not repeat what you already said');
+  });
+
+  it('v9: a first answer with several things goes identity first, then hardship, else the notice', () => {
+    const bullet = lineStarting('   - Their first answer may say several things');
+    expect(bullet.indexOf('confirm_identity')).toBeLessThan(bullet.indexOf('step 6'));
+    expect(bullet.indexOf('step 6')).toBeLessThan(bullet.indexOf('otherwise go to step 2'));
+    expect(bullet).toContain('skip the recording notice and the dues');
+    expect(bullet).toContain('come back to it at step 4');
+  });
+
+  it('v9: waits after the recording notice, and says the dues one figure per turn', () => {
+    expect(lineStarting('2. When confirm_identity says confirmed')).toContain(
+      'then wait for their answer',
+    );
+    const step = lineStarting('3. Then call tool:get_dues.');
+    expect(step).toContain('Say the total outstanding');
+    expect(step).toContain('After they answer, say what is overdue');
+    expect(step).toContain('also one point per turn');
+  });
+
+  it('v9: an early promise is still logged and read back', () => {
+    expect(lineStarting('4. If get_dues gave a last promise')).toContain(
+      'Do this even if they offered the promise earlier in the call.',
+    );
+  });
+
+  it('v9 pass 2: a broken promise is raised before a new one is logged', () => {
+    const step = lineStarting('4. If get_dues gave a last promise');
+    expect(step).toContain(
+      'raise it first, in one short turn, even if they already offered a new promise',
+    );
+    expect(step.indexOf('raise it first')).toBeLessThan(step.indexOf('call tool:log_promise'));
+  });
+
+  it('v9 pass 2: identity before a callback, and no ending the call right after one', () => {
+    const step = lineStarting('6. If they dispute the amount');
+    expect(step).toContain(
+      'If you have not called tool:confirm_identity yet in this call, call it first.',
+    );
+    expect(step.indexOf('confirm_identity')).toBeLessThan(step.indexOf('request_owner_callback'));
+    expect(step).toContain('Never end the call in that reply.');
+  });
+
+  it('v9 pass 2: nothing important is said in a reply that calls a tool', () => {
+    expect(ASHA_PROMPT).toContain('Words in a reply that calls a tool are not spoken aloud.');
+    expect(ASHA_PROMPT).not.toContain('you may say one very short filler');
+  });
+
+  it('v9: no promise for the rest of the balance after a payment claim', () => {
+    expect(lineStarting('5. If they say they already paid')).toContain(
+      'Do not ask about or log a promise for the rest of the balance in this call',
+    );
+  });
+
+  it('v9: one kind sentence first on hardship; "the owner will call" before the closing ask', () => {
+    const step = lineStarting('6. If they dispute the amount');
+    expect(step).toContain('start with one short, kind sentence of sympathy');
+    expect(step.indexOf('kind sentence')).toBeLessThan(step.indexOf('will call them back'));
+    expect(step.indexOf('will call them back')).toBeLessThan(
+      step.indexOf('ask whether they need anything else'),
+    );
   });
 
   it('v8: identity is recorded first even when the caller says more in the same breath', () => {
@@ -129,7 +219,7 @@ describe('Asha prompt v8', () => {
 
   it('v8: after a callback is logged, the next sentence says the owner will call back', () => {
     expect(ASHA_PROMPT).toContain(
-      'After the tool reply, your next sentence must tell them {{owner_name}} garu will call them back.',
+      'After the tool reply, your next reply must: start with one short, kind sentence of sympathy if they mentioned a death, illness or hardship; then tell them {{owner_name}} garu will call them back;',
     );
   });
 
@@ -153,7 +243,7 @@ describe('Asha prompt v8', () => {
     const step = ASHA_PROMPT.slice(start, ASHA_PROMPT.indexOf('\n', start));
     expect(step).toContain('ask you to stop calling');
     expect(step).toContain('even before the recording notice or the dues');
-    expect(step).toContain('call tool:request_owner_callback'.replace('call', 'Call'));
+    expect(step).toContain('Then call tool:request_owner_callback');
     expect(step).toContain('If they ask you to end the call');
   });
 
@@ -241,7 +331,9 @@ describe('Asha prompt v8', () => {
     const section = ASHA_PROMPT.indexOf('# Memory and tone');
     expect(section).toBeGreaterThan(ASHA_PROMPT.indexOf('# Call flow'));
     expect(section).toBeLessThan(ASHA_PROMPT.indexOf('# Tools'));
-    expect(ASHA_PROMPT).toContain('Then follow "Memory and tone" below.');
+    expect(lineStarting('3. Then call tool:get_dues.')).toContain(
+      'Then follow "Memory and tone" below',
+    );
   });
 
   it('describes all three levels, which Asha never chooses or says aloud', () => {
@@ -265,7 +357,7 @@ describe('Asha prompt v8', () => {
     expect(ASHA_PROMPT).toContain('ask them to confirm');
     expect(ASHA_PROMPT).toContain('it updates the saved promise');
     expect(ASHA_PROMPT).toContain('read back what the tool reply says');
-    expect(ASHA_PROMPT).toContain('never say "let me check" again');
+    expect(ASHA_PROMPT).toContain('Never say "one moment" or "let me check".');
   });
 
   it('leaves reply language to the platform (Sarvam refuses a prompt language rule)', () => {

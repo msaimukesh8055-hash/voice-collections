@@ -3,7 +3,7 @@
 // do not depend on any judge. They answer "what did Asha actually do?", where Sarvam's judge
 // answers "how did she say it?". Identity and money checks are critical: one failure fails the
 // release gate on its own.
-import type { CallEvidence, CheckResult, EvalCase } from './types.ts';
+import type { CallEvidence, CheckResult, EvalCase, TranscriptTurn } from './types.ts';
 
 const IDENTITY_TOOL = 'confirm_identity';
 
@@ -61,4 +61,25 @@ export function checkCall(evalCase: EvalCase, evidence: CallEvidence): readonly 
     result('claims_saved', true, count('claim(s)', expect.claims, evidence.claims)),
     result('must_call', false, mustCall(evalCase, evidence)),
   ];
+}
+
+/**
+ * v9 (Saim, 2026-11-20): Asha spoke for 15–20 s in one go on live calls. An Asha turn longer
+ * than this is reported. 180 characters is about two short spoken sentences in Telugu; the v8
+ * dues turn that read total, overdue, a promise and a question at once was 244. Not critical:
+ * it shows on every run but does not block the release gate (the judge grades short turns too).
+ */
+export const MAX_TURN_CHARS = 180;
+const AGENT_ROLE = 'assistant';
+
+export function checkTurns(transcript: readonly TranscriptTurn[]): CheckResult {
+  const long = transcript
+    .filter((turn) => turn.role === AGENT_ROLE)
+    .map((turn) => turn.content.trim().length)
+    .filter((length) => length > MAX_TURN_CHARS);
+  const problem =
+    long.length === 0
+      ? null
+      : `${long.length} turn(s) over ${MAX_TURN_CHARS} characters (longest ${Math.max(...long)})`;
+  return result('short_turns', false, problem);
 }

@@ -12,7 +12,13 @@ import { REGION_HEADER } from '@shared/region.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
 import { type Evals, EvalsSchema } from './evalsSchemas.ts';
-import { type OpsSummary, OpsSummarySchema, type Trace, TraceSchema } from './opsSchemas.ts';
+import {
+  type OpsSummary,
+  OpsSummarySchema,
+  type Trace,
+  TraceSchema,
+  TraceStepSchema,
+} from './opsSchemas.ts';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const STORAGE_KEY = 'dashboardToken';
@@ -122,6 +128,27 @@ const ShopkeeperDetailSchema = z.object({
   calls: z.array(CallRowSchema),
 });
 const CallListSchema = z.object({ calls: z.array(CallRowSchema) });
+/** Live evals (2026-11-20): the call's scorecard, worked out on the server (scorecard.ts). */
+const ScorecardSchema = z.object({
+  verdict: z.enum(['good', 'check', 'failed']),
+  passed: z.number(),
+  applicable: z.number(),
+  groups: z.array(
+    z.object({
+      name: z.string(),
+      checks: z.array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          status: z.enum(['pass', 'warn', 'fail', 'na']),
+          value: z.string(),
+        }),
+      ),
+    }),
+  ),
+  gaps: z.array(z.string()),
+});
+
 const CallDetailSchema = z.object({
   call: CallRowSchema.extend({
     transcript: z
@@ -140,6 +167,8 @@ const CallDetailSchema = z.object({
     followup: z
       .object({ path: z.enum(['rule', 'agent']), decision: z.string(), reasoning: z.string() })
       .nullable(),
+    scorecard: ScorecardSchema.optional(),
+    trace: z.array(TraceStepSchema).optional(),
   }),
 });
 const SettingsSchema = z.object({ settings: z.object({ englishUnderTelugu: z.boolean() }) });
@@ -147,6 +176,7 @@ const ErrorBodySchema = z.object({ error: z.object({ code: z.string(), message: 
 
 export type Band = z.infer<typeof BandSchema>;
 export type CallRow = z.infer<typeof CallRowSchema>;
+export type Scorecard = z.infer<typeof ScorecardSchema>;
 export type Overview = z.infer<typeof OverviewSchema>;
 export type ShopkeeperList = z.infer<typeof ShopkeeperListSchema>;
 export type ShopkeeperDetail = z.infer<typeof ShopkeeperDetailSchema>;

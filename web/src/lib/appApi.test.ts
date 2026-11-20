@@ -104,6 +104,14 @@ describe('createAppApi', () => {
     expect(done.sent[2]?.init.body).toBe('{"seconds":3600}');
   });
 
+  it('sends the reply times with the end of a call only when there are some', async () => {
+    const done = setup(json({ status: 'completed' }));
+    await done.api.ended(TOKEN, { interactionId: null, seconds: 30, replyMs: [900, 1200] });
+    await done.api.ended(TOKEN, { interactionId: null, seconds: 30, replyMs: [] });
+    expect(done.sent[0]?.init.body).toBe('{"seconds":30,"replyMs":[900,1200]}');
+    expect(done.sent[1]?.init.body).toBe('{"seconds":30}');
+  });
+
   it('gives the Sarvam SDK our proxy URL and the call token header, never a Sarvam key', () => {
     const { api } = setup(json({}));
     const proxy = api.sarvamProxy(TOKEN);

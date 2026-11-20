@@ -71,6 +71,37 @@ export interface CallEvents {
 export interface VoiceSession {
   /** Hangs up (safe to call twice) and returns Sarvam's interaction id, if one was assigned. */
   readonly stop: () => Promise<string | null>;
+  /** Live evals (2026-11-20): ms from the person's speech ending to Asha's voice starting, one
+   * per reply, as this page heard it. Empty when Sarvam sent no speech events. */
+  readonly replyTimes: () => readonly number[];
+}
+
+/** At most this many reply times are kept for one call. */
+export const MAX_REPLY_TIMES = 100;
+
+/**
+ * Asha's reply time, as the caller hears it: from Sarvam's "speech ended" event to the agent's
+ * `speaking` state on this page. Speech starting again before she answers restarts the wait.
+ */
+export function createReplyTimer(now: () => number): {
+  readonly onServerEvent: (type: string) => void;
+  readonly onState: (state: string) => void;
+  readonly times: () => readonly number[];
+} {
+  let waitingSince: number | null = null;
+  const times: number[] = [];
+  return {
+    onServerEvent(type) {
+      if (type === USER_SPEECH_END) waitingSince = now();
+      else if (type === USER_SPEECH_START || type === USER_INTERRUPT) waitingSince = null;
+    },
+    onState(state) {
+      if (state !== 'speaking' || waitingSince === null) return;
+      if (times.length < MAX_REPLY_TIMES) times.push(Math.max(0, Math.round(now() - waitingSince)));
+      waitingSince = null;
+    },
+    times: () => [...times],
+  };
 }
 
 export interface VoiceClient {
@@ -198,11 +229,16 @@ function createSpeakerTracker(
 }
 
 /** Turns SDK callbacks into phase / speaker / transcript events, each change sent once. */
-function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks {
+function createCallbacks(
+  events: CallEvents,
+  now: () => number,
+): AgentCallbacks & { readonly replyTimes: () => readonly number[] } {
   const speakers = createSpeakerTracker(events, now);
+  const replies = createReplyTimer(now);
   let ended = false;
 
   return {
+    replyTimes: replies.times,
     onTranscript(role, text) {
       const trimmed = text.trim();
       if (trimmed)
@@ -211,9 +247,13 @@ function createCallbacks(events: CallEvents, now: () => number): AgentCallbacks 
     onState(state) {
       if (state === 'error') events.onPhase('error');
       speakers.onState(state);
+      replies.onState(state);
     },
     onInputLevel: speakers.onInputLevel,
-    onServerEvent: speakers.onServerEvent,
+    onServerEvent(type) {
+      speakers.onServerEvent(type);
+      replies.onServerEvent(type);
+    },
     onEnd() {
       if (ended) return;
       ended = true;
@@ -253,7 +293,8 @@ export function createSarvamClient(
 ): VoiceClient {
   async function startRequest(request: AgentRequest, events: CallEvents): Promise<VoiceSession> {
     events.onPhase('connecting');
-    const agent = factory(request, createCallbacks(events, now));
+    const callbacks = createCallbacks(events, now);
+    const agent = factory(request, callbacks);
     await connect(agent);
     events.onPhase('live');
     let stopped = false;
@@ -265,6 +306,7 @@ export function createSarvamClient(
         }
         return agent.getInteractionId() ?? null;
       },
+      replyTimes: callbacks.replyTimes,
     };
   }
 

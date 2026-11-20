@@ -235,6 +235,16 @@ Deno.test('get_dues › the figures come first and the closing instruction last'
   assert(say.endsWith('then ask when they can pay.'));
 });
 
+Deno.test('get_dues › v9: the reply asks for the total alone first, then one point per turn', async () => {
+  const { ctx } = confirmedSetup({ state: { promiseHistory: FAKE_RAMESH_PROMISES } });
+  const outcome = await getDues(ctx, {});
+  assert(outcome.result.ok);
+  const say = outcome.result.say;
+  assert(say.includes('say only the total outstanding now, then stop and wait for their answer.'));
+  assert(say.includes('one per turn'));
+  assertEquals(say.includes('Say these figures once'), false);
+});
+
 // M7 B1: the call history (Decision 1 and 2).
 
 function pastCall(overrides: Partial<FakePastCall> = {}): FakePastCall {
@@ -319,7 +329,9 @@ Deno.test('get_dues › history: no past calls → the same reply as before B1',
     'Total outstanding: 8,500 rupees. Overdue: 5,000 rupees, due since Wednesday, 21 October ' +
       '2026 (12 days). Next due: 3,500 rupees on Thursday, 5 November 2026. Last promise: ' +
       '3,000 rupees by Friday, 30 October 2026. Broken: 0 rupees of it was paid. Tone level: 2 ' +
-      "(firm). Say these figures once, in the caller's language, then ask when they can pay.",
+      "(firm). In the caller's language, say only the total outstanding now, then stop and " +
+      'wait for their answer. Say the overdue amount and any past promise later, one per turn, ' +
+      'each figure once, then ask when they can pay.',
   );
 });
 
