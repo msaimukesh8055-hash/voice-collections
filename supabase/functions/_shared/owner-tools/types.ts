@@ -44,6 +44,8 @@ export interface OwnerToolContext {
   /** Real time of this tool call: the 2-second and 3-minute action rules (never the demo
    * clock, so moving it cannot open or close the confirm gate). */
   readonly realNow: Date;
+  /** Waits (real time in the function; instant in tests). Used by the prepare grace wait. */
+  readonly pause: (ms: number) => Promise<void>;
 }
 
 export const OWNER_TOOL_ERRORS = {
@@ -67,6 +69,9 @@ export const OWNER_TOOL_ERRORS = {
   TOO_SOON: 'He has not answered the read-back yet, so nothing was changed and that change was ' +
     'dropped. Call the prepare tool again, read it back, ask "correct?" and wait for his answer.',
   ALREADY_DONE: 'That change is already done. Do not do it again; tell him it is done.',
+  REPLACED_NOT_SAVED: 'That change was NOT saved: a newer change replaced it at the same ' +
+    'moment. Tell him it is not saved yet. Finish the newer change first, then get this one ' +
+    'ready again and read it back.',
   NOTHING_TO_DELETE:
     'No live entry of theirs matches that, so nothing was changed. Ask him which ' +
     'entry: the amount or the date.',

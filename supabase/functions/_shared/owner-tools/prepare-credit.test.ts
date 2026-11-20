@@ -48,7 +48,8 @@ Deno.test('prepare_credit › three round trips: name + ref together, entries, t
   assertEquals(context.calls, [
     'listShopkeepers',
     'countVoiceActions',
-    // Round ① also drops any open change, so a prepare that stores nothing leaves none open.
+    'latestVoiceActions',
+    // Then any open change is dropped, so a prepare that stores nothing leaves none open.
     'cancelOpenVoiceActions',
     'listShopkeeperEntries',
     'createVoiceAction',

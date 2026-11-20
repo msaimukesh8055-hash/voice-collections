@@ -7,9 +7,17 @@
 import { formatRupees, formatShortDay } from '../format.ts';
 import type { LedgerKind } from '../schemas/ledger.ts';
 
+/**
+ * The reply to every prepare. The last sentence is where the LLM decides what to call next, so
+ * the "confirm alone" rule lives here as well as in the prompt: Munshi sent confirm_action
+ * together with end_interaction (Sarvam then ran only the hang-up) or with the next prepare,
+ * and the change was not saved (2026-11-20 gate, cases 07, 11, 12, 13).
+ */
 export function askForYes(readBack: string, ref: string): string {
   return `Read this back to him and ask "correct?": ${readBack} Then stop and wait for his ` +
-    `answer. Only if he says yes to this, call confirm_action with action_ref ${ref}.`;
+    `answer. Only if he says yes to this, call confirm_action with action_ref ${ref}, on its ` +
+    'own: no other tool in the same step, not even ending the call. Wait for its reply, tell ' +
+    'him what it says, and only then do anything else.';
 }
 
 /**

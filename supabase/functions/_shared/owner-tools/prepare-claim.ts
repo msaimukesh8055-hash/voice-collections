@@ -5,6 +5,8 @@
 // The executor uses the same settleClaim compare-and-set as WhatsApp's [Confirm received] /
 // [Not received] card, so a later tap on that card says "already done", and a claim already
 // settled on WhatsApp is refused here. Claims that sound the same count as one (the newest).
+// prepare_payment uses storeClaim too: a payment he reports that matches an open claim (same
+// shopkeeper, same amount) is that claim, so it is accepted rather than saved twice (gate case 12).
 // Rounds: prepare ① name + ref ② his entries ③ store; confirm ② claim + entries ③ settleClaim.
 import type { BookEntry } from '../db/book-repository.ts';
 import { formatRupees, formatShortDay } from '../format.ts';
@@ -38,7 +40,7 @@ const SETTLED_STATUS: Readonly<Record<ClaimDecision, 'confirmed' | 'rejected'>> 
 
 type Filters = Pick<OwnerToolArgs<'prepare_claim'>, 'amount' | 'entry_date'>;
 
-function openClaims(entries: readonly BookEntry[], filters: Filters): readonly BookEntry[] {
+export function openClaims(entries: readonly BookEntry[], filters: Filters): readonly BookEntry[] {
   return entries.filter((entry) =>
     entry.kind === 'payment' && entry.status === 'claimed' &&
     (filters.amount === undefined || toPaise(entry.amount) === toPaise(filters.amount)) &&
@@ -60,6 +62,40 @@ function whichClaim(claims: readonly BookEntry[]): OwnerToolOutcome {
   );
 }
 
+/** The claim and how he said it; `matched`: he reported it as a payment (prepare_payment). */
+export interface ClaimToStore {
+  readonly person: { readonly shopkeeperId: string; readonly label: string; readonly ref: string };
+  readonly claimed: BookEntry;
+  readonly decision: ClaimDecision;
+  readonly matched: boolean;
+}
+
+export function storeClaim(
+  { person, claimed, decision, matched }: ClaimToStore,
+  entries: readonly BookEntry[],
+  ctx: OwnerToolContext,
+): Promise<OwnerToolOutcome> {
+  const { shopkeeperId, label, ref } = person;
+  const status = SETTLED_STATUS[decision];
+  const before = outstandingAfter(entries, ctx.today);
+  const after = outstandingAfter(entries, ctx.today, withStatus(claimed.id, status));
+  const mark = decision === 'received' ? 'received' : 'not received';
+  const lead = matched
+    ? `${label} already told Asha they paid ${claimFacts(claimed)}, so this is that payment. ` +
+      `Accept it as received (not a second payment).`
+    : `${label} told Asha they paid ${claimFacts(claimed)}. Mark it as ${mark}.`;
+  return storeAction(
+    {
+      kind: 'voice_claim',
+      payload: { shopkeeperId, name: label, entryId: claimed.id, amount: claimed.amount, decision },
+      readBack: `${lead} ${balanceChange(before, after)}`,
+      data: { shopkeeper: label, decision, balance_after: after },
+    },
+    ref,
+    ctx,
+  );
+}
+
 export async function prepareClaim(
   ctx: OwnerToolContext,
   args: OwnerToolArgs<'prepare_claim'>,
@@ -75,25 +111,14 @@ export async function prepareClaim(
   // calls) count as one, the newest: asking "which one?" again could never get an answer.
   const sameToHim = claims.every((each) => claimFacts(each) === claimFacts(claimed));
   if (!sameToHim) return whichClaim(claims);
-  const status = SETTLED_STATUS[args.decision];
-  const before = outstandingAfter(entries, ctx.today);
-  const after = outstandingAfter(entries, ctx.today, withStatus(claimed.id, status));
-  const mark = args.decision === 'received' ? 'received' : 'not received';
-  return storeAction(
+  return storeClaim(
     {
-      kind: 'voice_claim',
-      payload: {
-        shopkeeperId: shopkeeper.id,
-        name: label,
-        entryId: claimed.id,
-        amount: claimed.amount,
-        decision: args.decision,
-      },
-      readBack: `${label} told Asha they paid ${claimFacts(claimed)}. Mark it as ${mark}. ` +
-        balanceChange(before, after),
-      data: { shopkeeper: shopkeeper.name, decision: args.decision, balance_after: after },
+      person: { shopkeeperId: shopkeeper.id, label, ref },
+      claimed,
+      decision: args.decision,
+      matched: false,
     },
-    ref,
+    entries,
     ctx,
   );
 }

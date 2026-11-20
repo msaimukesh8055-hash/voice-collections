@@ -8,6 +8,9 @@ import { createRequest, type DbRequest, type EvalDbConfig, insert } from './eval
 import type { MunshiEvidence } from './munshi-checks.ts';
 import type { MunshiCaseRows, MunshiEvalRows } from './munshi-eval-data.ts';
 
+/** An eval owner call's link lasts as long as when it is created (munshi-eval-data.ts). */
+const EVAL_LINK_MS = 30 * 60 * 1000;
+
 const ToolRows = z.array(z.object({ tool: z.string(), result: z.object({ ok: z.boolean() }) }));
 const EntryRows = z.array(
   z.object({
@@ -18,13 +21,24 @@ const EntryRows = z.array(
     status: z.string(),
   }),
 );
+// The tool server stores each action as {ref, data} (voice-action-repository.ts); the checks
+// want the data. Reading the top level found empty fields (cases 11 and 13, 2026-11-20 run).
 const ActionRows = z.array(
-  z.object({ kind: z.string(), payload: z.record(z.string(), z.unknown()) }),
+  z.object({
+    kind: z.string(),
+    payload: z.object({ data: z.record(z.string(), z.unknown()) }),
+  }),
 );
 
 export interface MunshiEvalDb {
   insertRows(rows: MunshiEvalRows): Promise<void>;
   readEvidence(rows: MunshiCaseRows): Promise<MunshiEvidence>;
+  /**
+   * Re-dates owner calls as accepted `agoMs` before `now`, so a case's call clock does not run
+   * while Sarvam builds or queues the run (that took over 10 minutes on 2026-11-20 and every
+   * token was refused as expired).
+   */
+  restartOwnerCalls(ownerCallIds: readonly string[], now: Date, agoMs: number): Promise<void>;
   /** Ends the run's owner calls so their tokens stop working. */
   closeOwnerCalls(ownerCallIds: readonly string[], endedAt: Date): Promise<void>;
 }
@@ -69,7 +83,10 @@ async function readEvidence(request: DbRequest, rows: MunshiCaseRows): Promise<M
       amount: row.amount,
       status: row.status,
     })),
-    savedActions: ActionRows.parse(actions),
+    savedActions: ActionRows.parse(actions).map((row) => ({
+      kind: row.kind,
+      payload: row.payload.data,
+    })),
   };
 }
 
@@ -78,6 +95,22 @@ export function createMunshiEvalDb(config: EvalDbConfig): MunshiEvalDb {
   return {
     insertRows: (rows) => insertRows(request, rows),
     readEvidence: (rows) => readEvidence(request, rows),
+    async restartOwnerCalls(ownerCallIds, now, agoMs) {
+      if (ownerCallIds.length === 0) return;
+      const accepted = now.getTime() - agoMs;
+      const acceptedAt = new Date(accepted).toISOString();
+      const expiresAt = new Date(accepted + EVAL_LINK_MS).toISOString();
+      const list = ownerCallIds.map(encodeURIComponent).join(',');
+      await request(
+        'restart owner calls',
+        `owner_calls?id=in.(${list})&status=in.(accepted,in_progress)`,
+        {
+          method: 'PATCH',
+          body: { issued_at: acceptedAt, accepted_at: acceptedAt, expires_at: expiresAt },
+          prefer: 'return=minimal',
+        },
+      );
+    },
     async closeOwnerCalls(ownerCallIds, endedAt) {
       if (ownerCallIds.length === 0) return;
       const list = ownerCallIds.map(encodeURIComponent).join(',');

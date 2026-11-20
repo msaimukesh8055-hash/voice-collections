@@ -1,6 +1,9 @@
 // evals/sarvam/munshi.test.ts
 // Munshi on Sarvam Tests (M9 Build F) with no network: the cases, the eval-owner rows, the
 // translated outcome, our database checks and the suite sent to Sarvam.
+import type { MunshiEvalDb } from './munshi-eval-db.ts';
+import { createMunshiEvalDb } from './munshi-eval-db.ts';
+import { refreshCallClocks } from './munshi-runner.ts';
 import { describe, expect, it } from 'vitest';
 import { OWNER_CALL_TOKEN_VARIABLE } from '../../supabase/functions/_shared/sarvam.ts';
 import {
@@ -58,6 +61,8 @@ describe('Munshi cases', () => {
       { shopkeeperId: RAMESH.id, kind: 'credit', amount: 5000 },
     ]);
     expect(theCase('munshi-15').acceptedAgoMs).toBe(MUNSHI_WRAP_UP_AGO_MS);
+    expect(theCase('munshi-04').scenario).toContain('due in 10 days');
+    expect(theCase('munshi-04').scenario).not.toContain('15');
     expect(theCase('munshi-01').acceptedAgoMs).toBe(30_000);
   });
 });
@@ -204,5 +209,54 @@ describe('Munshi suite', () => {
     expect(tokens[0]?.value).toBe(rows.byCase.get('munshi-01')?.ownerCallId);
     expect(tokens[0]?.value).not.toBe(tokens[1]?.value);
     expect(suite.variables.map((item) => item.name)).toContain(OWNER_CALL_TOKEN_VARIABLE);
+  });
+});
+
+describe('Munshi call clocks while Sarvam queues the run', () => {
+  it('re-date every case: one update per start offset, the wrap-up case at 7 min 10 s', async () => {
+    const cases = [theCase('munshi-01'), theCase('munshi-04'), theCase('munshi-15')];
+    const rows = buildMunshiEvalRows(cases, { ...OPTIONS, newId: counter() });
+    const updates: { ids: readonly string[]; agoMs: number }[] = [];
+    const db = {
+      restartOwnerCalls: (ids: readonly string[], _now: Date, agoMs: number) => {
+        updates.push({ ids, agoMs });
+        return Promise.resolve();
+      },
+    } as unknown as MunshiEvalDb;
+    await refreshCallClocks(cases, rows, { db, now: () => NOW });
+    expect(updates.map((one) => [one.agoMs, one.ids.length])).toEqual([
+      [30_000, 2],
+      [MUNSHI_WRAP_UP_AGO_MS, 1],
+    ]);
+  });
+});
+
+describe('Munshi eval database reads', () => {
+  it('reads saved actions from the stored {ref, data} payload', async () => {
+    function fakeFetch(input: string | URL | Request): Promise<Response> {
+      const url = String(input);
+      const rows = url.includes('pending_actions')
+        ? [
+            {
+              kind: 'voice_remind',
+              payload: { ref: 'r1', data: { shopkeeperId: 's-1', name: 'Ramesh' } },
+            },
+          ]
+        : [];
+      return Promise.resolve(new Response(JSON.stringify(rows), { status: 200 }));
+    }
+    const db = createMunshiEvalDb({
+      supabaseUrl: 'https://db.test',
+      serviceRoleKey: 'test-key',
+      fetchImpl: fakeFetch as typeof fetch,
+    });
+    const evidence = await db.readEvidence({
+      ownerCallId: 'call-1',
+      ownerId: 'owner-1',
+      ids: new Map(),
+    });
+    expect(evidence.savedActions).toEqual([
+      { kind: 'voice_remind', payload: { shopkeeperId: 's-1', name: 'Ramesh' } },
+    ]);
   });
 });

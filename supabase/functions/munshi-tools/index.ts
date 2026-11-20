@@ -37,6 +37,11 @@ const repo = createSupabaseRepository(query);
 const book = createSupabaseBookRepository(query);
 const followups = createSupabaseFollowupRepository(query);
 const clock = (): Date => new Date();
+function pause(ms: number): Promise<void> {
+  return new Promise(function wait(resolve): void {
+    setTimeout(resolve, ms);
+  });
+}
 const kickJob = createJobKicker({
   workerUrl: followupWorkerUrl(env.SUPABASE_URL),
   secret: env.WORKER_SECRET,
@@ -64,6 +69,7 @@ const deps: OwnerToolsDeps = {
   getEvalOwner: createEvalOwnerReader(query),
   secret: env.SARVAM_OWNER_TOOL_SECRET,
   clock,
+  pause,
   log,
 };
 

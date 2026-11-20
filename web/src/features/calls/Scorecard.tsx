@@ -6,6 +6,7 @@
 import type { Scorecard as Card } from '../../lib/dashboardApi.ts';
 import { Card as Section } from '../dashboard/Layout.tsx';
 import { type Tone, TONE_CLASSES } from '../ops/opsFormat.ts';
+import { checkHelp } from './checkHelp.ts';
 
 type Status = Card['groups'][number]['checks'][number]['status'];
 
@@ -23,6 +24,24 @@ const VERDICT: Readonly<Record<Card['verdict'], { readonly label: string; readon
     failed: { label: '❌ A guardrail failed', tone: 'bad' },
   };
 
+/** The plain-English line under a check: what it means, and what a miss means. */
+export function CheckExplained({
+  id,
+  missed,
+}: {
+  readonly id: string;
+  readonly missed: boolean;
+}): React.JSX.Element | null {
+  const help = checkHelp(id);
+  if (!help) return null;
+  return (
+    <span className="col-span-2 text-xs text-ink">
+      {help.means}
+      {missed ? <span className="block text-ink-muted">Why it matters: {help.miss}</span> : null}
+    </span>
+  );
+}
+
 function Group({ group }: { readonly group: Card['groups'][number] }): React.JSX.Element {
   return (
     <div className="rounded-xl bg-canvas p-3 ring-1 ring-border">
@@ -35,6 +54,10 @@ function Group({ group }: { readonly group: Card['groups'][number] }): React.JSX
               {STATUS[check.status].label}
             </span>
             <span className="col-span-2 text-xs text-ink-muted">{check.value}</span>
+            <CheckExplained
+              id={check.id}
+              missed={check.status === 'fail' || check.status === 'warn'}
+            />
           </li>
         ))}
       </ul>

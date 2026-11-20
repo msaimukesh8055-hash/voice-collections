@@ -20,6 +20,10 @@ import { createMunshiEvalDb } from './munshi-eval-db.ts';
 import { buildMunshiEvalRows } from './munshi-eval-data.ts';
 import { type MunshiRunPlan, munshiSuite, runMunshiSuite } from './munshi-runner.ts';
 import { formatTable, toStoredRun } from './report.ts';
+import { offsetClock, serverClockOffsetMs } from './server-clock.ts';
+
+/** Say so when this computer's clock is more than this far off the server's. */
+const CLOCK_WARN_MS = 5_000;
 
 const OWNER = {
   name: 'Srinivas Reddy',
@@ -108,11 +112,25 @@ function sarvamFromEnv(): SarvamTests {
   });
 }
 
+/** Server time (see server-clock.ts), with a line when this computer's clock is off. */
+async function serverClock(supabaseUrl: string): Promise<() => Date> {
+  const offsetMs = await serverClockOffsetMs(supabaseUrl, fetch);
+  if (Math.abs(offsetMs) > CLOCK_WARN_MS) {
+    const seconds = Math.round(offsetMs / 1000);
+    write(`This computer's clock is ${seconds} s off the server's; using server time.`);
+  }
+  return offsetClock(offsetMs);
+}
+
+function printPlanOnly(): void {
+  const at = new Date();
+  const stamp = at.toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  printPlan(planFor({ today: istDayLabel(at), now: at, stamp, appId: 'plan-only', version: 1 }));
+}
+
 async function main(): Promise<void> {
-  const now = new Date();
-  const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
   if (process.argv.includes('--plan')) {
-    printPlan(planFor({ today: istDayLabel(now), now, stamp, appId: 'plan-only', version: 1 }));
+    printPlanOnly();
     return;
   }
   const config = {
@@ -120,6 +138,9 @@ async function main(): Promise<void> {
     serviceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
     fetchImpl: fetch,
   };
+  const clock = await serverClock(config.supabaseUrl);
+  const now = clock();
+  const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, '');
   const store = createEvalDb(config);
   const today = istDayLabel(resolveNow(await store.getDemoClock(), now));
   const plan = planFor({
@@ -135,7 +156,7 @@ async function main(): Promise<void> {
     sarvam,
     db: createMunshiEvalDb(config),
     sleep,
-    now: () => new Date(),
+    now: clock,
     onProgress: write,
   });
   const summary = summarise(outcome.results);

@@ -76,12 +76,16 @@ function suiteFor(plan: RunPlan, rows: EvalRows): NewSuite {
 }
 
 export async function waitForRun(
-  deps: Pick<RunnerDeps, 'sarvam' | 'now' | 'sleep' | 'onProgress'>,
+  deps: Pick<RunnerDeps, 'sarvam' | 'now' | 'sleep' | 'onProgress'> & {
+    /** Runs before every status check (Munshi keeps its eval call clocks fresh while queued). */
+    readonly beforePoll?: () => Promise<void>;
+  },
   suiteId: string,
   runId: string,
 ): Promise<void> {
   const deadline = deps.now().getTime() + MAX_WAIT_MS;
   while (deps.now().getTime() < deadline) {
+    await deps.beforePoll?.();
     const run = await deps.sarvam.getRun(suiteId, runId);
     deps.onProgress?.(`run ${run.status}: ${run.completed} of ${run.total} conversations`);
     if (run.status === 'completed') return;

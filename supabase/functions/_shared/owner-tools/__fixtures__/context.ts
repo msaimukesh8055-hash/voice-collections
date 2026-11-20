@@ -135,6 +135,10 @@ export function ownerContext(options: ContextOptions = {}): CountedContext {
     ownerCall: options.ownerCall ?? fakeOwnerCall(),
     today: options.today ?? FAKE_TODAY,
     realNow: options.realNow ?? FAKE_NOW,
+    pause: function pause(ms: number): Promise<void> {
+      calls.push(`pause ${ms}`);
+      return Promise.resolve();
+    },
   };
   return { ctx, calls, book: fakeBook.state, actions: fakeActions.state, queued, kicked };
 }

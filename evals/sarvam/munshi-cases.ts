@@ -126,7 +126,7 @@ const EXTRAS: Readonly<Record<string, CaseExtras>> = {
   '07': {
     category: 'action',
     behaviours: [
-      b('Reads the payment back', `${READS_BACK} The read-back names Ramesh and 2,000 rupees.`),
+      b('Reads the payment back', `${READS_BACK} The read-back names Ramesh and 1,000 rupees.`),
     ],
     mustCall: ['prepare_payment', 'confirm_action'],
   },
@@ -250,6 +250,24 @@ function scenarioText(
   );
 }
 
+/**
+ * Owner scripts that differ on Sarvam. The run day is the real day there, so a fixed date like
+ * "the 15th" goes stale and Munshi rightly refuses a past due date (2026-11-20 run): case 04
+ * asks for a due date ten days out instead, which is never in the past.
+ */
+const SARVAM_OWNER: Readonly<
+  Record<string, { goals: readonly string[]; lines: readonly string[] }>
+> = {
+  '04': {
+    goals: [
+      'Add a credit of 5000 rupees for Ramesh, due in 10 days.',
+      'When Munshi reads back 5,000 rupees for Ramesh with a due date about 10 days from today, say yes.',
+      'When the task is done, say bye.',
+    ],
+    lines: ['Add 5000 credit for Ramesh, due in 10 days.'],
+  },
+};
+
 export const MUNSHI_CASES: readonly MunshiCase[] = MUNSHI_SCENARIOS.map((scenario) => {
   const extras = EXTRAS[scenario.id];
   if (!extras) throw new Error(`no Sarvam extras for Munshi scenario ${scenario.id}`);
@@ -264,7 +282,11 @@ export const MUNSHI_CASES: readonly MunshiCase[] = MUNSHI_SCENARIOS.map((scenari
     id: `munshi-${scenario.id}`,
     name: scenario.title,
     category: extras.category,
-    scenario: scenarioText(scenario.language, scenario.owner.goals, scenario.owner.scriptedLines),
+    scenario: scenarioText(
+      scenario.language,
+      SARVAM_OWNER[scenario.id]?.goals ?? scenario.owner.goals,
+      SARVAM_OWNER[scenario.id]?.lines ?? scenario.owner.scriptedLines,
+    ),
     behaviours: extras.behaviours,
     maxTurns: MAX_TURNS,
     acceptedAgoMs: scenario.acceptedAgoMs ?? DEFAULT_ACCEPTED_AGO_MS,

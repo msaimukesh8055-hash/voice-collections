@@ -44,6 +44,7 @@ Deno.test('prepare_remind › reads back "Asha calls after this call", queues no
   assertEquals(context.calls, [
     'listShopkeepers',
     'countVoiceActions',
+    'latestVoiceActions',
     'cancelOpenVoiceActions',
     'createVoiceAction',
     'cancelOpenVoiceActions',

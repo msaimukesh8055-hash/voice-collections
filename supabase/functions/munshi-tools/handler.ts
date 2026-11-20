@@ -52,6 +52,8 @@ export interface OwnerToolsDeps {
   readonly getEvalOwner: GetEvalOwner;
   readonly secret: string;
   readonly clock: () => Date;
+  /** Real wait (setTimeout); the prepare grace wait (owner-tools/actions.ts). */
+  readonly pause: (ms: number) => Promise<void>;
   readonly log: Logger;
 }
 
@@ -163,7 +165,7 @@ async function handleTool(req: Request, body: Body, deps: OwnerToolsDeps): Promi
   const realNow = deps.clock();
   if (auth.isEval) markEvalTraffic();
   const writes = auth.isEval ? evalSafeWrites(deps.writes, deps.log) : deps.writes;
-  const ctx = { reads: deps.reads, writes, owner, ownerCall, today, realNow };
+  const ctx = { reads: deps.reads, writes, owner, ownerCall, today, realNow, pause: deps.pause };
   const ran = await runOwnerTool(tool, withoutToken(body), ctx);
   const run: OwnerToolRun = {
     ...ran,

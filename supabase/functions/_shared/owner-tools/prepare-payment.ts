@@ -5,6 +5,9 @@
 // On confirm, a full payment is checked again: if their outstanding changed since the read-back,
 // nothing is saved and Munshi reads the new figure back (he said yes to that amount, not to
 // "whatever it is now"). Saved as a confirmed payment, source 'munshi'.
+// A part payment that matches one open claim (same amount; a payment the shopkeeper told Asha
+// about) is that claim: the read-back accepts the claim instead, so the money is not counted
+// twice and the claim does not stay waiting (2026-11-20 gate, case 12).
 // Rounds: prepare ① name + ref ② his entries ③ store; confirm ② claim + entries ③ insert.
 import { formatRupees } from '../format.ts';
 import {
@@ -22,6 +25,7 @@ import {
   type VoicePayload,
   wouldAdd,
 } from './actions.ts';
+import { openClaims, storeClaim } from './prepare-claim.ts';
 import { balanceChange, balanceNow } from './read-back.ts';
 import type { OwnerToolArgs } from './schemas.ts';
 import { ownerFail, ownerOk, type OwnerToolContext, type OwnerToolOutcome } from './types.ts';
@@ -89,6 +93,13 @@ export async function preparePayment(
   if (!amounted.ok) return amounted.outcome;
   const { amount } = amounted;
   const { full } = requested;
+  const claims = full ? [] : openClaims(entries, { amount, entry_date: undefined });
+  const [claimed] = claims;
+  if (claimed !== undefined && claims.length === 1) {
+    const claimPerson = { shopkeeperId: shopkeeper.id, label, ref };
+    const toStore = { person: claimPerson, claimed, decision: 'received', matched: true } as const;
+    return storeClaim(toStore, entries, ctx);
+  }
   const after = outstandingAfter(entries, ctx.today, paymentOf(amount, ctx.today));
   return storeAction(
     {

@@ -74,17 +74,35 @@ export function normaliseRef(ref: string): string {
   return ref.trim().toLowerCase();
 }
 
+/** How long a prepare holds off before replacing a change that could already be confirmed. */
+export const REPLACE_GRACE_MS = 1_500;
+
+/** Open, and old enough (2 s) that his yes to it could be arriving right now. */
+function confirmable(action: VoiceAction, realNow: Date): boolean {
+  return action.status === 'open' &&
+    realNow.getTime() - Date.parse(action.createdAt) >= MIN_CONFIRM_DELAY_MS;
+}
+
 /** The next action_ref of this call (read in parallel with the tool's own first round). Every
  * prepare also drops this call's open change here, before it knows whether it will store one:
  * a prepare that ends in choices, NOT_FOUND or a refusal must not leave an older read-back
- * confirmable (M8 Build B test finding; same round, so no extra latency). */
+ * confirmable (M8 Build B test finding).
+ * When that open change could already be confirmed, the drop waits REPLACE_GRACE_MS first: the
+ * LLM often sends confirm_action and the next prepare together ("yes, and also…"), and the
+ * prepare used to cancel the change before the confirm could save it, so nothing was saved
+ * while he heard "done" (2026-11-20 gate, cases 12 and 13). The confirm wins inside the wait;
+ * a correction with no confirm still replaces it, 1.5 s later. */
 export async function nextRef(ctx: OwnerToolContext): Promise<string> {
   const { actions } = ctx.writes;
-  const upTo = new Date(ctx.realNow.getTime() + 1).toISOString();
-  const [count] = await Promise.all([
+  const [count, latest] = await Promise.all([
     actions.countVoiceActions(ctx.ownerCall.id),
-    actions.cancelOpenVoiceActions(ctx.ownerCall.id, upTo),
+    actions.latestVoiceActions(ctx.ownerCall.id),
   ]);
+  if (latest.some((action) => confirmable(action, ctx.realNow))) {
+    await ctx.pause(REPLACE_GRACE_MS);
+  }
+  const upTo = new Date(ctx.realNow.getTime() + 1).toISOString();
+  await actions.cancelOpenVoiceActions(ctx.ownerCall.id, upTo);
   return refFor(count);
 }
 

@@ -85,6 +85,51 @@ async function resultFor(
   };
 }
 
+/**
+ * Keeps every case's call clock where the case wants it (30 s in, or 7:10 for the wrap-up case)
+ * until the run completes: owner tools refuse a call 10 minutes after it was accepted, and Sarvam
+ * can queue a run longer than that. One update per distinct start offset.
+ */
+export async function refreshCallClocks(
+  cases: readonly MunshiCase[],
+  rows: MunshiEvalRows,
+  deps: Pick<MunshiRunnerDeps, 'db' | 'now'>,
+): Promise<void> {
+  const byAgo = new Map<number, string[]>();
+  for (const evalCase of cases) {
+    const ownerCallId = rows.byCase.get(evalCase.id)?.ownerCallId;
+    if (ownerCallId)
+      byAgo.set(evalCase.acceptedAgoMs, [
+        ...(byAgo.get(evalCase.acceptedAgoMs) ?? []),
+        ownerCallId,
+      ]);
+  }
+  for (const [agoMs, ids] of byAgo) await deps.db.restartOwnerCalls(ids, deps.now(), agoMs);
+}
+
+/** How often the call clocks are reset while the run is queued or going. */
+const CLOCK_REFRESH_MS = 15_000;
+
+/**
+ * Resets the call clocks every 15 s on a timer of its own, not only on each poll: a poll can sit
+ * in Sarvam's rate-limit waits for minutes, and case 15 (7:10 in) ran out of time that way
+ * (2026-11-20 run 3). Returns the function that stops it.
+ */
+function keepCallClocks(
+  refresh: () => Promise<void>,
+  onProgress?: (line: string) => void,
+): () => void {
+  function tick(): void {
+    refresh().catch(function report(error: unknown) {
+      onProgress?.(`call clock reset failed: ${String(error)}`);
+    });
+  }
+  const timer = setInterval(tick, CLOCK_REFRESH_MS);
+  return function stop() {
+    clearInterval(timer);
+  };
+}
+
 export async function runMunshiSuite(
   plan: MunshiRunPlan,
   deps: MunshiRunnerDeps,
@@ -102,12 +147,19 @@ export async function runMunshiSuite(
     );
     const runId = await deps.sarvam.startRun(suiteId, plan.agent, plan.suiteName);
     deps.onProgress?.(`suite ${suiteId}, run ${runId}`);
-    await waitForRun(deps, suiteId, runId);
-    const results = await Promise.all(
-      plan.cases.map((evalCase) =>
-        resultFor(evalCase, { suiteId, runId, caseId: caseIds.get(evalCase.id), rows }, deps),
-      ),
-    );
+    const beforePoll = (): Promise<void> => refreshCallClocks(plan.cases, rows, deps);
+    const stopClocks = keepCallClocks(beforePoll, deps.onProgress);
+    try {
+      await waitForRun({ ...deps, beforePoll }, suiteId, runId);
+    } finally {
+      stopClocks();
+    }
+    const results: CaseResult[] = [];
+    // One case at a time: reading all 16 at once hit Sarvam's rate limit (2026-11-20 run).
+    for (const evalCase of plan.cases) {
+      const ref = { suiteId, runId, caseId: caseIds.get(evalCase.id), rows };
+      results.push(await resultFor(evalCase, ref, deps));
+    }
     return { suiteId, runId, results };
   } finally {
     await deps.db.closeOwnerCalls(ownerCallIds, deps.now());

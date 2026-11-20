@@ -40,7 +40,7 @@ Deno.test('munshi text › all 10 owner tools, listed and declared natively', ()
 
 Deno.test('munshi text › greeting is the live Telugu one; version names prompt and text mode', () => {
   assertEquals(munshiGreeting(VARIABLES), 'హా Srinivas అన్నా, మున్షీని. చెప్పండి, ఏం చూడాలి?');
-  assertEquals(MUNSHI_SIMULATED_VERSION, 'v2+text-v1');
+  assertEquals(MUNSHI_SIMULATED_VERSION, 'v3+text-v1');
 });
 
 Deno.test('munshi text › an unknown variable stays as written, never blank', () => {

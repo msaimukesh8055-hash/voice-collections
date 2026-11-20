@@ -4,6 +4,7 @@
 // Munshi's recent calls: verdicts, the checks that go wrong most (each opening the calls behind
 // it), guardrail fails, reply time, cost, tone, the same numbers per prompt version, and a 14-day
 // trend. Worked out from each call's kept scorecard.
+import { checkHelp } from '../calls/checkHelp.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { AgentHealth, HealthSummary } from '../../lib/healthSchemas.ts';
 import { formatInr, shortDate } from '../dashboard/format.ts';
@@ -86,6 +87,16 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
   );
 }
 
+function ProblemExplained({ id }: { readonly id: string }): React.JSX.Element | null {
+  const help = checkHelp(id);
+  if (!help) return null;
+  return (
+    <span className="mt-1 block text-xs">
+      {help.means} <span className="text-ink-muted">If it misses: {help.miss}</span>
+    </span>
+  );
+}
+
 function Problems({ health }: { readonly health: AgentHealth }): React.JSX.Element {
   if (health.problems.length === 0) {
     return <p className="text-sm text-ink-muted">Nothing failed or needed a look.</p>;
@@ -106,6 +117,7 @@ function Problems({ health }: { readonly health: AgentHealth }): React.JSX.Eleme
             <td className={CELL}>
               {problem.label}
               <span className="block text-xs text-ink-muted">{problem.group}</span>
+              <ProblemExplained id={problem.id} />
             </td>
             <td className={`${CELL} ${problem.fails > 0 ? 'text-danger' : ''}`}>{problem.fails}</td>
             <td className={`${CELL} ${problem.warns > 0 ? 'text-warning' : ''}`}>

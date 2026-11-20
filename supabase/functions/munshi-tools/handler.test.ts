@@ -103,6 +103,7 @@ function setup(call: Partial<FakeOwnerCall> = {}, options: SetupOptions = {}): S
       Promise.resolve(options.evalOwners?.find((owner) => owner.id === ownerId) ?? null),
     secret: SECRET,
     clock: options.clock ?? (() => FAKE_NOW),
+    pause: () => Promise.resolve(),
     log,
   };
   return { deps, state: fake.state, logs, reads, book: fakeBook.state, voice: voice.state, kicked };

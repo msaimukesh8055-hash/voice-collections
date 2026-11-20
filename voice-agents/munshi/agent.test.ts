@@ -144,9 +144,9 @@ describe('Munshi greeting', () => {
   });
 });
 
-describe('Munshi prompt v2', () => {
-  it('is version v2', () => {
-    expect(PROMPT_VERSION).toBe('v2');
+describe('Munshi prompt v3', () => {
+  it('is version v3', () => {
+    expect(PROMPT_VERSION).toBe('v3');
   });
 
   it('never sets the reply language (Sarvam refuses it)', () => {
@@ -205,5 +205,12 @@ describe('Munshi prompt v2', () => {
 - Make up entries, promises, calls or payments.
 - Change the book without a confirm_action that succeeded.`),
     ).toBe(true);
+  });
+  it('confirms on its own and never hangs up in the same breath (gate cases 07 and 12, v3)', () => {
+    expect(MUNSHI_PROMPT).toContain(
+      'Call confirm_action on its own, with no other tool at the same time.',
+    );
+    expect(MUNSHI_PROMPT).toContain('Never end the call at the same time as confirm_action.');
+    expect(MUNSHI_PROMPT).toContain('never as if it is already done');
   });
 });

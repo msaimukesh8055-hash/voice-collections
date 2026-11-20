@@ -7,6 +7,8 @@
 // open (he can say yes again); if the executor refuses (e.g. a blocked call), it is closed.
 // Two prepares that ran at once can get the same ref (it comes from a count); the LLM then heard
 // two read-backs with one ref, so a yes cannot tell which one he meant: both are dropped.
+// A confirm that loses to a prepare running at the same moment (the prepare replaced it) says
+// so plainly: nothing was saved.
 // Rounds: ① the newest actions ② claim + read ③ the write (auth is one more, in the handler).
 import type { z } from 'zod';
 import type { VoiceAction, VoiceActionKind } from '../db/voice-action-repository.ts';
@@ -99,6 +101,18 @@ async function gate(
   return { ok: true, action };
 }
 
+/**
+ * A confirm that lost the compare-and-set. Either another confirm saved it ("already done"), or a
+ * prepare that ran at the same moment replaced (cancelled) it, and then nothing was saved.
+ * Saying "already done" for the second made Munshi tell the owner a payment was saved when it
+ * was not (2026-11-20 gate, case 12).
+ */
+async function lostOutcome(action: VoiceAction, ctx: OwnerToolContext): Promise<OwnerToolOutcome> {
+  const current = await ctx.writes.actions.getVoiceAction(action.id);
+  const saved = current?.status === 'saved' || current?.status === 'done';
+  return ownerFail(saved ? 'ALREADY_DONE' : 'REPLACED_NOT_SAVED');
+}
+
 async function execute(action: VoiceAction, ctx: OwnerToolContext): Promise<OwnerToolOutcome> {
   const { actions } = ctx.writes;
   let won = false;
@@ -114,7 +128,7 @@ async function execute(action: VoiceAction, ctx: OwnerToolContext): Promise<Owne
     if (won) await actions.transitionVoiceAction(action.id, 'saved', 'open');
     throw error;
   }
-  if (executed.status === 'lost') return ownerFail('ALREADY_DONE');
+  if (executed.status === 'lost') return lostOutcome(action, ctx);
   if (executed.status === 'refused') {
     await actions.transitionVoiceAction(action.id, won ? 'saved' : 'open', 'cancelled');
   }

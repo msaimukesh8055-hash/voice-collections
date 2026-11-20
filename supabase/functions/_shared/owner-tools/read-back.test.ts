@@ -1,8 +1,8 @@
 // supabase/functions/_shared/owner-tools/read-back.test.ts
 // Munshi's read-backs talk about women and men shopkeepers (Radha, Sujatha, Ramesh…), so the
 // words about the shopkeeper never assume "he" or "his" (M7 B2 wording fix).
-import { assert, assertEquals } from '@std/assert';
-import { balanceChange, balanceNow } from './read-back.ts';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
+import { askForYes, balanceChange, balanceNow } from './read-back.ts';
 import { OWNER_TOOL_ERRORS } from './types.ts';
 
 const GENDERED = /\b(he|his|him|she|her|hers)\b/i;
@@ -22,4 +22,11 @@ Deno.test('read-back › errors about the shopkeeper name no gender', () => {
     OWNER_TOOL_ERRORS.BOOK_CHANGED,
   ];
   for (const text of aboutTheShopkeeper) assert(!GENDERED.test(text), text);
+});
+
+Deno.test('askForYes › tells Munshi to confirm on its own, never with the hang-up', () => {
+  const say = askForYes('add a credit of 1,000 rupees for Gopal.', 'r1');
+
+  assertStringIncludes(say, 'call confirm_action with action_ref r1, on its own');
+  assertStringIncludes(say, 'not even ending the call');
 });

@@ -42,7 +42,13 @@ export const MUNSHI_SCENARIOS: readonly MunshiScenario[] = [
     title: "Ramesh and Asha's last call (Hindi)",
     language: 'hi',
     owner: {
-      goals: ['Ask what happened with Ramesh and whether Asha called him.', FINISH],
+      goals: [
+        'Ask what happened with Ramesh and whether Asha called him.',
+        // The simulated owner asked Munshi to enter Ramesh's claim on 2026-11-20 (run 4), which
+        // turned this question-only case into a book change.
+        'You only want to know. Do not ask Munshi to change, enter or accept anything; if he offers, say no.',
+        FINISH,
+      ],
       scriptedLines: ['रमेश का क्या हुआ, आशा ने कॉल किया था?'], // "What happened with Ramesh, did Asha call?"
     },
     flow: [
@@ -120,14 +126,16 @@ export const MUNSHI_SCENARIOS: readonly MunshiScenario[] = [
     language: 'te',
     owner: {
       goals: [
-        'Tell Munshi that Ramesh paid 2000 rupees.',
-        'When he reads back a payment of 2,000 from Ramesh, say yes.',
+        // 1,000, not 2,000: Ramesh's open 2,000 claim would make a 2,000 report accept that
+        // claim instead (prepare-payment.ts, 2026-11-20). Case 12 tests the claim match.
+        'Tell Munshi that Ramesh paid 1000 rupees.',
+        'When he reads back a payment of 1,000 from Ramesh, say yes.',
         FINISH,
       ],
-      scriptedLines: ['రమేష్ 2000 కట్టాడు'], // "Ramesh paid 2,000"
+      scriptedLines: ['రమేష్ 1000 కట్టాడు'], // "Ramesh paid 1,000"
     },
-    outcome: { entries: [{ shopkeeperId: RAMESH.id, kind: 'payment', amount: 2000 }] },
-    flow: [usesTool('prepare_payment', { args: { amount: 2000 } })],
+    outcome: { entries: [{ shopkeeperId: RAMESH.id, kind: 'payment', amount: 1000 }] },
+    flow: [usesTool('prepare_payment', { args: { amount: 1000 } })],
   },
   {
     id: '08',

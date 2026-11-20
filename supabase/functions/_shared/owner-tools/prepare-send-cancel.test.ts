@@ -28,6 +28,7 @@ Deno.test('prepare_send › reads back what goes out; nothing is kicked before h
   assertEquals(context.kicked, []);
   assertEquals(context.calls, [
     'countVoiceActions',
+    'latestVoiceActions',
     'cancelOpenVoiceActions',
     'createVoiceAction',
     'cancelOpenVoiceActions',

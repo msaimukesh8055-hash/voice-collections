@@ -2,7 +2,8 @@
 // prepare_payment + confirm (M8 B2, money, 100%): part and full payments, "paid in full" = his
 // outstanding (and checked again at confirm), the overpaid warning, bounds, source 'munshi' and
 // the balance after = computeDues after the write. Ramesh owes 8,500 rupees on FAKE_TODAY; his
-// 2,000 claim is not counted. FAKE DATA ONLY.
+// 2,000 claim is not counted; a 2,000 payment he reports is that claim (accepted, not saved
+// twice). FAKE DATA ONLY.
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { bookEntry, PRAVEEN_1, RAMESH } from '../db/fake-book-repository.ts';
 import { computeDues } from '../ledger/dues.ts';
@@ -33,12 +34,12 @@ function outstandingOf(context: CountedContext, shopkeeperId = RAMESH.id): numbe
 }
 
 Deno.test('prepare_payment › a part payment reads back amount and both balances', async () => {
-  const { result } = await prepare(ownerContext(), { amount: 2000 });
+  const { result } = await prepare(ownerContext(), { amount: 1500 });
 
   assert(result.ok);
-  assertStringIncludes(result.say, 'mark a payment of 2,000 rupees from Ramesh.');
-  assertStringIncludes(result.say, 'Balance goes from 8,500 rupees to 6,500 rupees.');
-  assertEquals([result.data['full'], result.data['balance_after']], [false, 6500]);
+  assertStringIncludes(result.say, 'mark a payment of 1,500 rupees from Ramesh.');
+  assertStringIncludes(result.say, 'Balance goes from 8,500 rupees to 7,000 rupees.');
+  assertEquals([result.data['full'], result.data['balance_after']], [false, 7000]);
 });
 
 Deno.test('prepare_payment › "paid in full" is his outstanding now (claims not counted)', async () => {
@@ -112,7 +113,7 @@ Deno.test('prepare_payment › an unclear or unknown name stores nothing', async
 
 Deno.test('confirm payment › saves a confirmed payment, source munshi; balance = computeDues', async () => {
   const context = ownerContext();
-  await prepare(context, { amount: 2000 });
+  await prepare(context, { amount: 1500 });
 
   const { result } = await confirm(context);
 
@@ -120,13 +121,48 @@ Deno.test('confirm payment › saves a confirmed payment, source munshi; balance
   const saved = context.book.entries.at(-1);
   assertEquals([saved?.kind, saved?.amount, saved?.dueDate, saved?.status], [
     'payment',
-    2000,
+    1500,
     null,
     'confirmed',
   ]);
   assertEquals(saved ? context.book.sources[saved.id] : null, 'munshi');
   assertEquals(result.data['outstanding'], outstandingOf(context));
+  assertStringIncludes(result.say, 'Balance is now 7,000 rupees.');
+});
+
+Deno.test('prepare_payment › a payment matching his open claim accepts the claim instead', async () => {
+  // Gate case 12 (2026-11-20): "Latha's 1,500 came" when Latha had told Asha she paid 1,500.
+  const context = ownerContext();
+  const { result } = await prepare(context, { amount: 2000 });
+
+  assert(result.ok);
+  assertStringIncludes(result.say, 'Ramesh already told Asha they paid 2,000 rupees');
+  assertStringIncludes(result.say, 'Accept it as received (not a second payment).');
+  assertStringIncludes(result.say, 'Balance goes from 8,500 rupees to 6,500 rupees.');
+  assertEquals(context.actions.actions.map((action) => action.kind), ['voice_claim']);
+});
+
+Deno.test('confirm payment › a matched claim is settled, with no second payment saved', async () => {
+  const context = ownerContext();
+  const entriesBefore = context.book.entries.length;
+  await prepare(context, { amount: 2000 });
+
+  const { result } = await confirm(context);
+
+  assert(result.ok);
+  assertEquals(context.book.entries.length, entriesBefore);
+  const claim = context.book.entries.find((entry) =>
+    entry.amount === 2000 && entry.kind === 'payment'
+  );
+  assertEquals(claim?.status, 'confirmed');
   assertStringIncludes(result.say, 'Balance is now 6,500 rupees.');
+});
+
+Deno.test('prepare_payment › "paid in full" never turns into a claim', async () => {
+  const context = ownerContext();
+  await prepare(context, { full: 'yes' });
+
+  assertEquals(context.actions.actions.map((action) => action.kind), ['voice_payment']);
 });
 
 Deno.test('confirm payment › paid in full clears him to 0', async () => {
