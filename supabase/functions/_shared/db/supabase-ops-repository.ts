@@ -8,6 +8,17 @@ import { createRowInserter, type PostgrestClient } from './postgrest.ts';
 
 /** Matches MAX_EVENTS_PER_TRACE per function; a trace can span two functions (a worker kick). */
 const MAX_TRACE_STEPS = 400;
+/** A call touches a handful of traces (queue, accept, each tool, end, follow-up). */
+const MAX_CALL_TRACES = 40;
+/** The follow-up worker's timer requests share a trace with what kicked them; not call steps. */
+const TIMER_ROUTES: readonly string[] = ['/sweep', '/simulations/next', '/ops-watch'];
+
+const TraceIdRow = z.object({ trace_id: z.string() });
+
+function isTimerStep(step: TraceStep): boolean {
+  return step.source === 'followup-worker' && step.step === 'request' &&
+    TIMER_ROUTES.includes(String(step.detail['route'] ?? ''));
+}
 const TRACE_COLUMNS =
   'source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,detail,created_at';
 
@@ -147,6 +158,18 @@ export function createSupabaseOpsRepository(query: PostgrestClient): OpsReposito
         body: {},
       });
       return toSummary(SummaryRow.parse(rows));
+    },
+    async listCallSteps(callId): Promise<readonly TraceStep[]> {
+      const idPath = `ops_events?select=trace_id&detail->>callId=eq.${encodeURIComponent(callId)}` +
+        `&limit=${MAX_CALL_TRACES}`;
+      const ids = z.array(TraceIdRow).parse((await query('listCallTraces', idPath)).rows);
+      const traces = [...new Set(ids.map((row) => row.trace_id))];
+      if (traces.length === 0) return [];
+      const list = traces.map(encodeURIComponent).join(',');
+      const path = `ops_events?select=${TRACE_COLUMNS}&trace_id=in.(${list})` +
+        `&order=created_at.asc&limit=${MAX_TRACE_STEPS}`;
+      const steps = z.array(StepRow).parse((await query('listCallSteps', path)).rows).map(toStep);
+      return steps.filter((step) => !isTimerStep(step));
     },
     async listTraceSteps(traceId): Promise<readonly TraceStep[]> {
       const path = `ops_events?select=${TRACE_COLUMNS}&trace_id=eq.${encodeURIComponent(traceId)}` +

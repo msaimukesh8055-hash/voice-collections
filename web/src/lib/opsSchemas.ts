@@ -51,22 +51,22 @@ export const OpsSummarySchema = z.object({
   generatedAt: z.string(),
 });
 
+export const TraceStepSchema = z.object({
+  source: z.string(),
+  step: z.string(),
+  status: z.enum(['ok', 'warn', 'error']),
+  errorCode: z.string().nullable(),
+  provider: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  tokensIn: z.number().nullable(),
+  tokensOut: z.number().nullable(),
+  detail: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+});
+
 export const TraceSchema = z.object({
   traceId: z.string(),
-  steps: z.array(
-    z.object({
-      source: z.string(),
-      step: z.string(),
-      status: z.enum(['ok', 'warn', 'error']),
-      errorCode: z.string().nullable(),
-      provider: z.string().nullable(),
-      durationMs: z.number().nullable(),
-      tokensIn: z.number().nullable(),
-      tokensOut: z.number().nullable(),
-      detail: z.record(z.string(), z.unknown()),
-      createdAt: z.string(),
-    }),
-  ),
+  steps: z.array(TraceStepSchema),
 });
 
 export type OpsSummary = z.infer<typeof OpsSummarySchema>;

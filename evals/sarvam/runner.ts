@@ -3,7 +3,7 @@
 // build the suite in Sarvam with each case pointed at its own token, run it, wait, then combine
 // Sarvam's verdicts with our own database checks into case results. The calls are always closed
 // at the end, also when the run fails, so no eval token stays usable.
-import { checkCall } from './checks.ts';
+import { checkCall, checkTurns } from './checks.ts';
 import type { AgentVersion, NewSuite, SarvamTests, SuiteVariable } from './client.ts';
 import {
   buildEvalRows,
@@ -109,14 +109,15 @@ async function resultFor(
   ]);
   const execution = executions[0];
   const verdicts = execution?.verdicts ?? [];
-  const checks = checkCall(evalCase, evidence);
+  const transcript = execution?.transcript ?? [];
+  const checks = [...checkCall(evalCase, evidence), checkTurns(transcript)];
   const judged = { verdicts, checks };
   return {
     id: evalCase.id,
     name: evalCase.name,
     category: evalCase.category,
     ...judged,
-    transcript: execution?.transcript ?? [],
+    transcript,
     // A case Sarvam returned no verdicts for cannot count as a pass.
     passed: verdicts.length > 0 && casePassed(judged),
   };

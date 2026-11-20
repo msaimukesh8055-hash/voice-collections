@@ -9,8 +9,10 @@ import {
   buildMunshiRequest,
   type CallEvents,
   CONNECT_ERROR,
+  createReplyTimer,
   createSarvamClient,
   DAILY_LIMIT_ERROR,
+  MAX_REPLY_TIMES,
   MIC_ERROR,
   USER_INTERRUPT,
   USER_SPEECH_END,
@@ -248,5 +250,64 @@ describe('Munshi (M8)', () => {
     expect(log).toEqual(['phase:connecting', 'phase:live']);
     expect(fake.request?.appId).toBe('munshi-app');
     await expect(session.stop()).resolves.toBe('interaction-1');
+  });
+});
+
+describe('reply times (live evals)', () => {
+  it('measures from the end of the person speaking to Asha speaking, once per reply', () => {
+    let clock = 1000;
+    const timer = createReplyTimer(() => clock);
+    timer.onServerEvent(USER_SPEECH_END);
+    clock = 1850;
+    timer.onState('speaking');
+    timer.onState('listening');
+    clock = 2000;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([850]);
+  });
+
+  it('restarts the wait when the person speaks again before Asha answers', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    timer.onServerEvent(USER_SPEECH_END);
+    clock = 400;
+    timer.onServerEvent(USER_SPEECH_START);
+    clock = 900;
+    timer.onServerEvent(USER_SPEECH_END);
+    clock = 1600;
+    timer.onState('speaking');
+    timer.onServerEvent(USER_INTERRUPT);
+    clock = 1700;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([700]);
+  });
+
+  it('keeps at most MAX_REPLY_TIMES replies', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    for (let reply = 0; reply < MAX_REPLY_TIMES + 5; reply += 1) {
+      timer.onServerEvent(USER_SPEECH_END);
+      clock += 10;
+      timer.onState('speaking');
+    }
+    expect(timer.times()).toHaveLength(MAX_REPLY_TIMES);
+  });
+
+  it('a live session reports the reply times it heard', async () => {
+    let clock = 0;
+    const fake = fakeAgent();
+    const { events } = recorder();
+    const client = createSarvamClient(
+      function make(_request, callbacks) {
+        fake.callbacks = callbacks;
+        return fake.handle;
+      },
+      () => clock,
+    );
+    const session = await client.start(ACCEPTED_CALL, PROXY, events);
+    fake.callbacks?.onServerEvent(USER_SPEECH_END);
+    clock = 1200;
+    fake.callbacks?.onState('speaking');
+    expect(session.replyTimes()).toEqual([1200]);
   });
 });

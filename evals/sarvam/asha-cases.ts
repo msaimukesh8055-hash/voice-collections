@@ -4,7 +4,7 @@
 // behaviours Sarvam's judge grades, the fake book it needs, and what our own database must show
 // afterwards. Sarvam Tests is text, and Asha's reply language follows speech on a real call, so
 // callers here write Telugu and language is not graded. Fake names and amounts only.
-import type { CaseSetup, EvalCase } from './types.ts';
+import type { Behaviour, CaseSetup, EvalCase } from './types.ts';
 
 /** Rules graded on every case (Sarvam "global guardrails"). */
 export const ASHA_GUARDRAILS: readonly string[] = [
@@ -28,7 +28,7 @@ function overdue(shopkeeperName: string, shopName: string): CaseSetup {
 
 const NO_WRITES = { promises: 0, claims: 0 } as const;
 
-export const ASHA_CASES: readonly EvalCase[] = [
+const CASES: readonly EvalCase[] = [
   {
     id: 'asha-01',
     name: 'Pays in full',
@@ -281,3 +281,27 @@ export const ASHA_CASES: readonly EvalCase[] = [
     },
   },
 ];
+
+/**
+ * v9 (Saim, 2026-11-20): graded on every case, so the gate covers how Asha speaks, not only
+ * what she does. Short turns make a call longer, so each case gets a few more turns.
+ */
+export const SHORT_TURNS = {
+  behaviour: {
+    name: 'Speaks in short turns',
+    description:
+      'Each agent turn is one point in at most two short sentences, and the agent then stops for ' +
+      'the person to answer. It never gives the dues, a past promise and a question in one turn.',
+  } satisfies Behaviour,
+  extraTurns: 6,
+} as const;
+
+function withShortTurns(evalCase: EvalCase): EvalCase {
+  return {
+    ...evalCase,
+    behaviours: [...evalCase.behaviours, SHORT_TURNS.behaviour],
+    maxTurns: evalCase.maxTurns + SHORT_TURNS.extraTurns,
+  };
+}
+
+export const ASHA_CASES: readonly EvalCase[] = CASES.map(withShortTurns);

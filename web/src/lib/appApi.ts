@@ -64,6 +64,8 @@ export type AcceptedMunshiCall = z.infer<typeof MunshiAcceptedSchema>;
 export interface EndedReport {
   readonly interactionId: string | null;
   readonly seconds: number;
+  /** Asha's reply times in ms, as the page heard them (live evals); left out when empty. */
+  readonly replyMs?: readonly number[];
 }
 
 export interface SarvamProxy {
@@ -129,6 +131,7 @@ function endedBody(report: EndedReport): Record<string, unknown> {
   return {
     seconds: Math.min(MAX_REPORTED_SECONDS, Math.max(0, Math.round(report.seconds))),
     ...(report.interactionId ? { interactionId: report.interactionId } : {}),
+    ...(report.replyMs && report.replyMs.length > 0 ? { replyMs: report.replyMs } : {}),
   };
 }
 

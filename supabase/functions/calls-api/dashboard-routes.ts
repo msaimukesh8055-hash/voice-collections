@@ -7,6 +7,8 @@
 import { z } from 'zod';
 import { DASHBOARD_TOKEN_HEADER, isValidDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import { type CallCost, callCost } from '../_shared/calls/cost.ts';
+import { scoreCall } from '../_shared/calls/scorecard.ts';
+import type { TraceStep } from '../_shared/db/ops-repository.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookShopkeeper } from '../_shared/db/book-repository.ts';
 import type { DashboardCall, DashboardCallDetail } from '../_shared/db/dashboard-repository.ts';
@@ -203,8 +205,34 @@ async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
     ...(owner ? [owner.name, owner.businessName] : []),
     ...shopkeepers.flatMap((shopkeeper) => [shopkeeper.name, shopkeeper.shopName]),
   ];
-  const call = await withEnglish(found, ctx, names);
-  return jsonResponse({ call: callRow(call, nameMap(shopkeepers)) }, 200, ctx.cors);
+  const [call, steps] = await Promise.all([
+    withEnglish(found, ctx, names),
+    callSteps(found.id, ctx),
+  ]);
+  const scorecard = scoreCall({
+    mode: call.mode,
+    queuedAt: call.queuedAt,
+    durationSeconds: call.durationSeconds,
+    summary: call.summary,
+    transcript: call.transcript,
+    tools: call.toolEvents,
+    steps,
+  });
+  return jsonResponse(
+    { call: { ...callRow(call, nameMap(shopkeepers)), scorecard, trace: steps } },
+    200,
+    ctx.cors,
+  );
+}
+
+/** Live evals: this call's ops steps. Best effort: without them the page shows the rest. */
+async function callSteps(callId: string, ctx: RouteContext): Promise<readonly TraceStep[]> {
+  try {
+    return await ctx.deps.dashboard.ops.listCallSteps(callId);
+  } catch (error) {
+    ctx.deps.log('warn', 'call_steps_not_read', { error: describeFailure(error) });
+    return [];
+  }
 }
 
 async function changeSettings(req: Request, ctx: RouteContext): Promise<Response> {

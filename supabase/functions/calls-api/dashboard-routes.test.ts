@@ -194,6 +194,44 @@ Deno.test('dashboard api › calls list and one call with transcript and follow-
   assertEquals(detail.shopkeeperName, 'Ramesh');
 });
 
+Deno.test('dashboard api › one call carries its scorecard and its own trace (live evals)', async () => {
+  const ended = {
+    source: 'calls-api',
+    step: 'call_ended',
+    status: 'ok' as const,
+    errorCode: null,
+    provider: null,
+    durationMs: null,
+    tokensIn: null,
+    tokensOut: null,
+    detail: { callId: CALL.id, replyCount: 3, replyP50Ms: 900, replyMaxMs: 1400 },
+    createdAt: '2026-11-02T05:33:00Z',
+  };
+  const { all } = deps({ ops: { callSteps: { [CALL.id]: [ended] } } });
+  const { body } = await call(`/v1/dashboard/calls/${CALL.id}`, all);
+  const detail = body.call as {
+    scorecard: { verdict: string; groups: Array<{ name: string }> };
+    trace: unknown[];
+  };
+  assertEquals(detail.trace.length, 1);
+  assertEquals(detail.scorecard.groups.length, 7);
+  assertEquals(typeof detail.scorecard.verdict, 'string');
+});
+
+Deno.test('dashboard api › an unreadable call trace leaves an empty trace, not an error', async () => {
+  const { all } = deps();
+  const broken = {
+    ...all,
+    dashboard: {
+      ...all.dashboard,
+      ops: { ...all.dashboard.ops, listCallSteps: () => Promise.reject(new Error('db')) },
+    },
+  };
+  const { body, status } = await call(`/v1/dashboard/calls/${CALL.id}`, broken);
+  assertEquals(status, 200);
+  assertEquals((body.call as { trace: unknown[] }).trace, []);
+});
+
 Deno.test('dashboard api › with no owner row: overview and lists say not found or empty', async () => {
   const { all } = deps({ book: { owner: null } });
   assertEquals((await call('/v1/dashboard/overview', all)).status, 404);

@@ -106,6 +106,8 @@ export interface FakeVoice {
   readonly client: VoiceClient;
   events: CallEvents | null;
   stops: number;
+  /** What the session reports as Asha's reply times (live evals). */
+  replyTimes: number[];
   startError: Error | null;
   /** Which start was used: 'asha' or 'munshi'. */
   started: string[];
@@ -129,6 +131,7 @@ async function fakeStart(fake: FakeVoice, events: CallEvents): Promise<VoiceSess
       fake.stops += 1;
       return 'interaction-1';
     },
+    replyTimes: () => fake.replyTimes,
   };
 }
 
@@ -136,6 +139,7 @@ export function fakeVoice(): FakeVoice {
   const fake: FakeVoice = {
     events: null,
     stops: 0,
+    replyTimes: [],
     startError: null,
     started: [],
     hold: false,

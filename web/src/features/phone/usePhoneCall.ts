@@ -100,10 +100,11 @@ async function finishCall(
   if (live.finished) return;
   live.finished = true;
   const interactionId = live.session ? await live.session.stop() : null;
+  const replyMs = live.session ? live.session.replyTimes() : [];
   const seconds = live.startedAt === null ? 0 : (Date.now() - live.startedAt) / 1000;
   dispatch({ type: 'ended', seconds: Math.round(seconds), note });
   // Closing the call row is what stops the token working; a failure here is covered by the TTL.
-  await api.ended(live.token, { interactionId, seconds }).catch(() => undefined);
+  await api.ended(live.token, { interactionId, seconds, replyMs }).catch(() => undefined);
 }
 
 function callEvents(context: CallContext): CallEvents {

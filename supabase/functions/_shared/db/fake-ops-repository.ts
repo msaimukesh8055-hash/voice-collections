@@ -27,6 +27,7 @@ export const EMPTY_OPS_SUMMARY: OpsSummary = {
 export interface FakeOpsState {
   readonly summary: OpsSummary;
   readonly traces: Readonly<Record<string, readonly TraceStep[]>>;
+  readonly callSteps: Readonly<Record<string, readonly TraceStep[]>>;
   readonly errors: readonly OpsError[];
   /** Claims accepted so far; like the database, a second claim of a key in a window fails. */
   claims: readonly AlertClaim[];
@@ -36,6 +37,7 @@ export function createFakeOpsRepository(overrides: Partial<FakeOpsState> = {}): 
   const state: FakeOpsState = {
     summary: EMPTY_OPS_SUMMARY,
     traces: {},
+    callSteps: {},
     errors: [],
     claims: [],
     ...overrides,
@@ -52,5 +54,6 @@ export function createFakeOpsRepository(overrides: Partial<FakeOpsState> = {}): 
     },
     getSummary: () => Promise.resolve(state.summary),
     listTraceSteps: (traceId) => Promise.resolve(state.traces[traceId] ?? []),
+    listCallSteps: (callId) => Promise.resolve(state.callSteps[callId] ?? []),
   };
 }

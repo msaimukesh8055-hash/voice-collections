@@ -2,8 +2,8 @@
 // The parts of the Sarvam evals that decide pass or fail, with no network: the cases themselves,
 // the fake data, our database checks, the release gate and the report.
 import { describe, expect, it } from 'vitest';
-import { ASHA_CASES, ASHA_GUARDRAILS } from './asha-cases.ts';
-import { checkCall } from './checks.ts';
+import { ASHA_CASES, ASHA_GUARDRAILS, SHORT_TURNS } from './asha-cases.ts';
+import { checkCall, checkTurns, MAX_TURN_CHARS } from './checks.ts';
 import { buildEvalRows, daysBefore, EVAL_CITY, outstandingOf } from './eval-data.ts';
 import { casePassed, GUARDRAILS_VERDICT, summarise } from './gate.ts';
 import { formatTable, toStoredRun } from './report.ts';
@@ -198,6 +198,55 @@ describe('database checks', () => {
     expect(failed(theCase('asha-07'), found)).toEqual(['balance_unchanged']);
   });
 });
+
+describe('short turns (v9)', () => {
+  it('every case also grades short turns, and allows the extra turns that takes', () => {
+    for (const evalCase of ASHA_CASES) {
+      expect(evalCase.behaviours.at(-1)).toEqual(SHORT_TURNS.behaviour);
+      expect(evalCase.maxTurns).toBeGreaterThanOrEqual(10 + SHORT_TURNS.extraTurns);
+    }
+  });
+
+  it('passes when every Asha turn is short; the caller may talk as long as they like', () => {
+    const check = checkTurns([
+      { role: 'assistant', content: 'Namaste, I am Asha.' },
+      { role: 'user', content: 'x'.repeat(MAX_TURN_CHARS * 3) },
+      { role: 'assistant', content: 'y'.repeat(MAX_TURN_CHARS) },
+    ]);
+    expect(check).toEqual({ id: 'short_turns', critical: false, passed: true, detail: '' });
+  });
+
+  it('flags a long Asha turn, not critical: it is reported but does not block the gate', () => {
+    const check = checkTurns([
+      { role: 'assistant', content: 'short' },
+      { role: 'assistant', content: 'z'.repeat(MAX_TURN_CHARS + 1) },
+      { role: 'assistant', content: 'w'.repeat(MAX_TURN_CHARS + 40) },
+    ]);
+    expect(check.passed).toBe(false);
+    expect(check.critical).toBe(false);
+    expect(check.detail).toBe(
+      `2 turn(s) over ${MAX_TURN_CHARS} characters (longest ${MAX_TURN_CHARS + 40})`,
+    );
+    expect(summarise([{ ...summaryCase(), checks: [check] }]).passed).toBe(true);
+  });
+
+  it('a call with no transcript passes the turn check (the judge and other checks still apply)', () => {
+    expect(checkTurns([]).passed).toBe(true);
+  });
+});
+
+/** A judged case that passed everything, for gate checks. */
+function summaryCase(): CaseResult {
+  return {
+    id: 'asha-01',
+    name: 'Pays in full',
+    category: 'promise',
+    verdicts: [{ name: 'States the dues', passed: true, reasoning: '' }],
+    checks: [],
+    transcript: [],
+    passed: true,
+  };
+}
 
 function result(overrides: Partial<CaseResult> = {}): CaseResult {
   const base = {

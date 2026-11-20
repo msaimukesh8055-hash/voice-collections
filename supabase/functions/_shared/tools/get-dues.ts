@@ -33,7 +33,12 @@ import type { ToolArgs } from './schemas.ts';
 import { ok, type ToolContext, type ToolOutcome } from './types.ts';
 
 const NOTHING_OWED = 'Nothing is outstanding. Thank them; there is nothing to collect today.';
-const CLOSING = "Say these figures once, in the caller's language, then ask when they can pay.";
+// v9 (Saim, 2026-11-20): live calls showed Asha reading every figure, the past promise and the
+// question in one 15-20 s turn, because this line said "say these figures… then ask". Now one
+// point per turn, in the order the prompt gives.
+const CLOSING = "In the caller's language, say only the total outstanding now, then stop and " +
+  'wait for their answer. Say the overdue amount and any past promise later, one per turn, ' +
+  'each figure once, then ask when they can pay.';
 
 interface Tone {
   readonly level: ToneLevel;

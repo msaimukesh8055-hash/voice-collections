@@ -12,6 +12,7 @@ import {
 import type { Logger } from '../_shared/log.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { handleCallsApi } from './handler.ts';
+import { replyStats } from './phone-routes.ts';
 import { dashboardSetup } from './__fixtures__/dashboard.ts';
 import { munshiSetup } from './__fixtures__/munshi.ts';
 import type { SarvamSettings } from './sarvam-proxy.ts';
@@ -319,6 +320,36 @@ Deno.test('calls-api › ended → completed with duration and interaction id', 
     '20261102/182f511f-21:45:10-8bfe8bd5',
   ]);
   assertEquals(call?.endedAt, FAKE_NOW.toISOString());
+});
+
+Deno.test('calls-api › ended with reply times: their summary goes on the call_ended trace', async () => {
+  const { deps } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  const fields: Record<string, unknown>[] = [];
+  const traced: CallsApiDeps = {
+    ...deps,
+    log: (_level, event, extra) => {
+      if (event === 'call_ended' && extra) fields.push(extra);
+    },
+  };
+  const body = { seconds: 60, replyMs: [900, 1200, 700, 3100, 1000] };
+  const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, body), traced);
+  assertEquals(await json(response), { status: 'completed' });
+  const { replyCount, replyP50Ms, replyP90Ms, replyMaxMs } = fields[0] ?? {};
+  assertEquals([replyCount, replyP50Ms, replyP90Ms, replyMaxMs], [5, 1000, 3100, 3100]);
+});
+
+Deno.test('calls-api › ended: reply times out of range → 400', async () => {
+  const { deps } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  const late = await handleCallsApi(
+    post(`/v1/calls/${TOKEN}/ended`, { seconds: 5, replyMs: [70_000] }),
+    deps,
+  );
+  assertEquals(late.status, 400);
+});
+
+Deno.test('replyStats › one reply, and an even count', () => {
+  assertEquals(replyStats([800]), { count: 1, p50: 800, p90: 800, max: 800 });
+  assertEquals(replyStats([400, 100, 300, 200]), { count: 4, p50: 300, p90: 400, max: 400 });
 });
 
 Deno.test('calls-api › ended never overwrites an interaction id already stored', async () => {

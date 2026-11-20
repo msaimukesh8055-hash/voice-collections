@@ -165,3 +165,42 @@ Deno.test('ops repository › an alert claim is one insert; a second claim of th
   );
   await assertRejects(() => broken.claimAlert(claim), RepositoryError);
 });
+
+Deno.test("ops repository › a call's steps: the traces that name it, then their steps without timer requests", async () => {
+  const CALL_ID = 'ccf635af-303b-4d36-9364-e6f76257fd37';
+  const step = (route: string, source = 'followup-worker') => ({
+    source,
+    step: 'request',
+    status: 'ok',
+    error_code: null,
+    provider: null,
+    duration_ms: 3,
+    tokens_in: null,
+    tokens_out: null,
+    detail: { route },
+    created_at: '2026-11-20T04:31:59+00:00',
+  });
+  const calls: Call[] = [];
+  const answers: unknown[] = [
+    [{ trace_id: TRACE_ID }, { trace_id: TRACE_ID }],
+    [step('/sweep'), step(`/calls/${CALL_ID}`), step('/get_dues', 'sarvam-tools')],
+  ];
+  const query: Parameters<typeof createSupabaseOpsRepository>[0] = (operation, path, request) => {
+    calls.push([operation, path, request]);
+    return Promise.resolve({ rows: answers.shift() ?? [], contentRange: null });
+  };
+  const steps = await createSupabaseOpsRepository(query).listCallSteps(CALL_ID);
+  assertEquals(calls[0]?.[1], `ops_events?select=trace_id&detail->>callId=eq.${CALL_ID}&limit=40`);
+  assertEquals(
+    calls[1]?.[1],
+    'ops_events?select=source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +
+      `detail,created_at&trace_id=in.(${TRACE_ID})&order=created_at.asc&limit=400`,
+  );
+  assertEquals(steps.map((one) => one.detail['route']), [`/calls/${CALL_ID}`, '/get_dues']);
+});
+
+Deno.test('ops repository › a call no trace names has no steps (one read only)', async () => {
+  const { query, calls } = fakeQuery([]);
+  assertEquals(await createSupabaseOpsRepository(query).listCallSteps('nope'), []);
+  assertEquals(calls.length, 1);
+});
