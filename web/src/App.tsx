@@ -6,6 +6,7 @@
 import { MUNSHI_PATH } from '@shared/auth/owner-call-token.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Watermark } from './components/Watermark.tsx';
+import { readCallFilter } from './features/calls/callFilter.tsx';
 import { CallsPage } from './features/calls/CallsPage.tsx';
 import { DashboardPage } from './features/dashboard/DashboardPage.tsx';
 import { EvalsPage } from './features/evals/EvalsPage.tsx';
@@ -51,8 +52,11 @@ function Page(props: AppProps): React.JSX.Element {
     );
   }
   if (route === '/shopkeepers') return <ShopkeepersPage dashboard={dashboard} id={id} />;
-  if (route === '/calls') return <CallsPage dashboard={dashboard} id={id} />;
-  if (route === MUNSHI_CALLS_PATH) return <MunshiCallsPage dashboard={dashboard} id={id} />;
+  const filter = readCallFilter(search);
+  if (route === '/calls') return <CallsPage dashboard={dashboard} id={id} filter={filter} />;
+  if (route === MUNSHI_CALLS_PATH) {
+    return <MunshiCallsPage dashboard={dashboard} id={id} filter={filter} />;
+  }
   if (route === HEALTH_PATH) return <HealthPage dashboard={dashboard} />;
   if (route === '/ops') return <OpsPage dashboard={dashboard} id={id} />;
   if (route === '/evals') return <EvalsPage dashboard={dashboard} />;

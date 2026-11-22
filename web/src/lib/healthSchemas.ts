@@ -13,6 +13,10 @@ export const AgentHealthSchema = z.object({
   agent: z.enum(['asha', 'munshi']),
   calls: z.number(),
   verdicts: VerdictCountsSchema,
+  /** Which calls had each verdict (2026-11-22); the page links to exactly those calls. */
+  verdictCallIds: z
+    .object({ good: z.array(z.string()), check: z.array(z.string()), failed: z.array(z.string()) })
+    .default({ good: [], check: [], failed: [] }),
   problems: z.array(
     z.object({
       id: z.string(),

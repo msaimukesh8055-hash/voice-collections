@@ -387,6 +387,11 @@ export const HEALTH: HealthSummary = {
       agent: 'asha',
       calls: 4,
       verdicts: { good: 2, check: 1, failed: 1 },
+      verdictCallIds: {
+        good: ['c3', 'c4'],
+        check: ['c2'],
+        failed: ['c0000000-0000-4000-8000-000000000001'],
+      },
       problems: [
         {
           id: 'identity_first',
@@ -422,6 +427,7 @@ export const HEALTH: HealthSummary = {
       agent: 'munshi',
       calls: 0,
       verdicts: { good: 0, check: 0, failed: 0 },
+      verdictCallIds: { good: [], check: [], failed: [] },
       problems: [],
       guardrailFails: 0,
       replyP50Ms: null,

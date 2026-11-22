@@ -5,6 +5,7 @@
 // The Munshi page links here when a call ends.
 import type { DashboardApi, OwnerCallDetail, OwnerCallRow } from '../../lib/dashboardApi.ts';
 import { TranscriptCard } from '../calls/CallDetail.tsx';
+import { type CallFilter, FilteredCard, onlyFiltered } from '../calls/callFilter.tsx';
 import { Scorecard } from '../calls/Scorecard.tsx';
 import { AddTestCase } from '../evals/AddTestCase.tsx';
 import { ToolUse } from '../calls/ToolUse.tsx';
@@ -128,15 +129,29 @@ function CallList({ calls }: { readonly calls: readonly OwnerCallRow[] }): React
   );
 }
 
-function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {
+function All({
+  dashboard,
+  filter,
+}: {
+  readonly dashboard: DashboardApi;
+  readonly filter: CallFilter | null;
+}): React.JSX.Element {
   const state = useLoad(dashboard.ownerCalls, 'owner-calls');
   return (
     <LoadState state={state}>
-      {(calls: readonly OwnerCallRow[]) => (
-        <Card title="Munshi calls">
-          <CallList calls={calls} />
-        </Card>
-      )}
+      {(calls: readonly OwnerCallRow[]) => {
+        const shown = onlyFiltered(calls, filter);
+        return (
+          <FilteredCard
+            title="Munshi calls"
+            page={MUNSHI_CALLS_PATH}
+            filter={filter}
+            shown={shown.length}
+          >
+            <CallList calls={shown} />
+          </FilteredCard>
+        );
+      }}
     </LoadState>
   );
 }
@@ -144,13 +159,16 @@ function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Ele
 export function MunshiCallsPage({
   dashboard,
   id,
+  filter = null,
 }: {
   readonly dashboard: DashboardApi;
   readonly id: string | null;
+  /** From Agent health: show only these calls (callFilter.tsx). */
+  readonly filter?: CallFilter | null;
 }): React.JSX.Element {
   return (
     <Layout current={MUNSHI_CALLS_PATH} dashboard={dashboard}>
-      {id ? <One dashboard={dashboard} id={id} /> : <All dashboard={dashboard} />}
+      {id ? <One dashboard={dashboard} id={id} /> : <All dashboard={dashboard} filter={filter} />}
     </Layout>
   );
 }

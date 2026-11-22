@@ -79,6 +79,24 @@ Deno.test('agent health › problems: fails first, then warnings, with the calls
   assertEquals(problems[1]?.callIds, ['c3', 'c2']);
 });
 
+Deno.test('agent health › a call that went well adds no problems; each verdict lists its calls', () => {
+  const goodWithWarning = score({
+    callId: 'c0',
+    startedAt: '2026-11-21T06:00:00Z',
+    checks: [check('long_turns', 'warn'), check('repeated_calls', 'warn')],
+  });
+  const health = agentHealth('asha', {
+    scores: [goodWithWarning, ...SCORES],
+    publishes: PUBLISHES,
+    today: '2026-11-21',
+  });
+  assertEquals(health.problems.map((one) => [one.id, one.fails, one.warns]), [
+    ['identity_first', 1, 0],
+    ['repeated_calls', 0, 2],
+  ]);
+  assertEquals(health.verdictCallIds, { good: ['c0', 'c1'], check: ['c2'], failed: ['c3'] });
+});
+
 Deno.test('agent health › tone averages and the version live at each call', () => {
   const health = agentHealth('asha', { scores: SCORES, publishes: PUBLISHES, today: '2026-11-20' });
   assertEquals(health.tone, [{ id: 'clear', label: 'tone clear', average: 4, calls: 2 }]);

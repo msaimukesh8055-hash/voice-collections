@@ -3,7 +3,10 @@
 // the system working?"; this page answers "are the agents doing a good job?" across Asha's and
 // Munshi's recent calls: verdicts, the checks that go wrong most (each opening the calls behind
 // it), guardrail fails, reply time, cost, tone, the same numbers per prompt version, and a 14-day
-// trend. Worked out from each call's kept scorecard.
+// trend. Worked out from each call's kept scorecard. A summary of the Asha calls and Munshi calls
+// pages (Saim, 2026-11-22): every count opens those pages filtered to the calls behind it, and
+// "Why N calls need a look" counts only the calls that need a look or failed.
+import { type CallFilter, filteredCallsHref } from '../calls/callFilter.tsx';
 import { checkHelp } from '../calls/checkHelp.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { AgentHealth, HealthSummary } from '../../lib/healthSchemas.ts';
@@ -17,7 +20,6 @@ export const HEALTH_PATH = '/health';
 const COST_AIM_INR = 15;
 const REPLY_AIM_MS = 1_500;
 const GOOD_TONE = 4;
-const CALL_LINKS = 3;
 const CELL = 'px-2 py-1.5';
 const HEAD = `${CELL} text-left text-xs font-medium uppercase tracking-wide text-ink-muted`;
 
@@ -26,9 +28,45 @@ const NAMES: Readonly<Record<AgentHealth['agent'], string>> = {
   munshi: 'Munshi · the owner’s clerk',
 };
 
-function callHref(agent: AgentHealth['agent'], id: string): string {
-  const page = agent === 'asha' ? '/calls' : '/munshi-calls';
-  return `${page}?id=${encodeURIComponent(id)}`;
+/** The agent's calls page showing just these calls. */
+function callsHref(agent: AgentHealth['agent'], filter: CallFilter): string {
+  return filteredCallsHref(agent === 'asha' ? '/calls' : '/munshi-calls', filter);
+}
+
+function callCount(count: number): string {
+  return count === 1 ? '1 call' : `${count} calls`;
+}
+
+const VERDICT_LINKS = [
+  { key: 'good', text: 'went well', label: 'Went well', tone: 'good' },
+  { key: 'check', text: 'need a look', label: 'Need a look', tone: 'warn' },
+  { key: 'failed', text: 'failed', label: 'Failed', tone: 'bad' },
+] as const;
+
+/** "8 went well · 3 need a look · 0 failed of 11": each count opens those calls. */
+function VerdictLinks({ health }: { readonly health: AgentHealth }): React.JSX.Element {
+  return (
+    <p className="mt-1 flex flex-wrap gap-x-2 text-xs">
+      {VERDICT_LINKS.map((verdict) => {
+        const ids = health.verdictCallIds[verdict.key];
+        const text = `${health.verdicts[verdict.key]} ${verdict.text}`;
+        return ids.length > 0 ? (
+          <a
+            key={verdict.key}
+            href={callsHref(health.agent, { ids, label: verdict.label })}
+            className={`font-medium underline ${TONE_CLASSES[verdict.tone]}`}
+          >
+            {text}
+          </a>
+        ) : (
+          <span key={verdict.key} className="text-ink-muted">
+            {text}
+          </span>
+        );
+      })}
+      <span className="text-ink-muted">of {health.calls}</span>
+    </p>
+  );
 }
 
 function share(part: number, whole: number): string {
@@ -40,17 +78,20 @@ function Figure({
   value,
   tone = 'plain',
   note,
+  children,
 }: {
   readonly label: string;
   readonly value: string;
   readonly tone?: Tone;
   readonly note?: string;
+  readonly children?: React.ReactNode;
 }): React.JSX.Element {
   return (
     <div className="rounded-xl bg-canvas p-3 ring-1 ring-border">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
       <p className={`mt-1 text-xl font-semibold ${TONE_CLASSES[tone]}`}>{value}</p>
       {note ? <p className="text-xs text-ink-muted">{note}</p> : null}
+      {children}
     </div>
   );
 }
@@ -63,8 +104,9 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
         label="Went well"
         value={share(verdicts.good, calls)}
         tone={verdicts.failed > 0 ? 'warn' : 'good'}
-        note={`✅ ${verdicts.good} · ⚠ ${verdicts.check} · ❌ ${verdicts.failed} of ${calls}`}
-      />
+      >
+        <VerdictLinks health={health} />
+      </Figure>
       <Figure
         label="Guardrail fails"
         value={String(guardrailFails)}
@@ -85,6 +127,11 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
       />
     </div>
   );
+}
+
+function problemsTitle(health: AgentHealth): string {
+  const flagged = health.verdicts.check + health.verdicts.failed;
+  return flagged === 1 ? 'Why 1 call needs a look' : `Why ${flagged} calls need a look`;
 }
 
 function ProblemExplained({ id }: { readonly id: string }): React.JSX.Element | null {
@@ -124,20 +171,12 @@ function Problems({ health }: { readonly health: AgentHealth }): React.JSX.Eleme
               {problem.warns}
             </td>
             <td className={CELL}>
-              {problem.callIds.slice(0, CALL_LINKS).map((id, index) => (
-                <a
-                  key={id}
-                  href={callHref(health.agent, id)}
-                  className="mr-2 font-medium text-brand underline"
-                >
-                  #{index + 1}
-                </a>
-              ))}
-              {problem.callIds.length > CALL_LINKS ? (
-                <span className="text-xs text-ink-muted">
-                  +{problem.callIds.length - CALL_LINKS}
-                </span>
-              ) : null}
+              <a
+                href={callsHref(health.agent, { ids: problem.callIds, label: problem.label })}
+                className="font-medium text-brand underline"
+              >
+                {callCount(problem.callIds.length)}
+              </a>
             </td>
           </tr>
         ))}
@@ -230,7 +269,11 @@ function AgentCard({ health }: { readonly health: AgentHealth }): React.JSX.Elem
         <div className="flex flex-col gap-5">
           <Figures health={health} />
           <section>
-            <h3 className="mb-2 text-sm font-semibold">What goes wrong most</h3>
+            <h3 className="text-sm font-semibold">{problemsTitle(health)}</h3>
+            <p className="mb-2 text-xs text-ink-muted">
+              Counts only the calls that need a look or failed. Small warnings on calls that went
+              well are on those calls&apos; own pages.
+            </p>
             <Problems health={health} />
           </section>
           <div className="grid gap-5 md:grid-cols-3">

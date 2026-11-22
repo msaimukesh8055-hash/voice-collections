@@ -69,10 +69,20 @@ export interface TonePoint {
   readonly calls: number;
 }
 
+export interface VerdictCallIds {
+  readonly good: readonly string[];
+  readonly check: readonly string[];
+  readonly failed: readonly string[];
+}
+
 export interface AgentHealth {
   readonly agent: HealthAgent;
   readonly calls: number;
   readonly verdicts: VerdictCounts;
+  /** Which calls had each verdict, newest first, so the page can open exactly those calls. */
+  readonly verdictCallIds: VerdictCallIds;
+  /** From the calls that need a look or failed only (Saim, 2026-11-22): small warnings on calls
+   * that went well stay on those calls' own pages, so these counts add up to the ⚠ and ❌ calls. */
   readonly problems: readonly Problem[];
   /** Calls where at least one guardrail failed. */
   readonly guardrailFails: number;
@@ -128,9 +138,15 @@ function countVerdicts(scores: readonly CallScore[]): VerdictCounts {
   };
 }
 
+function callIdsByVerdict(scores: readonly CallScore[]): VerdictCallIds {
+  const idsOf = (verdict: CallScore['verdict']): string[] =>
+    scores.filter((score) => score.verdict === verdict).map((score) => score.callId);
+  return { good: idsOf('good'), check: idsOf('check'), failed: idsOf('failed') };
+}
+
 function problems(scores: readonly CallScore[]): Problem[] {
   const found = new Map<string, Problem>();
-  for (const score of scores) {
+  for (const score of scores.filter((one) => one.verdict !== 'good')) {
     for (const one of score.checks) {
       if (one.status !== 'fail' && one.status !== 'warn') continue;
       const before = found.get(one.id);
@@ -233,6 +249,7 @@ export function agentHealth(
     agent,
     calls: scores.length,
     verdicts: countVerdicts(scores),
+    verdictCallIds: callIdsByVerdict(scores),
     problems: problems(scores),
     guardrailFails:
       scores.filter((score) =>

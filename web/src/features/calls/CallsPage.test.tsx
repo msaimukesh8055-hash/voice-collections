@@ -12,6 +12,17 @@ describe('CallsPage', () => {
     expect(screen.getByText('₹12.39')).toBeInTheDocument();
   });
 
+  it('opened from Agent health: only the chosen calls, with a chip and a way back (2026-11-22)', async () => {
+    const filter = { ids: [CALL.id, 'older-call'], label: 'Need a look' };
+    render(<CallsPage dashboard={fakeDashboard().dashboard} id={null} filter={filter} />);
+    expect(await screen.findByText('Showing: Need a look (2)')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Nov/ })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Show all calls' })).toHaveAttribute('href', '/calls');
+    expect(
+      screen.getByText('1 of these are older than the calls listed here.'),
+    ).toBeInTheDocument();
+  });
+
   it('shows one call: facts, follow-up decision, summary, transcript and tool calls', async () => {
     render(<CallsPage dashboard={fakeDashboard().dashboard} id={CALL.id} />);
     expect(await screen.findByRole('heading', { name: 'Call with Ramesh' })).toBeInTheDocument();

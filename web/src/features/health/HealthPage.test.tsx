@@ -11,11 +11,25 @@ describe('HealthPage', () => {
     expect(await screen.findByText('Asha · calls shopkeepers · last 4 calls')).toBeInTheDocument();
     expect(fake.requests).toContain('agent-health');
     expect(screen.getByText('50%')).toBeInTheDocument();
-    expect(screen.getByText('✅ 2 · ⚠ 1 · ❌ 1 of 4')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '1 need a look' })).toHaveAttribute(
+      'href',
+      '/calls?ids=c2&label=Need+a+look',
+    );
+    expect(screen.getByRole('link', { name: '2 went well' })).toHaveAttribute(
+      'href',
+      '/calls?ids=c3%2Cc4&label=Went+well',
+    );
+    expect(screen.getByText('Why 2 calls need a look')).toBeInTheDocument();
     expect(screen.getByText('₹16.50')).toBeInTheDocument();
     expect(screen.getByText('Identity confirmed before dues')).toBeInTheDocument();
-    const links = screen.getAllByRole('link', { name: '#1' });
-    expect(links[0]).toHaveAttribute('href', '/calls?id=c0000000-0000-4000-8000-000000000001');
+    expect(screen.getByRole('link', { name: '1 call' })).toHaveAttribute(
+      'href',
+      '/calls?ids=c0000000-0000-4000-8000-000000000001&label=Identity+confirmed+before+dues',
+    );
+    expect(screen.getByRole('link', { name: '2 calls' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/calls?ids=c1%2Cc2&label='),
+    );
     expect(screen.getByText('v7')).toBeInTheDocument();
     expect(screen.getByText('4.5/5')).toBeInTheDocument();
   });
