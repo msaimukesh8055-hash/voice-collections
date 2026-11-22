@@ -2,6 +2,7 @@
 // WhatsApp live checks (Saim, 2026-11-22; ADR-0022): GET /v1/dashboard/whatsapp lists the owner's
 // latest WhatsApp exchanges with each one's verdict; GET /v1/dashboard/whatsapp/:id is one
 // exchange with its full scorecard. Scored on every read (pure code, ₹0), so nothing is kept.
+import type { Scorecard } from '../_shared/calls/scorecard.ts';
 import { scoreExchange } from '../_shared/calls/whatsapp-scorecard.ts';
 import type { ExchangeRow } from '../_shared/db/exchange-repository.ts';
 import { jsonResponse } from '../_shared/http.ts';
@@ -10,6 +11,16 @@ import type { RouteContext } from './types.ts';
 
 /** Exchanges listed on the page (and read for one exchange's report). */
 export const EXCHANGES_PAGE = 100;
+
+/** Why a message is not "went well", for the list: the checks that failed, or, when only
+ * warnings brought it down, the warnings. Empty when it went well. */
+export function reasonsOf(card: Scorecard): readonly string[] {
+  if (card.verdict === 'good') return [];
+  const checks = card.groups.flatMap((group) => group.checks);
+  const fails = checks.filter((one) => one.status === 'fail');
+  const shown = fails.length > 0 ? fails : checks.filter((one) => one.status === 'warn');
+  return shown.map((one) => one.id);
+}
 
 function listed(row: ExchangeRow, now: Date): Record<string, unknown> {
   const card = scoreExchange(row, now);
@@ -25,6 +36,7 @@ function listed(row: ExchangeRow, now: Date): Record<string, unknown> {
     verdict: card.verdict,
     passed: card.passed,
     applicable: card.applicable,
+    reasons: reasonsOf(card),
   };
 }
 

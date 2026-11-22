@@ -15,6 +15,20 @@ describe('WhatsAppPage', () => {
     expect(screen.queryByText('Test')).toBeNull();
   });
 
+  it('says why a message needs a look', async () => {
+    const fake = fakeDashboard();
+    const slow = {
+      ...EXCHANGE_ROW,
+      handleMs: 8400,
+      verdict: 'check' as const,
+      reasons: ['wa_reply_time'],
+    };
+    fake.dashboard.exchanges = () => Promise.resolve([slow]);
+    render(<WhatsAppPage dashboard={fake.dashboard} id={null} />);
+    expect(await screen.findByText('⚠ Needs a look')).toBeInTheDocument();
+    expect(screen.getByText('slow reply (8.4 s)')).toBeInTheDocument();
+  });
+
   it('shows only the messages Agent health asked for, and tags smoke-test ones', async () => {
     const fake = fakeDashboard();
     fake.dashboard.exchanges = () =>

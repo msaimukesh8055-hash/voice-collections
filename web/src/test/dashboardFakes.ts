@@ -581,6 +581,7 @@ export const EXCHANGE_ROW: ExchangeListItem = {
   verdict: 'good',
   passed: 4,
   applicable: 4,
+  reasons: [],
 };
 
 export interface FakeDashboard {

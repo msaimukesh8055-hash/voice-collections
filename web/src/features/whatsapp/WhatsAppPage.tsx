@@ -40,6 +40,27 @@ const VERDICTS: Readonly<
   failed: { label: '❌ Failed', tone: 'bad' },
 };
 
+/** Short "why" next to the result in the list, one per check id. */
+const REASONS: Readonly<Record<string, string>> = {
+  wa_money_on_tap: 'money moved without a tap',
+  wa_no_card_when_lost: 'money card from a misread',
+  wa_understood: 'not understood',
+  wa_card_answered: 'card not answered',
+  wa_voice_reply: 'no voice reply',
+  wa_delivered: 'reply not delivered',
+  wa_reply_time: 'slow reply',
+  wa_cost: 'cost over aim',
+};
+
+function reasonText(row: ExchangeListItem): string {
+  return row.reasons
+    .map((id) => {
+      const text = REASONS[id] ?? id;
+      return id === 'wa_reply_time' ? `${text} (${seconds(row.handleMs)})` : text;
+    })
+    .join(', ');
+}
+
 const SCORE_NOTE = 'worked out in code from what was kept for this message, no AI';
 
 function typeOf(msgType: string): string {
@@ -217,6 +238,9 @@ function ExchangeList({
             <td className="py-2 pr-3">{seconds(row.handleMs)}</td>
             <td className={`py-2 font-medium ${TONE_CLASSES[VERDICTS[row.verdict].tone]}`}>
               {VERDICTS[row.verdict].label}
+              {row.reasons.length > 0 ? (
+                <span className="block text-xs font-normal">{reasonText(row)}</span>
+              ) : null}
             </td>
           </tr>
         ))}

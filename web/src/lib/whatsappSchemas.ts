@@ -19,6 +19,8 @@ export const ExchangeListItemSchema = z.object({
   verdict: VerdictSchema,
   passed: z.number(),
   applicable: z.number(),
+  /** Check ids behind "Needs a look" / "Failed"; empty when it went well. */
+  reasons: z.array(z.string()).default([]),
 });
 export const ExchangeListSchema = z.object({ exchanges: z.array(ExchangeListItemSchema) });
 

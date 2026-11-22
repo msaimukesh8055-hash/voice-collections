@@ -1,7 +1,7 @@
 // supabase/functions/calls-api/whatsapp-routes.test.ts
 // GET /v1/dashboard/whatsapp[/:id] through the real router (ADR-0022): behind the dashboard link,
 // each exchange with its verdict, one exchange with its scorecard, 404 for an unknown id.
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { DASHBOARD_TOKEN_HEADER, signDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import { fakeExchange } from '../_shared/db/fake-exchange-reads.ts';
 import { createFakeRepository, FAKE_NOW } from '../_shared/db/fake-repository.ts';
@@ -50,9 +50,11 @@ Deno.test('whatsapp api › the list gives each exchange its verdict', async () 
   const response = await get('/v1/dashboard/whatsapp');
   assertEquals(response.status, 200);
   const body = await response.json() as {
-    exchanges: Array<{ id: string; verdict: string; inText: string }>;
+    exchanges: Array<{ id: string; verdict: string; inText: string; reasons: string[] }>;
   };
   assertEquals(body.exchanges.map((one) => one.verdict), ['good', 'check']);
+  assertEquals(body.exchanges[0]?.reasons, []);
+  assert((body.exchanges[1]?.reasons.length ?? 0) > 0);
   assertEquals(body.exchanges[0]?.inText, 'Ramesh 5000 due 15th');
 });
 
