@@ -6,7 +6,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { addDays, istDate } from '../supabase/functions/_shared/clock.ts';
-import { RAMESH_STORY } from './seed/ramesh.ts';
 import { createReporter, requireEnv } from './lib/smoke.ts';
 import { shopkeeperId } from './seed/generate-seed.ts';
 
@@ -160,6 +159,20 @@ async function checkProxy(smoke: Smoke, token: string): Promise<void> {
   );
 }
 
+/**
+ * Ramesh's balance in the live book right now (the `balances` view). Live demo calls change his
+ * book, so the smoke compares get_dues with this, not with the seed story (2026-11-22).
+ */
+async function liveBalance(smoke: Smoke): Promise<number> {
+  const { data, error } = await smoke.admin
+    .from('balances')
+    .select('outstanding')
+    .eq('shopkeeper_id', RAMESH_ID);
+  if (error) throw new Error(`Balance read failed (${error.code})`);
+  const rows = z.array(z.object({ outstanding: z.coerce.number() })).parse(data ?? []);
+  return rows[0]?.outstanding ?? 0;
+}
+
 async function checkIdentityAndDues(smoke: Smoke, token: string): Promise<void> {
   const early = await tool(smoke, 'get_dues', { call_token: token });
   const earlySay = String(early.body['say'] ?? '');
@@ -170,11 +183,12 @@ async function checkIdentityAndDues(smoke: Smoke, token: string): Promise<void> 
   const confirm = await tool(smoke, 'confirm_identity', { call_token: token, answer: 'confirmed' });
   report(confirm.body['ok'] === true, `confirm_identity → ${String(confirm.body['say'])}`);
   const dues = await tool(smoke, 'get_dues', { call_token: token });
+  const balance = await liveBalance(smoke);
+  const overdue = Number(dues.body['overdue_amount']);
   const figures = `outstanding ${String(dues.body['outstanding'])}, overdue ${String(dues.body['overdue_amount'])} for ${String(dues.body['days_overdue'])} days, next ${String(dues.body['next_due_amount'])} on ${String(dues.body['next_due_date'])}`;
   report(
-    dues.body['outstanding'] === RAMESH_STORY.outstanding &&
-      dues.body['overdue_amount'] === RAMESH_STORY.overdueAmount,
-    `get_dues → ${figures}`,
+    dues.body['outstanding'] === balance && overdue >= 0 && overdue <= balance,
+    `get_dues → ${figures} (live book: ${String(balance)})`,
   );
   process.stdout.write(`     Asha would say: "${String(dues.body['say'])}"\n`);
 }
@@ -213,10 +227,12 @@ async function checkPromiseAndClaim(smoke: Smoke, token: string): Promise<void> 
   );
   await checkPromiseUpdate(smoke, token, addDays(today, 4));
   const claim = { call_token: token, amount: 500, paid_date: today, mode: 'upi' };
+  const before = await liveBalance(smoke);
   const claimed = await tool(smoke, 'record_payment_claim', claim);
   const after = await tool(smoke, 'get_dues', { call_token: token });
+  // A claim is only "claimed" until the owner confirms it, so the balance must not move.
   report(
-    claimed.body['ok'] === true && after.body['outstanding'] === RAMESH_STORY.outstanding,
+    claimed.body['ok'] === true && after.body['outstanding'] === before,
     `record_payment_claim → claimed; balance unchanged at ${String(after.body['outstanding'])}`,
   );
   const callback = {
