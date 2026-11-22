@@ -277,6 +277,8 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       promptChanged: false,
       change: 'first',
       promptName: 'v6',
+      release: null,
+      promptChange: null,
       note: 'First full run on prompt v6.',
     },
     {
@@ -290,6 +292,13 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       promptChanged: true,
       change: 'prompt',
       promptName: 'v7',
+      release: null,
+      promptChange: {
+        from: 'v6',
+        commit: 'bcba003',
+        added: ['Read the promise back in a full sentence.'],
+        removed: ['Confirm the promise.'],
+      },
       note: 'Prompt v7: read a promise back in a full sentence.',
     },
   ],
@@ -300,6 +309,7 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       results: { 'run-asha-1': true, 'run-asha-2': true },
       fixedIn: null,
       lastFailedIn: null,
+      fixNote: null,
     },
     {
       scenarioId: 'asha-02',
@@ -307,6 +317,7 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       results: { 'run-asha-1': false, 'run-asha-2': true },
       fixedIn: 'run-asha-2',
       lastFailedIn: 'run-asha-1',
+      fixNote: 'Prompt v7 reads the promise back in a full sentence.',
     },
   ],
 };

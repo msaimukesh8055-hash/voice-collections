@@ -16,6 +16,8 @@ export interface RunNote {
   readonly kind: RunChangeKind;
   /** Our name for the prompt this run tested ("v9"); Sarvam numbers its versions separately. */
   readonly prompt?: string;
+  /** Whether this prompt went live; only written where a version was tried and not released. */
+  readonly release?: 'released' | 'not released';
   readonly note: string;
 }
 
@@ -52,13 +54,15 @@ export const RUN_NOTES: Readonly<Record<string, RunNote>> = {
   },
   '9fe48709-f619-4b94-b26f-646b70abf894': {
     kind: 'prompt',
-    prompt: 'v9 draft',
+    prompt: 'v9 try 1',
+    release: 'not released',
     note:
       'Prompt v9, first draft: one point per turn; the dues tool now says "give the total alone first"; more sensitive speech detection. Fixed 02 and 03. Still missed 04 (broken promise), 05 (one long turn), 06 (owner callback) and 08 (identity).',
   },
   '4780a8ef-5f39-4823-8bca-a71647be3689': {
     kind: 'prompt',
     prompt: 'v9',
+    release: 'released',
     note:
       'Prompt v9, final: say nothing in the same reply as a tool call (those words were never spoken, which is how the callback line went missing); raise a broken promise before logging a new one; record identity before asking the owner to call back. 9/9, gate passed. Live as Sarvam version 7.',
   },

@@ -2,6 +2,8 @@
 // "How it got fixed" (Saim, 2026-11-22): for one thing tested (Asha, Munshi, the brain), each case
 // across its recent runs, oldest first, plus what changed before each run and which cases a later
 // run fixed. Pure code. Whether the prompt changed comes from the prompt hash, never from a note.
+import { CASE_FIXES } from './case-fixes.ts';
+import { PROMPT_CHANGES, type PromptChange } from './prompt-changes.ts';
 import { RUN_NOTES, type RunChangeKind } from './run-notes.ts';
 
 export interface HistoryRunInput {
@@ -27,6 +29,9 @@ export interface HistoryRun extends HistoryRunInput {
   readonly change: RunChangeKind;
   /** Our prompt name ("v9"), from the run notes; null when none was written. */
   readonly promptName: string | null;
+  readonly release: 'released' | 'not released' | null;
+  /** The prompt lines that changed from the version before, when that is known (from git). */
+  readonly promptChange: PromptChange | null;
   readonly note: string | null;
 }
 
@@ -39,6 +44,8 @@ export interface HistoryCase {
   readonly fixedIn: string | null;
   /** The last run it failed in before that fix, for the before / after view. */
   readonly lastFailedIn: string | null;
+  /** What made it pass, in one line (case-fixes.ts); null when none was written. */
+  readonly fixNote: string | null;
 }
 
 export interface CaseHistory {
@@ -46,7 +53,11 @@ export interface CaseHistory {
   readonly cases: readonly HistoryCase[];
 }
 
-function changeOf(run: HistoryRunInput, before: HistoryRunInput | undefined): HistoryRun {
+function changeOf(
+  target: string,
+  run: HistoryRunInput,
+  before: HistoryRunInput | undefined,
+): HistoryRun {
   const promptChanged = before !== undefined && before.promptHash !== run.promptHash;
   const written = RUN_NOTES[run.id];
   const guessed: RunChangeKind = before === undefined
@@ -59,6 +70,11 @@ function changeOf(run: HistoryRunInput, before: HistoryRunInput | undefined): Hi
     promptChanged,
     change: written?.kind ?? guessed,
     promptName: written?.prompt ?? null,
+    release: written?.release ?? null,
+    promptChange:
+      (promptChanged && written?.prompt
+        ? PROMPT_CHANGES[`${target}:${written.prompt}`]
+        : undefined) ?? null,
     note: written?.note ?? null,
   };
 }
@@ -80,13 +96,15 @@ function fixOf(
   return { fixedIn: fixed.id, lastFailedIn: failed.id };
 }
 
-/** `runs` newest first, as stored; the history comes back oldest first. */
+/** `runs` newest first, as stored; the history comes back oldest first. `target` (asha, munshi,
+ * brain) picks the written notes and prompt changes. */
 export function caseHistory(
   runs: readonly HistoryRunInput[],
   outcomes: readonly CaseOutcome[],
+  target = '',
 ): CaseHistory {
   const oldestFirst = [...runs].reverse();
-  const shown = oldestFirst.map((run, index) => changeOf(run, oldestFirst[index - 1]));
+  const shown = oldestFirst.map((run, index) => changeOf(target, run, oldestFirst[index - 1]));
   const byCase = new Map<string, { name: string; results: Record<string, boolean> }>();
   for (const outcome of outcomes) {
     const entry = byCase.get(outcome.scenarioId) ?? { name: outcome.name, results: {} };
@@ -101,6 +119,7 @@ export function caseHistory(
       name: entry.name,
       results: entry.results,
       ...fixOf(shown, entry.results),
+      fixNote: CASE_FIXES[`${target}:${scenarioId}`] ?? null,
     }));
   return { runs: shown, cases };
 }

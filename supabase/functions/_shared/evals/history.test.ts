@@ -2,6 +2,8 @@
 // "How it got fixed": cases across runs, what changed before each run, which run fixed a case.
 import { assertEquals } from '@std/assert';
 import { caseHistory, type CaseOutcome, type HistoryRunInput } from './history.ts';
+import { CASE_FIXES } from './case-fixes.ts';
+import { PROMPT_CHANGES } from './prompt-changes.ts';
 import { RUN_NOTES } from './run-notes.ts';
 
 function run(id: string, promptHash: string, passed = false): HistoryRunInput {
@@ -60,4 +62,25 @@ Deno.test('history › a written note wins over the guess, and every note is non
   assertEquals([history.runs[0]?.change, history.runs[0]?.note], [note?.kind, note?.note]);
   assertEquals(history.runs[0]?.promptName, note?.prompt ?? null);
   for (const one of Object.values(RUN_NOTES)) assertEquals(one.note.trim().length > 20, true);
+});
+
+Deno.test('history › real runs get their prompt lines and each fixed case its own note', () => {
+  const v7 = { ...run('r1', 'A'), id: 'cae44fb6-d2fc-48d4-9602-6ca9256b588a' };
+  const v8 = { ...run('r2', 'B'), id: '6e95f822-e81f-4b02-9605-0ec9ec7e92d0' };
+  const history = caseHistory([v8, v7], [
+    outcome(v7.id, 'asha-09', false),
+    outcome(v8.id, 'asha-09', true),
+  ], 'asha');
+  const after = history.runs[1];
+  assertEquals([after?.promptName, after?.promptChange?.from], ['v8', 'v7']);
+  assertEquals(after?.promptChange?.added.some((line) => line.includes('Identity first')), true);
+  assertEquals(history.cases[0]?.fixNote?.includes('Prompt v8'), true);
+  assertEquals(caseHistory([v8, v7], [], '').runs[1]?.promptChange, null);
+});
+
+Deno.test('history › every fixed-case note and prompt change is written out', () => {
+  for (const note of Object.values(CASE_FIXES)) assertEquals(note.trim().length > 20, true);
+  for (const change of Object.values(PROMPT_CHANGES)) {
+    assertEquals(change.added.length + change.removed.length > 0, true);
+  }
 });

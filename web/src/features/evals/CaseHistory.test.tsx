@@ -14,7 +14,8 @@ describe('How it got fixed', () => {
     expect(screen.getByText('Prompt v7: read a promise back in a full sentence.')).toBeVisible();
     expect(screen.getByText(/1 case\(s\) failed before and pass now/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /asha-02 failed on/ })).toHaveTextContent('✗');
-    expect(screen.getAllByText('prompt v7 · Sarvam v6')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('prompt v7')[0]).toBeInTheDocument();
+    expect(screen.queryByText(/Sarvam v/)).toBeNull();
   });
 
   it('a case that passed, broke and was fixed again says so', () => {
@@ -29,6 +30,7 @@ describe('How it got fixed', () => {
       results: { 'run-asha-1': true, 'run-asha-2': false, 'run-3': true },
       fixedIn: 'run-3',
       lastFailedIn: 'run-asha-2',
+      fixNote: null,
     };
     expect(storyOf(all, story)).toBe('✓ prompt v6 → ✗ prompt v7 → ✓ prompt v8');
     expect(brokeThenFixed(all, story)).toBe(true);
@@ -57,6 +59,13 @@ describe('How it got fixed', () => {
       within(compare).getByText(/Failed on prompt v6, fixed on prompt v7/),
     ).toBeInTheDocument();
     expect(within(compare).getByText(/Everything else in that run/)).toBeInTheDocument();
+    expect(
+      within(compare).getByText(/reads the promise back in a full sentence/),
+    ).toBeInTheDocument();
+    expect(within(compare).getByText(/1 added, 1 taken out/)).toBeInTheDocument();
+    expect(
+      within(compare).getByText('+ Read the promise back in a full sentence.'),
+    ).toBeInTheDocument();
     expect(await within(compare).findByText('assistant: OK, bye')).toBeInTheDocument();
     expect(await within(compare).findByText('assistant: So 2,000 by Monday?')).toBeInTheDocument();
     expect(within(compare).getByText(/Reads the promise back: Not read back/)).toBeInTheDocument();

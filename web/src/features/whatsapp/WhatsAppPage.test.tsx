@@ -12,6 +12,7 @@ describe('WhatsAppPage', () => {
     expect(link).toHaveAttribute('href', `/whatsapp?id=${EXCHANGE_ROW.id}`);
     expect(screen.getByText('Ramesh 5000 due 15th')).toBeInTheDocument();
     expect(screen.getByText('✅ Went well')).toBeInTheDocument();
+    expect(screen.getByText('⚙️ Code · no AI')).toBeInTheDocument();
     expect(screen.queryByText('Test')).toBeNull();
   });
 

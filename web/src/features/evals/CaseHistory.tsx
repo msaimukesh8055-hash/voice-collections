@@ -36,11 +36,20 @@ function shortRun(run: HistoryRun): string {
   return dateTime(run.createdAt);
 }
 
-/** "prompt v9 · Sarvam v7": our prompt name and Sarvam's own version counter, which differ. */
+/** "prompt v9 · released": our prompt name, and whether a version that was tried went live. */
 function versionOf(run: HistoryRun): string {
-  const ours = run.promptName ? `prompt ${run.promptName}` : '';
-  const theirs = run.appVersion === null ? '' : `Sarvam v${run.appVersion}`;
-  return [ours, theirs].filter(Boolean).join(' · ');
+  const name = run.promptName ? `prompt ${run.promptName}` : '';
+  return [name, run.release ?? ''].filter(Boolean).join(' · ');
+}
+
+/** "Broke on prompt v7, fixed on prompt v8 (Prompt changed)." or, on one prompt,
+ * "Failed, then fixed on the same prompt v2 (Test setup or checks fixed)." */
+function fixLine(before: HistoryRun, after: HistoryRun, broke: boolean): string {
+  const how = CHANGE_LABELS[after.change];
+  if (before.promptName && before.promptName === after.promptName) {
+    return `${broke ? 'Broke' : 'Failed'}, then fixed on the same prompt ${after.promptName} (${how}).`;
+  }
+  return `${broke ? 'Broke' : 'Failed'} on ${stepName(before)}, fixed on ${stepName(after)} (${how}).`;
 }
 
 function stepName(run: HistoryRun): string {
@@ -140,6 +149,63 @@ function ChangeLine({ run }: { readonly run: HistoryRun }): React.JSX.Element {
   );
 }
 
+function PromptLines({ run }: { readonly run: HistoryRun }): React.JSX.Element | null {
+  const change = run.promptChange;
+  if (!change) return null;
+  return (
+    <details className="mt-2 rounded-lg bg-canvas p-2 text-xs ring-1 ring-border">
+      <summary className="cursor-pointer font-medium">
+        Prompt lines changed from {change.from} to {run.promptName} ({change.added.length} added,{' '}
+        {change.removed.length} taken out)
+      </summary>
+      <ul className="mt-2 flex flex-col gap-1">
+        {change.removed.map((line) => (
+          <li key={`-${line}`} className="rounded bg-danger/10 p-1 text-danger">
+            − {line}
+          </li>
+        ))}
+        {change.added.map((line) => (
+          <li key={`+${line}`} className="rounded bg-success/10 p-1 text-success">
+            + {line}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function FixSummary({
+  history,
+  evalCase,
+  before,
+  after,
+}: {
+  readonly history: History;
+  readonly evalCase: HistoryCase;
+  readonly before: HistoryRun;
+  readonly after: HistoryRun;
+}): React.JSX.Element {
+  return (
+    <>
+      <p className="mt-1 text-sm font-medium">{storyOf(history.runs, evalCase)}</p>
+      <p className="mt-1 text-sm">
+        {fixLine(before, after, brokeThenFixed(history.runs, evalCase))}
+      </p>
+      {evalCase.fixNote ? (
+        <p className="mt-1 text-sm">
+          <span className="font-medium">What fixed it: </span>
+          {evalCase.fixNote}
+        </p>
+      ) : null}
+      <PromptLines run={after} />
+      <p className="mt-2 text-xs text-ink-muted">
+        <span className="font-medium">Everything else in that run: </span>
+        {after.note ?? 'No note written for this run.'}
+      </p>
+    </>
+  );
+}
+
 function BeforeAfter({
   dashboard,
   history,
@@ -160,15 +226,7 @@ function BeforeAfter({
       <h4 className="text-sm font-semibold">
         {evalCase.scenarioId} · {evalCase.name}: how it got fixed
       </h4>
-      <p className="mt-1 text-sm font-medium">{storyOf(history.runs, evalCase)}</p>
-      <p className="mt-1 text-sm">
-        {brokeThenFixed(history.runs, evalCase) ? 'Broke on ' : 'Failed on '}
-        {stepName(before)}, fixed on {stepName(after)} ({CHANGE_LABELS[after.change]}).
-      </p>
-      <p className="mt-1 text-xs text-ink-muted">
-        <span className="font-medium">Everything else in that run: </span>
-        {after.note ?? 'No note written for this run.'}
-      </p>
+      <FixSummary history={history} evalCase={evalCase} before={before} after={after} />
       <div className="mt-3 flex flex-col gap-3 lg:flex-row">
         <Conversation
           dashboard={dashboard}
@@ -300,9 +358,6 @@ function HeadRow({ runs }: { readonly runs: readonly HistoryRun[] }): React.JSX.
           <th key={run.id} className={`${HEAD} text-center`}>
             {shortRun(run)}
             <span className="block font-normal">{versionOf(run)}</span>
-            <span className="block font-normal">
-              {run.promptChanged ? 'new prompt' : 'same prompt'}
-            </span>
           </th>
         ))}
         <th className={HEAD}>Fixed?</th>

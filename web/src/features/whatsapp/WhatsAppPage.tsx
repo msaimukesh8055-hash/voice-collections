@@ -23,6 +23,20 @@ const TYPES: Readonly<Record<string, string>> = {
   other: '📎 Other',
 };
 
+/** Who worked out the answer, for the list: no AI (button, code) or which AI. */
+const ANSWERED_BY: Readonly<Record<string, string>> = {
+  button: '👆 Button · no AI',
+  command: '⚙️ Code · no AI',
+  sarvam: '🤖 Sarvam AI',
+  gemini: '🛟 Gemini backup',
+  failed: '❓ Not understood',
+  stranger: '—',
+};
+
+function answeredBy(path: string): string {
+  return ANSWERED_BY[path] ?? path;
+}
+
 const UNDERSTOOD_BY: Readonly<Record<string, string>> = {
   command: 'fixed rules (code)',
   button: 'button (code)',
@@ -198,6 +212,32 @@ function One({
   );
 }
 
+function ExchangeRow({ row }: { readonly row: ExchangeListItem }): React.JSX.Element {
+  return (
+    <tr className="border-t border-border align-top">
+      <td className="py-2 pr-3">
+        <a
+          href={`${WHATSAPP_PATH}?id=${encodeURIComponent(row.id)}`}
+          className="font-medium text-brand underline"
+        >
+          {dateTime(row.createdAt)}
+        </a>
+        {row.isTest ? <TestTag /> : null}
+      </td>
+      <td className="py-2 pr-3 whitespace-nowrap">{typeOf(row.msgType)}</td>
+      <td className="py-2 pr-3">{shortText(row.inText)}</td>
+      <td className="py-2 pr-3 whitespace-nowrap">{answeredBy(row.path)}</td>
+      <td className="py-2 pr-3">{seconds(row.handleMs)}</td>
+      <td className={`py-2 font-medium ${TONE_CLASSES[VERDICTS[row.verdict].tone]}`}>
+        {VERDICTS[row.verdict].label}
+        {row.reasons.length > 0 ? (
+          <span className="block text-xs font-normal">{reasonText(row)}</span>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
 function ExchangeList({
   exchanges,
 }: {
@@ -217,32 +257,14 @@ function ExchangeList({
           <th className="pb-1 pr-3 font-medium">When</th>
           <th className="pb-1 pr-3 font-medium">Type</th>
           <th className="pb-1 pr-3 font-medium">You sent</th>
+          <th className="pb-1 pr-3 font-medium">Answered by</th>
           <th className="pb-1 pr-3 font-medium">Reply time</th>
           <th className="pb-1 font-medium">Result</th>
         </tr>
       </thead>
       <tbody>
         {exchanges.map((row) => (
-          <tr key={row.id} className="border-t border-border align-top">
-            <td className="py-2 pr-3">
-              <a
-                href={`${WHATSAPP_PATH}?id=${encodeURIComponent(row.id)}`}
-                className="font-medium text-brand underline"
-              >
-                {dateTime(row.createdAt)}
-              </a>
-              {row.isTest ? <TestTag /> : null}
-            </td>
-            <td className="py-2 pr-3 whitespace-nowrap">{typeOf(row.msgType)}</td>
-            <td className="py-2 pr-3">{shortText(row.inText)}</td>
-            <td className="py-2 pr-3">{seconds(row.handleMs)}</td>
-            <td className={`py-2 font-medium ${TONE_CLASSES[VERDICTS[row.verdict].tone]}`}>
-              {VERDICTS[row.verdict].label}
-              {row.reasons.length > 0 ? (
-                <span className="block text-xs font-normal">{reasonText(row)}</span>
-              ) : null}
-            </td>
-          </tr>
+          <ExchangeRow key={row.id} row={row} />
         ))}
       </tbody>
     </table>

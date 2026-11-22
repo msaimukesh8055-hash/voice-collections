@@ -61,6 +61,17 @@ const HistoryRunSchema = z.object({
   change: z.enum(['first', 'prompt', 'code', 'test', 'rerun']).catch('rerun'),
   /** Our prompt name ("v9"); Sarvam's own version counter is appVersion. */
   promptName: z.string().nullable().default(null),
+  release: z.enum(['released', 'not released']).nullable().catch(null).default(null),
+  /** Prompt lines that changed from the version before (from git), when known. */
+  promptChange: z
+    .object({
+      from: z.string(),
+      commit: z.string(),
+      added: z.array(z.string()),
+      removed: z.array(z.string()),
+    })
+    .nullable()
+    .default(null),
   note: z.string().nullable(),
 });
 const HistoryCaseSchema = z.object({
@@ -69,6 +80,8 @@ const HistoryCaseSchema = z.object({
   results: z.record(z.string(), z.boolean()),
   fixedIn: z.string().nullable(),
   lastFailedIn: z.string().nullable(),
+  /** What made it pass, in one line; null when none was written. */
+  fixNote: z.string().nullable().default(null),
 });
 const CaseHistorySchema = z.object({
   runs: z.array(HistoryRunSchema),

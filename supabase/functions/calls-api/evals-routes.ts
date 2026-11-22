@@ -61,7 +61,7 @@ async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Re
         latest,
         cases,
         history,
-        caseHistory: caseHistory(history.map(historyRun), outcomes),
+        caseHistory: caseHistory(history.map(historyRun), outcomes, target),
       };
     }),
   );
