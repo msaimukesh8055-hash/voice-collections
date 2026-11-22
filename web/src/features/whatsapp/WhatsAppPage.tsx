@@ -166,7 +166,7 @@ function One({
           action={
             <AddTestCase
               dashboard={dashboard}
-              source="whatsapp"
+              source="whatsapp_chat"
               refId={detail.exchange.id}
               initialSaid={detail.exchange.inText ?? ''}
             />

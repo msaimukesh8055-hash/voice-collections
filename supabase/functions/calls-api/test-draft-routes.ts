@@ -74,7 +74,7 @@ async function addDraft(req: Request, ctx: RouteContext): Promise<Response> {
   if (!parsed.success) return errorResponse('BAD_REQUEST', ctx.cors);
   const body = parsed.data;
   let words: { said: string; problem: string } | null;
-  if (body.source === 'whatsapp') {
+  if (body.source === 'whatsapp' || body.source === 'whatsapp_chat') {
     words = body.said ? { said: body.said, problem: WHATSAPP_PROBLEM } : null;
     if (!words) return errorResponse('BAD_REQUEST', ctx.cors);
   } else {

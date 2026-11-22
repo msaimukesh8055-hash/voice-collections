@@ -431,6 +431,16 @@ export const TEST_DRAFTS: readonly TestDraft[] = [
     status: 'waiting',
     createdAt: '2026-11-20T10:00:00Z',
   },
+  {
+    id: 'd0000000-0000-4000-8000-000000000002',
+    source: 'whatsapp_chat',
+    refId: 'e0000000-0000-4000-8000-000000000001',
+    said: 'suresh 500 kattadu',
+    problem: 'WhatsApp message to check',
+    expected: null,
+    status: 'waiting',
+    createdAt: '2026-11-22T10:00:00Z',
+  },
 ];
 
 /** Agent health: Asha with a guardrail fail and repeated calls; Munshi with no calls yet. */

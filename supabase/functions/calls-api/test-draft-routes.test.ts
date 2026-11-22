@@ -92,3 +92,11 @@ Deno.test('test drafts api › WhatsApp needs his words; unknown calls and bad b
   assertEquals(setup.drafts[0]?.said, 'ramesh 2000 jama');
   assert(setup.drafts[0]?.problem.includes('WhatsApp'));
 });
+
+Deno.test('test drafts api › a draft from the WhatsApp chats page keeps its own source', async () => {
+  const { all, setup } = deps();
+  const chat = { source: 'whatsapp_chat', refId: 'e1' };
+  assertEquals((await send(all, { body: chat })).status, 400);
+  assertEquals((await send(all, { body: { ...chat, said: 'suresh 500' } })).status, 200);
+  assertEquals(setup.drafts[0]?.source, 'whatsapp_chat');
+});

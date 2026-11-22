@@ -2,7 +2,12 @@
 // Live failures to tests (2026-11-20): drafts saved from a call report or a WhatsApp trace with
 // "Add as a test case", waiting to be written up as scripted tests. Service role only.
 
-export const TEST_DRAFT_SOURCES = ['asha_call', 'munshi_call', 'whatsapp'] as const;
+export const TEST_DRAFT_SOURCES = [
+  'asha_call',
+  'munshi_call',
+  'whatsapp',
+  'whatsapp_chat',
+] as const;
 export type TestDraftSource = (typeof TEST_DRAFT_SOURCES)[number];
 export type TestDraftStatus = 'waiting' | 'added' | 'dropped';
 

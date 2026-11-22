@@ -123,7 +123,7 @@ export function AddTestCase({
   const [phase, setPhase] = useState<Phase>('closed');
   const [said, setSaid] = useState(initialSaid);
   const [expected, setExpected] = useState('');
-  const needsWords = source === 'whatsapp';
+  const needsWords = source === 'whatsapp' || source === 'whatsapp_chat';
 
   function open(): void {
     setPhase('open');

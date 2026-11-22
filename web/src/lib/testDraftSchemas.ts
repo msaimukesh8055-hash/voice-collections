@@ -3,7 +3,12 @@
 // become scripted tests (calls-api/test-draft-routes.ts). Checked with Zod.
 import { z } from 'zod';
 
-export const TEST_DRAFT_SOURCES = ['asha_call', 'munshi_call', 'whatsapp'] as const;
+export const TEST_DRAFT_SOURCES = [
+  'asha_call',
+  'munshi_call',
+  'whatsapp',
+  'whatsapp_chat',
+] as const;
 export type TestDraftSource = (typeof TEST_DRAFT_SOURCES)[number];
 
 export interface NewTestDraft {

@@ -200,12 +200,16 @@ const SOURCE_NAMES: Readonly<Record<TestDraft['source'], string>> = {
   asha_call: 'Asha call',
   munshi_call: 'Munshi call',
   whatsapp: 'WhatsApp message',
+  whatsapp_chat: 'WhatsApp chat',
 };
 
 function draftHref(draft: TestDraft): string {
-  const page = { asha_call: '/calls', munshi_call: '/munshi-calls', whatsapp: '/ops' }[
-    draft.source
-  ];
+  const page = {
+    asha_call: '/calls',
+    munshi_call: '/munshi-calls',
+    whatsapp: '/ops',
+    whatsapp_chat: '/whatsapp',
+  }[draft.source];
   return `${page}?id=${encodeURIComponent(draft.refId)}`;
 }
 

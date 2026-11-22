@@ -41,11 +41,15 @@ describe('AddTestCase', () => {
   it('the Evals page lists drafts from live use, linking to the call', async () => {
     const fake = fakeDashboard();
     render(<EvalsPage dashboard={fake.dashboard} />);
-    expect(await screen.findByText('From live use (1 waiting)')).toBeInTheDocument();
+    expect(await screen.findByText('From live use (2 waiting)')).toBeInTheDocument();
     expect(screen.getByText(/Who has paid me this month\?/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /^Munshi call ·/ })).toHaveAttribute(
       'href',
       '/munshi-calls?id=e6d73ff4-0dd8-4565-99a9-ed6b00651029',
+    );
+    expect(screen.getByRole('link', { name: /^WhatsApp chat ·/ })).toHaveAttribute(
+      'href',
+      '/whatsapp?id=e0000000-0000-4000-8000-000000000001',
     );
   });
 });
