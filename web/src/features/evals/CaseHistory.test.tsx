@@ -2,7 +2,8 @@
 // "How it got fixed" (2026-11-22): each case across runs, what changed before each run, a cell
 // opening that run's conversation, and before / after for a case that was fixed.
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { fakeDashboard } from '../../test/dashboardFakes.ts';
+import { EVALS, fakeDashboard } from '../../test/dashboardFakes.ts';
+import { brokeThenFixed, storyOf } from './CaseHistory.tsx';
 import { EvalsPage } from './EvalsPage.tsx';
 
 describe('How it got fixed', () => {
@@ -13,6 +14,32 @@ describe('How it got fixed', () => {
     expect(screen.getByText('Prompt v7: read a promise back in a full sentence.')).toBeVisible();
     expect(screen.getByText(/1 case\(s\) failed before and pass now/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /asha-02 failed on/ })).toHaveTextContent('✗');
+    expect(screen.getAllByText('prompt v7 · Sarvam v6')[0]).toBeInTheDocument();
+  });
+
+  it('a case that passed, broke and was fixed again says so', () => {
+    const runs = EVALS.targets[0]?.caseHistory.runs ?? [];
+    const base = runs[1];
+    if (!base) throw new Error('fake history needs two runs');
+    const third = { ...base, id: 'run-3', promptName: 'v8' };
+    const all = [...runs, third];
+    const story = {
+      scenarioId: 'asha-09',
+      name: 'Prompt injection',
+      results: { 'run-asha-1': true, 'run-asha-2': false, 'run-3': true },
+      fixedIn: 'run-3',
+      lastFailedIn: 'run-asha-2',
+    };
+    expect(storyOf(all, story)).toBe('✓ prompt v6 → ✗ prompt v7 → ✓ prompt v8');
+    expect(brokeThenFixed(all, story)).toBe(true);
+    expect(
+      brokeThenFixed(runs, {
+        ...story,
+        results: { 'run-asha-1': false, 'run-asha-2': true },
+        fixedIn: 'run-asha-2',
+        lastFailedIn: 'run-asha-1',
+      }),
+    ).toBe(false);
   });
 
   it('a cell opens that run’s conversation', async () => {
@@ -25,7 +52,11 @@ describe('How it got fixed', () => {
     render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Fixed · before / after' }));
     const compare = await screen.findByRole('region', { name: 'Before and after: asha-02' });
-    expect(within(compare).getByText(/What changed \(Prompt changed\)/)).toBeInTheDocument();
+    expect(within(compare).getByText('✗ prompt v6 → ✓ prompt v7')).toBeInTheDocument();
+    expect(
+      within(compare).getByText(/Failed on prompt v6, fixed on prompt v7/),
+    ).toBeInTheDocument();
+    expect(within(compare).getByText(/Everything else in that run/)).toBeInTheDocument();
     expect(await within(compare).findByText('assistant: OK, bye')).toBeInTheDocument();
     expect(await within(compare).findByText('assistant: So 2,000 by Monday?')).toBeInTheDocument();
     expect(within(compare).getByText(/Reads the promise back: Not read back/)).toBeInTheDocument();

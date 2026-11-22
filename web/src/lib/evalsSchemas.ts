@@ -59,6 +59,8 @@ const HistoryRunSchema = z.object({
   appVersion: z.number().nullable(),
   promptChanged: z.boolean(),
   change: z.enum(['first', 'prompt', 'code', 'test', 'rerun']).catch('rerun'),
+  /** Our prompt name ("v9"); Sarvam's own version counter is appVersion. */
+  promptName: z.string().nullable().default(null),
   note: z.string().nullable(),
 });
 const HistoryCaseSchema = z.object({

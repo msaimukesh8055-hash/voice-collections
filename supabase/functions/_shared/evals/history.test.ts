@@ -58,5 +58,6 @@ Deno.test('history › a written note wins over the guess, and every note is non
   const [id, note] = Object.entries(RUN_NOTES)[0] ?? ['', null];
   const history = caseHistory([run(id, 'A')], []);
   assertEquals([history.runs[0]?.change, history.runs[0]?.note], [note?.kind, note?.note]);
+  assertEquals(history.runs[0]?.promptName, note?.prompt ?? null);
   for (const one of Object.values(RUN_NOTES)) assertEquals(one.note.trim().length > 20, true);
 });

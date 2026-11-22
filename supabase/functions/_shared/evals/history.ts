@@ -25,6 +25,8 @@ export interface HistoryRun extends HistoryRunInput {
   /** The prompt hash differs from the run before (false for the first run shown). */
   readonly promptChanged: boolean;
   readonly change: RunChangeKind;
+  /** Our prompt name ("v9"), from the run notes; null when none was written. */
+  readonly promptName: string | null;
   readonly note: string | null;
 }
 
@@ -52,7 +54,13 @@ function changeOf(run: HistoryRunInput, before: HistoryRunInput | undefined): Hi
     : promptChanged
     ? 'prompt'
     : 'rerun';
-  return { ...run, promptChanged, change: written?.kind ?? guessed, note: written?.note ?? null };
+  return {
+    ...run,
+    promptChanged,
+    change: written?.kind ?? guessed,
+    promptName: written?.prompt ?? null,
+    note: written?.note ?? null,
+  };
 }
 
 function fixOf(

@@ -276,6 +276,7 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       appVersion: 6,
       promptChanged: false,
       change: 'first',
+      promptName: 'v6',
       note: 'First full run on prompt v6.',
     },
     {
@@ -288,6 +289,7 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
       appVersion: 6,
       promptChanged: true,
       change: 'prompt',
+      promptName: 'v7',
       note: 'Prompt v7: read a promise back in a full sentence.',
     },
   ],

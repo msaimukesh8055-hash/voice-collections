@@ -36,6 +36,39 @@ function shortRun(run: HistoryRun): string {
   return dateTime(run.createdAt);
 }
 
+/** "prompt v9 · Sarvam v7": our prompt name and Sarvam's own version counter, which differ. */
+function versionOf(run: HistoryRun): string {
+  const ours = run.promptName ? `prompt ${run.promptName}` : '';
+  const theirs = run.appVersion === null ? '' : `Sarvam v${run.appVersion}`;
+  return [ours, theirs].filter(Boolean).join(' · ');
+}
+
+function stepName(run: HistoryRun): string {
+  return run.promptName ? `prompt ${run.promptName}` : shortRun(run);
+}
+
+/** One case across the runs it was in, e.g. "✓ prompt v6 → ✗ prompt v7 → ✓ prompt v8". Runs
+ * on the same prompt with the same result are shown once. */
+export function storyOf(runs: readonly HistoryRun[], evalCase: HistoryCase): string {
+  const steps: string[] = [];
+  let last = '';
+  for (const run of runs) {
+    const result = evalCase.results[run.id];
+    if (result === undefined) continue;
+    const step = `${result ? '✓' : '✗'} ${stepName(run)}`;
+    if (step !== last) steps.push(step);
+    last = step;
+  }
+  return steps.join(' → ');
+}
+
+/** It passed before it failed: a later change broke it, and a later one fixed it again. */
+export function brokeThenFixed(runs: readonly HistoryRun[], evalCase: HistoryCase): boolean {
+  const failedAt = runs.findIndex((run) => run.id === evalCase.lastFailedIn);
+  if (!evalCase.fixedIn || failedAt < 0) return false;
+  return runs.slice(0, failedAt).some((run) => evalCase.results[run.id] === true);
+}
+
 function failures(evalCase: EvalCase): readonly string[] {
   const judged = evalCase.scores.verdicts
     .filter((verdict) => !verdict.passed)
@@ -91,6 +124,7 @@ function ChangeLine({ run }: { readonly run: HistoryRun }): React.JSX.Element {
   return (
     <li className="text-sm">
       <span className="font-medium">{shortRun(run)}</span>
+      {versionOf(run) ? <span className="ml-2 text-xs">{versionOf(run)}</span> : null}
       <span
         className={`ml-2 rounded-full px-2 py-0.5 text-xs ring-1 ring-border ${
           run.change === 'prompt' ? 'bg-brand-soft text-brand' : 'text-ink-muted'
@@ -126,8 +160,13 @@ function BeforeAfter({
       <h4 className="text-sm font-semibold">
         {evalCase.scenarioId} · {evalCase.name}: how it got fixed
       </h4>
+      <p className="mt-1 text-sm font-medium">{storyOf(history.runs, evalCase)}</p>
       <p className="mt-1 text-sm">
-        <span className="font-medium">What changed ({CHANGE_LABELS[after.change]}): </span>
+        {brokeThenFixed(history.runs, evalCase) ? 'Broke on ' : 'Failed on '}
+        {stepName(before)}, fixed on {stepName(after)} ({CHANGE_LABELS[after.change]}).
+      </p>
+      <p className="mt-1 text-xs text-ink-muted">
+        <span className="font-medium">Everything else in that run: </span>
         {after.note ?? 'No note written for this run.'}
       </p>
       <div className="mt-3 flex flex-col gap-3 lg:flex-row">
@@ -213,7 +252,8 @@ function CaseRow({
             onClick={compare}
             className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success hover:underline focus-visible:outline-2 focus-visible:outline-brand"
           >
-            Fixed · before / after
+            {brokeThenFixed(history.runs, evalCase) ? 'Broke, then fixed' : 'Fixed'} · before /
+            after
           </button>
         ) : null}
       </td>
@@ -259,8 +299,8 @@ function HeadRow({ runs }: { readonly runs: readonly HistoryRun[] }): React.JSX.
         {runs.map((run) => (
           <th key={run.id} className={`${HEAD} text-center`}>
             {shortRun(run)}
+            <span className="block font-normal">{versionOf(run)}</span>
             <span className="block font-normal">
-              {run.appVersion === null ? '' : `agent v${run.appVersion} · `}
               {run.promptChanged ? 'new prompt' : 'same prompt'}
             </span>
           </th>
