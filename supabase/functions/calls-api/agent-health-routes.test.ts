@@ -89,7 +89,10 @@ Deno.test('agent health api › unscored live calls are scored and kept; simulat
   const body = await response.json() as HealthBody;
   assertEquals(setup.scores.scores.map((one) => one.agent).sort(), ['asha', 'munshi']);
   assertEquals(body.waiting, 0);
-  assertEquals(body.agents.map((one) => [one.agent, one.calls]), [['asha', 1], ['munshi', 1]]);
+  assertEquals(body.agents.map((one) => [one.agent, one.calls]), [['asha', 1], ['munshi', 1], [
+    'whatsapp',
+    1,
+  ]]);
   assertEquals(body.agents[0]?.versions[0]?.version, 5);
   await (await get('/v1/dashboard/health', all)).body?.cancel();
   assertEquals(setup.scores.scores.length, 2);
@@ -101,4 +104,31 @@ Deno.test('agent health api › opening a call page keeps its score too', async 
   assertEquals(response.status, 200);
   await response.body?.cancel();
   assert(setup.scores.scores.some((one) => one.callId === ASHA_CALL.id));
+});
+
+Deno.test('agent health api › a test-script call and a kept score for a simulated call stay out', async () => {
+  const testCall = fakeOwnerCallDetail({
+    id: 'f0000000-0000-4000-8000-0000000000aa',
+    isTest: true,
+    interactionId: null,
+  });
+  const setup = dashboardSetup({
+    reads: { calls: [ASHA_CALL, SIMULATED] },
+    ownerCalls: [
+      fakeOwnerCallDetail({ transcript: [{ role: 'user', content: 'Total pending?' }] }),
+      testCall,
+    ],
+    callScores: { publishes: [] },
+  });
+  const { all } = deps();
+  const withTest: CallsApiDeps = { ...all, dashboard: setup.dashboard };
+  // A score kept before the flag existed: opening the simulated call's page stores one too.
+  await (await get(`/v1/dashboard/calls/${SIMULATED.id}`, withTest)).body?.cancel();
+  await (await get(`/v1/dashboard/owner-calls/${testCall.id}`, withTest)).body?.cancel();
+  const response = await get('/v1/dashboard/health', withTest);
+  const body = await response.json() as HealthBody;
+  assertEquals(body.agents.map((one) => [one.agent, one.calls]), [['asha', 1], ['munshi', 1], [
+    'whatsapp',
+    1,
+  ]]);
 });

@@ -5,6 +5,7 @@ import { createBrainLlm } from '../_shared/brain/llm.ts';
 import { randomFakePhone } from '../_shared/cards/context.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
+import { createSupabaseExchangeLog } from '../_shared/db/supabase-exchange-repository.ts';
 import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { loadWhatsAppEnv } from '../_shared/env.ts';
 import { logToConsole } from '../_shared/log.ts';
@@ -139,6 +140,7 @@ const processDeps: ProcessDeps = {
     upload: (file) => uploadMedia(mediaConfig, file),
   },
   wakeWorker: () => kickJob(SWEEP_PATH),
+  exchanges: createSupabaseExchangeLog(query),
   munshi: {
     ownerCalls: createSupabaseOwnerCallRepository(query),
     // The /munshi page lives in the same web app as the dashboard (DASHBOARD_URL).

@@ -35,7 +35,7 @@ describe('EvalsPage', () => {
     expect(row).toHaveTextContent('Hands over to the owner: The agent did not offer a callback.');
     expect(row).toHaveTextContent('must_call: not called: request_owner_callback');
     expect(row).toHaveTextContent('assistant: Namaste');
-    expect(screen.getByText('asha-01').closest('tr')).toHaveTextContent('Pass');
+    expect(screen.getAllByText('asha-01')[0]?.closest('tr')).toHaveTextContent('Pass');
   });
 
   it('shows the recent runs as a trend, newest first', async () => {

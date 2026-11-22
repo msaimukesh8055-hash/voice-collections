@@ -13,6 +13,7 @@ export function fakeOwnerCallDetail(overrides: Partial<OwnerCallDetail> = {}): O
     acceptedAt: '2026-11-20T05:00:00Z',
     endedAt: '2026-11-20T05:02:20Z',
     durationSeconds: 140,
+    isTest: false,
     interactionId: '20261120/munshi-1',
     transcript: null,
     transcriptEnglish: null,

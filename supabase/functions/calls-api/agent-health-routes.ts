@@ -4,6 +4,7 @@
 // finished but were never scored (their report was never opened) are scored here, a few per
 // load, through the same report code as their call pages, so both always agree.
 import { agentHealth, HEALTH_CALLS, type HealthAgent } from '../_shared/calls/agent-health.ts';
+import { exchangeScore } from '../_shared/calls/whatsapp-scorecard.ts';
 import { istDate } from '../_shared/clock.ts';
 import { jsonResponse } from '../_shared/http.ts';
 import { describeFailure } from '../_shared/tools/registry.ts';
@@ -15,7 +16,7 @@ import type { RouteContext } from './types.ts';
 export const SCORE_PER_LOAD = 6;
 
 interface Unscored {
-  readonly agent: HealthAgent;
+  readonly agent: Exclude<HealthAgent, 'whatsapp'>;
   readonly id: string;
 }
 
@@ -29,7 +30,7 @@ async function finishedCalls(ctx: RouteContext): Promise<readonly Unscored[]> {
   return [
     ...asha.filter((call) => call.mode === 'live' && call.status === 'completed')
       .map((call) => ({ agent: 'asha' as const, id: call.id })),
-    ...munshi.filter((call) => call.status === 'completed')
+    ...munshi.filter((call) => call.status === 'completed' && !call.isTest)
       .map((call) => ({ agent: 'munshi' as const, id: call.id })),
   ];
 }
@@ -72,14 +73,23 @@ async function scoreMissing(ctx: RouteContext): Promise<number> {
 async function health(_req: Request, ctx: RouteContext): Promise<Response> {
   const waiting = await scoreMissing(ctx);
   const { callScores } = ctx.deps.dashboard;
-  const [asha, munshi, publishes] = await Promise.all([
+  const [asha, munshi, publishes, calls, exchanges] = await Promise.all([
     callScores.listCallScores('asha', HEALTH_CALLS),
     callScores.listCallScores('munshi', HEALTH_CALLS),
     callScores.listPublishes(),
+    finishedCalls(ctx),
+    ctx.deps.dashboard.exchanges.listExchanges(HEALTH_CALLS * 2),
   ]);
   // Real dates: calls happen in real time, whatever the demo clock says.
   const today = istDate(ctx.deps.clock());
-  const scores = [...asha, ...munshi];
+  // Only real, finished calls count (2026-11-22): a kept score for a test-script call or a
+  // simulated Asha call stays on its call page but is left out of the health figures.
+  const real = new Set(calls.map((call) => `${call.agent}:${call.id}`));
+  const scores = [...asha, ...munshi].filter((score) => real.has(`${score.agent}:${score.callId}`));
+  // WhatsApp (2026-11-22): each owner message is scored here, in code, on every load; smoke-test
+  // messages are left out like test calls.
+  const now = ctx.deps.clock();
+  const whatsapp = exchanges.filter((row) => !row.isTest).map((row) => exchangeScore(row, now));
   return jsonResponse(
     {
       today,
@@ -87,6 +97,7 @@ async function health(_req: Request, ctx: RouteContext): Promise<Response> {
       agents: [
         agentHealth('asha', { scores, publishes, today }),
         agentHealth('munshi', { scores, publishes, today }),
+        agentHealth('whatsapp', { scores: whatsapp, publishes: [], today }),
       ],
     },
     200,

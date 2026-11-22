@@ -11,8 +11,14 @@ import { DASHBOARD_TOKEN_HEADER } from '@shared/auth/dashboard-header.ts';
 import { REGION_HEADER } from '@shared/region.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
-import { type Evals, EvalsSchema } from './evalsSchemas.ts';
+import { type EvalCase, EvalCaseReplySchema, type Evals, EvalsSchema } from './evalsSchemas.ts';
 import { type HealthSummary, HealthSummarySchema } from './healthSchemas.ts';
+import {
+  type ExchangeDetail,
+  ExchangeDetailSchema,
+  type ExchangeListItem,
+  ExchangeListSchema,
+} from './whatsappSchemas.ts';
 import {
   type NewTestDraft,
   SavedSchema,
@@ -136,7 +142,7 @@ const ShopkeeperDetailSchema = z.object({
 });
 const CallListSchema = z.object({ calls: z.array(CallRowSchema) });
 /** Live evals (2026-11-20): the call's scorecard, worked out on the server (scorecard.ts). */
-const ScorecardSchema = z.object({
+export const ScorecardSchema = z.object({
   verdict: z.enum(['good', 'check', 'failed']),
   passed: z.number(),
   applicable: z.number(),
@@ -198,6 +204,7 @@ const OwnerCallRowSchema = z.object({
   acceptedAt: z.string().nullable(),
   endedAt: z.string().nullable(),
   durationSeconds: z.number().nullable(),
+  isTest: z.boolean().default(false),
   cost: CostSchema,
 });
 const OwnerCallListSchema = z.object({ calls: z.array(OwnerCallRowSchema) });
@@ -251,8 +258,13 @@ export interface DashboardApi {
   trace: (id: string) => Promise<Trace>;
   /** M9: stored eval runs, the latest case by case. */
   evals: () => Promise<Evals>;
+  /** One case of an older run, with its conversation ("How it got fixed", 2026-11-22). */
+  evalCase: (runId: string, caseId: string) => Promise<EvalCase>;
   /** Agent health (2026-11-20): both agents across their recent calls. */
   agentHealth: () => Promise<HealthSummary>;
+  /** WhatsApp live checks (2026-11-22): the owner's latest WhatsApp exchanges, and one. */
+  exchanges: () => Promise<readonly ExchangeListItem[]>;
+  exchange: (id: string) => Promise<ExchangeDetail>;
   /** Live failures to tests (2026-11-20): save "Add as a test case"; list the drafts. */
   addTestDraft: (draft: NewTestDraft) => Promise<void>;
   testDrafts: () => Promise<readonly TestDraft[]>;
@@ -398,6 +410,20 @@ function writeCalls(
   };
 }
 
+function evalCalls(request: Requester): Pick<DashboardApi, 'evals' | 'evalCase'> {
+  const id = encodeURIComponent;
+  return {
+    evals: () => request('/v1/dashboard/evals', EvalsSchema),
+    evalCase: async (runId, caseId) =>
+      (
+        await request(
+          `/v1/dashboard/evals/runs/${id(runId)}/cases/${id(caseId)}`,
+          EvalCaseReplySchema,
+        )
+      ).result,
+  };
+}
+
 export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
   const { baseUrl, anonKey, region, token, devToken, fetchImpl = fetch } = options;
   const tokens = tokenSource(token, devToken);
@@ -441,8 +467,11 @@ export function createDashboardApi(options: DashboardApiOptions): DashboardApi {
       (await request(`/v1/dashboard/owner-calls/${id(callId)}`, OwnerCallDetailSchema)).call,
     ops: () => request('/v1/dashboard/ops', OpsSummarySchema),
     agentHealth: () => request('/v1/dashboard/health', HealthSummarySchema),
+    exchanges: async () => (await request('/v1/dashboard/whatsapp', ExchangeListSchema)).exchanges,
+    exchange: (exchangeId) =>
+      request(`/v1/dashboard/whatsapp/${id(exchangeId)}`, ExchangeDetailSchema),
     ...writeCalls(request),
-    evals: () => request('/v1/dashboard/evals', EvalsSchema),
+    ...evalCalls(request),
     trace: (traceId) => request(`/v1/dashboard/ops/traces/${id(traceId)}`, TraceSchema),
   };
 }

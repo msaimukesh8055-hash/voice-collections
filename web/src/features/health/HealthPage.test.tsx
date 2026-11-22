@@ -41,10 +41,27 @@ describe('HealthPage', () => {
     expect(screen.getAllByRole('link', { name: 'Ops' })[0]).toHaveAttribute('href', '/ops');
   });
 
+  it('the WhatsApp bot card counts messages and opens the WhatsApp page', async () => {
+    render(<HealthPage dashboard={fakeDashboard().dashboard} />);
+    expect(
+      await screen.findByText('WhatsApp bot · the owner’s chat · last 3 messages'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '2 need a look' })).toHaveAttribute(
+      'href',
+      '/whatsapp?ids=e2%2Ce3&label=Need+a+look',
+    );
+    expect(screen.getByText('Why 2 messages need a look')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '1 message' })).toHaveAttribute(
+      'href',
+      '/whatsapp?ids=e2&label=Card+answered',
+    );
+    expect(screen.getByText('Cost per message')).toBeInTheDocument();
+  });
+
   it('the Ops page has an Agent quality tile that opens this page', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
     expect(
-      await screen.findByText('Asha 2/4 went well · Munshi 0/0 went well'),
+      await screen.findByText('Asha 2/4 went well · Munshi 0/0 went well · WhatsApp 1/3 went well'),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Agent quality/ })).toHaveAttribute('href', '/health');
   });

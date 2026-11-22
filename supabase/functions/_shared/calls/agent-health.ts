@@ -7,7 +7,8 @@
 import { istDate } from '../clock.ts';
 import type { CheckStatus, Scorecard, Verdict } from './scorecard.ts';
 
-export type HealthAgent = 'asha' | 'munshi';
+/** 'whatsapp' (2026-11-22, ADR-0022): the owner bot, scored per message, not per call. */
+export type HealthAgent = 'asha' | 'munshi' | 'whatsapp';
 
 export interface ScoredCheck {
   readonly id: string;

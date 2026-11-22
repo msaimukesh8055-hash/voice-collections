@@ -72,7 +72,11 @@ Deno.test('evals route › each target: its latest run with cases, and its runs 
   const evals = { runs: [latest, brain, older], results: { [RUN_ID]: [CASE] } };
   const { status, body } = await get(deps(evals));
   assertEquals(status, 200);
-  assertEquals(body.targets, [
+  const targets = (body.targets as Array<Record<string, unknown>>).map((one) => {
+    const { caseHistory: _shown, ...rest } = one;
+    return rest;
+  });
+  assertEquals(targets, [
     { target: 'asha', latest, cases: [CASE], history: [latest, older] },
     { target: 'brain', latest: brain, cases: [], history: [brain] },
   ]);
@@ -121,4 +125,33 @@ Deno.test("eval reads › runs newest first with a cap; one run's cases by scena
     `eval_results?select=scenario_id,scores,transcript,pass&run_id=eq.${RUN_ID}` +
     '&order=scenario_id&limit=100',
   ]);
+});
+
+Deno.test('evals route › case history: each case across runs, and one older case by id', async () => {
+  const older = run('asha', 10, '77777777-7777-4777-8777-777777777777');
+  const evals = {
+    runs: [run('asha', 30, RUN_ID), older],
+    results: { [RUN_ID]: [{ ...CASE, pass: true }], [older.id]: [CASE] },
+  };
+  const all = deps(evals);
+  const { body } = await get(all);
+  const targets = body['targets'] as Array<{
+    caseHistory: { runs: Array<{ id: string }>; cases: Array<{ fixedIn: string | null }> };
+  }>;
+  const history = targets[0]?.caseHistory;
+  assertEquals(history?.runs.map((one) => one.id), [older.id, RUN_ID]);
+  assertEquals(history?.cases[0]?.fixedIn, RUN_ID);
+  const headers = { [DASHBOARD_TOKEN_HEADER]: await signDashboardToken(LINK_SECRET, FAKE_NOW) };
+  const one = await handleCallsApi(
+    new Request(`${BASE}/v1/dashboard/evals/runs/${older.id}/cases/asha-07`, { headers }),
+    all,
+  );
+  assertEquals(one.status, 200);
+  assertEquals(((await one.json()) as { result: EvalCaseResult }).result.pass, false);
+  const missing = await handleCallsApi(
+    new Request(`${BASE}/v1/dashboard/evals/runs/${older.id}/cases/asha-99`, { headers }),
+    all,
+  );
+  assertEquals(missing.status, 404);
+  await missing.body?.cancel();
 });

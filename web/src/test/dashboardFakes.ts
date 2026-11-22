@@ -1,6 +1,7 @@
 // web/src/test/dashboardFakes.ts
 // A fake dashboard client for page tests (M6): fixed fake figures, a switch to act as "no link",
 // and a record of what the page asked for.
+import type { ExchangeDetail, ExchangeListItem } from '../lib/whatsappSchemas.ts';
 import type { NewTestDraft, TestDraft } from '../lib/testDraftSchemas.ts';
 import type { HealthSummary } from '../lib/healthSchemas.ts';
 import {
@@ -262,6 +263,52 @@ const BRAIN_LATEST = evalRun('run-brain-1', {
   },
 });
 
+/** "How it got fixed": asha-02 failed on prompt v6 and passes after the v7 prompt change. */
+const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
+  runs: [
+    {
+      id: 'run-asha-1',
+      createdAt: '2026-11-11T16:00:00.000Z',
+      promptHash: 'abc123',
+      passed: false,
+      casesPassed: 1,
+      cases: 2,
+      appVersion: 6,
+      promptChanged: false,
+      change: 'first',
+      note: 'First full run on prompt v6.',
+    },
+    {
+      id: 'run-asha-2',
+      createdAt: '2026-11-12T04:39:00.000Z',
+      promptHash: 'def456',
+      passed: true,
+      casesPassed: 2,
+      cases: 2,
+      appVersion: 6,
+      promptChanged: true,
+      change: 'prompt',
+      note: 'Prompt v7: read a promise back in a full sentence.',
+    },
+  ],
+  cases: [
+    {
+      scenarioId: 'asha-01',
+      name: 'Pays in full',
+      results: { 'run-asha-1': true, 'run-asha-2': true },
+      fixedIn: null,
+      lastFailedIn: null,
+    },
+    {
+      scenarioId: 'asha-02',
+      name: 'Part payment',
+      results: { 'run-asha-1': false, 'run-asha-2': true },
+      fixedIn: 'run-asha-2',
+      lastFailedIn: 'run-asha-1',
+    },
+  ],
+};
+
 export const EVALS: Evals = {
   generatedAt: '2026-11-11T16:45:00.000Z',
   targets: [
@@ -269,6 +316,7 @@ export const EVALS: Evals = {
       target: 'asha',
       latest: ASHA_LATEST,
       history: [ASHA_LATEST, ASHA_EARLIER],
+      caseHistory: ASHA_HISTORY,
       cases: [
         {
           scenarioId: 'asha-01',
@@ -307,7 +355,13 @@ export const EVALS: Evals = {
         },
       ],
     },
-    { target: 'brain', latest: BRAIN_LATEST, history: [BRAIN_LATEST], cases: [] },
+    {
+      target: 'brain',
+      latest: BRAIN_LATEST,
+      history: [BRAIN_LATEST],
+      cases: [],
+      caseHistory: { runs: [], cases: [] },
+    },
   ],
 };
 
@@ -318,6 +372,7 @@ export const OWNER_CALL: OwnerCallDetail = {
   acceptedAt: '2026-11-20T05:00:00Z',
   endedAt: '2026-11-20T05:02:20Z',
   durationSeconds: 140,
+  isTest: false,
   cost: { inr: 12.39, estimate: false },
   transcript: [
     { role: 'assistant', content: 'Namaste Srinivas garu, Munshi here.' },
@@ -436,7 +491,86 @@ export const HEALTH: HealthSummary = {
       versions: [],
       trend: [],
     },
+    {
+      agent: 'whatsapp',
+      calls: 3,
+      verdicts: { good: 1, check: 2, failed: 0 },
+      verdictCallIds: { good: ['e1'], check: ['e2', 'e3'], failed: [] },
+      problems: [
+        {
+          id: 'wa_card_answered',
+          label: 'Card answered',
+          group: 'Outcome',
+          fails: 0,
+          warns: 1,
+          callIds: ['e2'],
+        },
+      ],
+      guardrailFails: 0,
+      replyP50Ms: 1100,
+      averageCostInr: 0.02,
+      tone: [],
+      versions: [{ version: null, calls: 3, good: 1, check: 2, failed: 0 }],
+      trend: [{ date: '2026-11-20', good: 1, check: 2, failed: 0 }],
+    },
   ],
+};
+
+/** WhatsApp live checks (2026-11-22): a typed credit whose card was saved. */
+export const EXCHANGE: ExchangeDetail = {
+  exchange: {
+    id: 'e0000000-0000-4000-8000-000000000001',
+    createdAt: '2026-11-22T05:00:00Z',
+    msgType: 'text',
+    path: 'command',
+    command: 'add_credit',
+    inText: 'Ramesh 5000 due 15th',
+    replyText: '🧾 Add credit\nRamesh · ₹5,000\n[Save] [Edit] [Cancel]',
+    language: 'en',
+    voiceReply: false,
+    handleMs: 900,
+    isTest: false,
+  },
+  scorecard: {
+    verdict: 'good',
+    passed: 4,
+    applicable: 4,
+    groups: [
+      {
+        name: 'Guardrails',
+        checks: [
+          {
+            id: 'wa_money_on_tap',
+            label: 'Money moved only on a button tap',
+            status: 'na',
+            value: 'no money moved',
+          },
+        ],
+      },
+      {
+        name: 'Outcome',
+        checks: [
+          { id: 'wa_card_answered', label: 'Card answered', status: 'pass', value: 'saved' },
+        ],
+      },
+    ],
+    toolUse: [],
+    gaps: [],
+  },
+};
+
+export const EXCHANGE_ROW: ExchangeListItem = {
+  id: EXCHANGE.exchange.id,
+  createdAt: EXCHANGE.exchange.createdAt,
+  msgType: 'text',
+  path: 'command',
+  command: 'add_credit',
+  inText: 'Ramesh 5000 due 15th',
+  isTest: false,
+  handleMs: 900,
+  verdict: 'good',
+  passed: 4,
+  applicable: 4,
 };
 
 export interface FakeDashboard {
@@ -450,6 +584,26 @@ export interface FakeDashboard {
   evals: Evals;
   /** Drafts sent with "Add as a test case". */
   drafts: NewTestDraft[];
+}
+
+type EvalCaseReply = Awaited<ReturnType<DashboardApi['evalCase']>>;
+
+/** asha-02 fails on run-asha-1 (promise not read back) and passes after. */
+function fakeEvalCase(runId: string, caseId: string): EvalCaseReply {
+  const before = runId === 'run-asha-1';
+  return {
+    scenarioId: caseId,
+    scores: {
+      name: 'Part payment',
+      category: 'promise',
+      verdicts: before
+        ? [{ name: 'Reads the promise back', passed: false, reasoning: 'Not read back.' }]
+        : [],
+      checks: [],
+    },
+    transcript: before ? 'assistant: OK, bye' : 'assistant: So 2,000 by Monday?',
+    pass: !before,
+  };
 }
 
 export function fakeDashboard(): FakeDashboard {
@@ -472,12 +626,16 @@ export function fakeDashboard(): FakeDashboard {
       ownerCall: (id) => answer(`owner-call:${id}`, OWNER_CALL),
       ops: () => answer('ops', fake.ops),
       agentHealth: () => answer('agent-health', HEALTH),
+      exchanges: () => answer('exchanges', [EXCHANGE_ROW]),
+      exchange: (id) => answer(`exchange:${id}`, EXCHANGE),
       addTestDraft: (draft) => {
         fake.drafts.push(draft);
         return answer(`test-draft:${draft.source}`, undefined);
       },
       testDrafts: () => answer('test-drafts', TEST_DRAFTS),
       evals: () => answer('evals', fake.evals),
+      evalCase: (runId, caseId) =>
+        answer(`eval-case:${runId}:${caseId}`, fakeEvalCase(runId, caseId)),
       trace: (id) => answer(`trace:${id}`, TRACE),
       setEnglishUnderTelugu: (on) => {
         fake.english = on;

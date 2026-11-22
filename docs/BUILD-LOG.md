@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-22 · WhatsApp live checks, test calls out of health, "How it got fixed" · 🔨 Built (not committed)**
+New **WhatsApp chats** page and a WhatsApp card on Agent health: each owner message is kept with the reply for 30 days (`wa_exchanges`, ADR-0022) and scored in code (money only on a tap, understood, card answered, delivered, reply time, cost). Munshi's "WhatsApp only when he asked" check now hears Telugu and Hindi script; the 3 latency-script calls are flagged `is_test` and left out of Agent health (Munshi now shows its 4 real calls).
+Evals page: **How it got fixed** shows every case across runs, what changed before each run (prompt change from the hash, a note per run for Saim to approve) and before / after conversations for each fixed case · ₹0 Sarvam
+
 **2026-11-20 · CP3 — Refactor, review + score (M6–M9) · ✅ 7.88/10 Green (was 7.25; docs gaps fixed)**
 Refactor merged 4 duplicate helpers and split the test fake; 3 reviewers found 0 Critical, 4 High: 3 fixed (Munshi confirm lock back-dated, gate passing unjudged cases, /pause not holding queued calls) plus 5 Medium/Low and backlog 8, 11–14; B-H2 fixed after Saim's call (drop just an unchecked Summary line); 6 others wait for Saim.
 `npm run check` exit 0 (317 + 283 + 1,573 tests) · Details → [`reviews/CP3.md`](reviews/CP3.md) · branch `cp3-review`, not committed

@@ -16,7 +16,7 @@ This project simulates a BFSI system. Even with fake data, treat it like a real 
 - [ ] Every table has Row Level Security enabled
 - [ ] Public endpoints rate-limited
 - [ ] Error responses carry an error code only — no stack traces or internals
-- [ ] No personal data (names, phone numbers, shop names, amounts tied to a person, message text) in logs
+- [ ] No personal data (names, phone numbers, shop names, amounts tied to a person, message text) in logs (the WhatsApp live-checks table `wa_exchanges` keeps message text for 30 days by decision, ADR-0022; it is a table, not a log)
 
 ## Secrets
 

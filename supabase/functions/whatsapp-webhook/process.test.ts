@@ -29,6 +29,7 @@ import { voiceNote } from '../_shared/audio/__fixtures__/ogg-files.ts';
 import { FAKE_WEB, fakeShopkeeperLink } from '../_shared/cards/__fixtures__/bot-context.ts';
 import { spokenText } from '../_shared/whatsapp/spoken.ts';
 import type { SpokenInput, SpokenSummarizer } from '../_shared/whatsapp/spoken-summary.ts';
+import type { NewExchange } from '../_shared/whatsapp/exchange.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
 const NOW = new Date('2026-11-02T12:00:00+05:30');
@@ -52,6 +53,7 @@ interface Setup {
   readonly logs: Array<{ event: string; fields: LogFields }>;
   readonly llmCalls: string[];
   readonly wakes: number[];
+  readonly exchanges: NewExchange[];
 }
 
 function setup(
@@ -61,6 +63,7 @@ function setup(
     state?: Partial<FakeBookState>;
     listen?: ProcessDeps['listen'];
     voice?: ProcessDeps['voice'];
+    exchanges?: ProcessDeps['exchanges'];
   } = {},
 ): Setup {
   const fake = createFakeBookRepository(options.state);
@@ -68,6 +71,7 @@ function setup(
   const logs: Array<{ event: string; fields: LogFields }> = [];
   const llmCalls: string[] = [];
   const wakes: number[] = [];
+  const exchanges: NewExchange[] = [];
   const log: Logger = (_level, event, fields = {}) => logs.push({ event, fields });
   const deps: ProcessDeps = {
     book: { ...fake.book, ...options.book },
@@ -101,8 +105,14 @@ function setup(
     wakeWorker: () => {
       wakes.push(1);
     },
+    exchanges: options.exchanges ?? {
+      record(exchange): Promise<void> {
+        exchanges.push(exchange);
+        return Promise.resolve();
+      },
+    },
   };
-  return { deps, state: fake.state, sent, logs, llmCalls, wakes };
+  return { deps, state: fake.state, sent, logs, llmCalls, wakes, exchanges };
 }
 
 async function receive(s: Setup, options: PayloadOptions): Promise<void> {
@@ -511,4 +521,57 @@ Deno.test('process › a very long transcript is shortened on the Heard line', a
   const heard = lastText(s).split('\n\n')[0] ?? '';
   assertEquals(heard.endsWith('…”'), true);
   assertEquals(heard.length < 330, true);
+});
+
+Deno.test('process › exchange: a typed credit shows a card; the Save tap answers it and moves money', async () => {
+  const s = setup();
+  await receive(s, { text: 'Ramesh 5000 due 15th', id: 'wamid.1' });
+  const card = s.sent[0]?.reply;
+  const tap = parseTap(card?.kind === 'buttons' ? card.buttons[0]?.id ?? '' : '');
+  const actionId = tap?.kind === 'card' ? tap.actionId : '';
+  await receive(s, { buttonId: cardButtonId(actionId, 'save'), id: 'wamid.2' });
+  const [typed, saved] = s.exchanges;
+  assertEquals(
+    [typed?.msgType, typed?.inText, typed?.cardActionId, typed?.moneyWrites, typed?.repliesSent],
+    ['text', 'Ramesh 5000 due 15th', actionId, 0, 1],
+  );
+  assertStringIncludes(typed?.replyText ?? '', '[');
+  assertEquals(
+    [saved?.msgType, saved?.answersActionId, saved?.moneyWrites, saved?.command, saved?.inText],
+    ['tap', actionId, 1, 'save', 'x'],
+  );
+  assertEquals([typed?.isTest, typed?.errorCode, typed?.language], [false, null, 'en']);
+});
+
+Deno.test('process › exchange: a failure keeps its error code; a smoke message is marked test', async () => {
+  const s = setup({ book: { listEntries: () => Promise.reject(new Error('db down')) } });
+  await receive(s, { text: 'pending', id: 'wamid.SMOKE-1-1' });
+  assertEquals(
+    [s.exchanges[0]?.path, s.exchanges[0]?.errorCode, s.exchanges[0]?.isTest],
+    ['failed', 'Error', true],
+  );
+});
+
+Deno.test('process › exchange: a voice note keeps what was heard and whether a voice reply went', async () => {
+  const { voice } = speaking();
+  const s = setup({ listen: listening('pending', { language: 'en' }), voice });
+  await receive(s, { audioId: 'M' });
+  const one = s.exchanges[0];
+  assertEquals(
+    [one?.msgType, one?.inText, one?.voiceReply, one?.repliesSent, one?.language],
+    ['voice', 'pending', true, 3, 'en'],
+  );
+});
+
+Deno.test('process › exchange: a failed write is logged; the owner still gets the reply', async () => {
+  const s = setup({ exchanges: { record: () => Promise.reject(new Error('x')) } });
+  await receive(s, { text: 'hi' });
+  assertEquals(s.sent.length > 0, true);
+  assertEquals(s.logs.some((log) => log.event === 'exchange_log_failed'), true);
+});
+
+Deno.test('process › exchange: a stranger gets no exchange row', async () => {
+  const s = setup();
+  await receive(s, { from: FAKE_STRANGER_NUMBER, text: 'hi' });
+  assertEquals(s.exchanges.length, 0);
 });

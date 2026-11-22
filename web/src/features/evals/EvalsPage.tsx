@@ -2,7 +2,8 @@
 // /evals (M9 Build C4): does the AI still behave? For Asha (judged by Sarvam Tests plus our own
 // database checks) and the WhatsApp brain (code checks): the release gate, the latest run case
 // by case with the judge's reason for every failure, and the recent runs as a trend. Read-only;
-// all names and amounts on this page are fake eval data.
+// all names and amounts on this page are fake eval data. 2026-11-22: "How it got fixed" under
+// each target (CaseHistory.tsx): every case across runs, what changed, and before / after.
 import type { TestDraft } from '../../lib/testDraftSchemas.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { EvalCase, EvalRun, Evals, EvalTarget } from '../../lib/evalsSchemas.ts';
@@ -10,6 +11,7 @@ import { dateTime } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { TONE_CLASSES } from '../ops/opsFormat.ts';
+import { CaseHistory } from './CaseHistory.tsx';
 
 const TARGETS: Readonly<Record<string, { title: string; how: string }>> = {
   asha: {
@@ -19,6 +21,10 @@ const TARGETS: Readonly<Record<string, { title: string; how: string }>> = {
   brain: {
     title: 'WhatsApp brain · understanding messages',
     how: 'Each message must become the right command. Checked in code, no judge.',
+  },
+  munshi: {
+    title: 'Munshi · the owner’s clerk',
+    how: 'Simulated owner and judge: Sarvam Tests. Saves, sends and reminders: checked in our database.',
   },
 };
 const CELL = 'px-2 py-1.5 align-top';
@@ -121,7 +127,13 @@ function Trend({ history }: { readonly history: readonly EvalRun[] }): React.JSX
   );
 }
 
-function Target({ target }: { readonly target: EvalTarget }): React.JSX.Element {
+function Target({
+  target,
+  dashboard,
+}: {
+  readonly target: EvalTarget;
+  readonly dashboard: Pick<DashboardApi, 'evalCase'>;
+}): React.JSX.Element {
   const about = TARGETS[target.target] ?? { title: target.target, how: '' };
   const { latest } = target;
   return (
@@ -149,11 +161,18 @@ function Target({ target }: { readonly target: EvalTarget }): React.JSX.Element 
           ))}
         </tbody>
       </table>
+      <CaseHistory dashboard={dashboard} history={target.caseHistory} />
     </Card>
   );
 }
 
-function Summary({ evals }: { readonly evals: Evals }): React.JSX.Element {
+function Summary({
+  evals,
+  dashboard,
+}: {
+  readonly evals: Evals;
+  readonly dashboard: Pick<DashboardApi, 'evalCase'>;
+}): React.JSX.Element {
   if (evals.targets.length === 0) {
     return (
       <Card title="Evals">
@@ -167,7 +186,7 @@ function Summary({ evals }: { readonly evals: Evals }): React.JSX.Element {
   return (
     <>
       {evals.targets.map((target) => (
-        <Target key={target.target} target={target} />
+        <Target key={target.target} target={target} dashboard={dashboard} />
       ))}
       <p className="text-xs text-ink-muted">
         As of {dateTime(evals.generatedAt)}. Every shopkeeper, shop and amount on this page is fake
@@ -242,7 +261,7 @@ export function EvalsPage({ dashboard }: { readonly dashboard: DashboardApi }): 
       <LoadState state={state}>
         {(evals: Evals) => (
           <>
-            <Summary evals={evals} />
+            <Summary evals={evals} dashboard={dashboard} />
             <LiveDrafts dashboard={dashboard} />
           </>
         )}

@@ -28,6 +28,8 @@ export interface Outcome {
   readonly speakIn?: Language;
   /** M7: names the spoken summary is checked against (owner, shopkeepers, shops). */
   readonly speakNames?: readonly string[];
+  /** What Saaras heard from his voice note, for the WhatsApp exchange record (ADR-0022). */
+  readonly heard?: string;
 }
 
 export interface RouteDeps {
@@ -128,7 +130,13 @@ async function routeVoice(mediaId: string, ctx: BotContext, deps: RouteDeps): Pr
     english: heardLine(heard.text, 'en'),
   };
   const replies = withHeard(outcome.replies, line);
-  return { ...outcome, replies, speakIn: heard.language, speakNames: knownNames(ctx) };
+  return {
+    ...outcome,
+    replies,
+    speakIn: heard.language,
+    speakNames: knownNames(ctx),
+    heard: heard.text,
+  };
 }
 
 export function routeMessage(

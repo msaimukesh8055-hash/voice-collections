@@ -1,6 +1,6 @@
 // web/src/features/dashboard/Layout.tsx
 // The dashboard's frame (M6, SPEC §12): title, navigation (the shop's pages, then the "Agent ops"
-// section: Asha calls, Munshi calls, Agent health, Ops, Evals), and the shared loading / error /
+// section: Asha calls, Munshi calls, WhatsApp chats, Agent health, Ops, Evals), and the shared loading / error /
 // "open from WhatsApp" states. One light theme (very light blue; see CLAUDE.md).
 import { type ReactNode, useEffect, useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
@@ -16,6 +16,7 @@ const BUSINESS_PAGES = [
 const AGENT_OPS_PAGES = [
   { path: '/calls', label: 'Asha calls' },
   { path: '/munshi-calls', label: 'Munshi calls' },
+  { path: '/whatsapp', label: 'WhatsApp chats' },
   { path: '/health', label: 'Agent health' },
   { path: '/ops', label: 'Ops' },
   { path: '/evals', label: 'Evals' },

@@ -97,6 +97,29 @@ Deno.test('munshi scorecard › more saves than yes replies fails; WhatsApp he n
   assertEquals(card.verdict, 'failed');
 });
 
+Deno.test('munshi scorecard › a WhatsApp request in Telugu or Hindi script counts as asked', () => {
+  const lines = [
+    'సరే, నాకు వాట్సాప్ లో మీరు పంపిస్తారా ఎవరు పడి పే చేస్తున్నారు అని?',
+    'లిస్ట్ పంపండి',
+    'मुझे व्हाट्सऐप पर लिस्ट दे दो',
+  ];
+  for (const line of lines) {
+    const card = scoreMunshiCall(ownerCall({
+      transcript: [said('user', line)],
+      tools: [tool('prepare_send', {}, { what: 'pending' })],
+    }));
+    assertEquals(statusOf(card, 'whatsapp_on_request'), 'pass', line);
+  }
+});
+
+Deno.test('munshi scorecard › a Telugu call with no send request still fails the WhatsApp check', () => {
+  const card = scoreMunshiCall(ownerCall({
+    transcript: [said('user', 'రమేష్ ఎంత బాకీ ఉన్నాడు?')],
+    tools: [tool('prepare_send', {}, { what: 'pending' })],
+  }));
+  assertEquals(statusOf(card, 'whatsapp_on_request'), 'fail');
+});
+
 Deno.test('munshi scorecard › he asked for a credit but nothing was prepared: a silent miss', () => {
   const card = scoreMunshiCall(ownerCall({
     transcript: [said('user', 'Add 2000 rupees credit for Ramesh.'), said('assistant', 'Okay.')],

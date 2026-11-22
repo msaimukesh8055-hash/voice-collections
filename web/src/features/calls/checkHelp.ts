@@ -149,7 +149,44 @@ const HELP: Readonly<Record<string, CheckHelp>> = {
   },
   whatsapp_on_request: {
     means: 'Munshi may send something on WhatsApp only when the owner asked for it.',
-    miss: 'Something was sent on WhatsApp that the owner did not ask for.',
+    miss: 'Something was sent on WhatsApp that the owner did not ask for. We look for "WhatsApp" or "send" in English, Telugu or Hindi (వాట్సాప్, పంపండి, व्हाट्सऐप, भेजो), so other words can be a false alarm: open the call to see.',
+  },
+  // WhatsApp bot (2026-11-22, ADR-0022): one owner message and the bot's answer.
+  wa_money_on_tap: {
+    means:
+      'The book may change only when the owner taps a button (Save, or Confirm on a claim), never straight from a typed or spoken message.',
+    miss: 'Money moved without a tap. The owner never got the chance to check the card first.',
+  },
+  wa_no_card_when_lost: {
+    means: 'When the bot could not understand a message, it must not show a money card.',
+    miss: 'A Save card appeared for a message the bot did not understand: it guessed.',
+  },
+  wa_understood: {
+    means:
+      'The message was understood: by fixed rules in code, or by the AI (Sarvam, then Gemini as backup).',
+    miss: 'The bot did not understand. A fail means both AI models failed or something broke; a warning means it asked him to say it again.',
+  },
+  wa_card_answered: {
+    means: 'A Save card the bot showed was tapped (Save, or a name picked from the list).',
+    miss: 'The card was cancelled or never answered. It may have read a name or amount wrong: open the message to see.',
+  },
+  wa_voice_reply: {
+    means: 'A voice note he sent got a short voice reply after the text.',
+    miss: 'Only text came back. Speech may have failed, or the 50-a-day voice limit was reached.',
+  },
+  wa_delivered: {
+    means: 'Every reply the bot made was accepted by WhatsApp.',
+    miss: 'At least one reply never reached his phone. Often the 24-hour window closed or a WhatsApp error: see Ops.',
+  },
+  wa_reply_time: {
+    means:
+      'How long from his message to the bot’s reply. Aim: 3 s for text and taps, 8 s for voice notes.',
+    miss: 'The reply was slow. The AI or speech services were probably slow: see Ops for the steps.',
+  },
+  wa_cost: {
+    means:
+      'An estimate of what this message cost: the AI read, speech-to-text and the voice reply.',
+    miss: 'More than ₹2 for one message.',
   },
   questions_answered: {
     means: 'How many of the owner’s questions were answered from the book.',

@@ -10,7 +10,7 @@ const VerdictCountsSchema = z.object({
 });
 
 export const AgentHealthSchema = z.object({
-  agent: z.enum(['asha', 'munshi']),
+  agent: z.enum(['asha', 'munshi', 'whatsapp']),
   calls: z.number(),
   verdicts: VerdictCountsSchema,
   /** Which calls had each verdict (2026-11-22); the page links to exactly those calls. */

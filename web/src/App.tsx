@@ -14,6 +14,7 @@ import { OpsPage } from './features/ops/OpsPage.tsx';
 import { HEALTH_PATH, HealthPage } from './features/health/HealthPage.tsx';
 import { MunshiPage } from './features/munshi/MunshiPage.tsx';
 import { MUNSHI_CALLS_PATH, MunshiCallsPage } from './features/munshi-calls/MunshiCallsPage.tsx';
+import { WHATSAPP_PATH, WhatsAppPage } from './features/whatsapp/WhatsAppPage.tsx';
 import { readMunshiToken } from './features/munshi/munshiState.ts';
 import { PhonePage } from './features/phone/PhonePage.tsx';
 import { ShopkeepersPage } from './features/shopkeepers/ShopkeepersPage.tsx';
@@ -56,6 +57,9 @@ function Page(props: AppProps): React.JSX.Element {
   if (route === '/calls') return <CallsPage dashboard={dashboard} id={id} filter={filter} />;
   if (route === MUNSHI_CALLS_PATH) {
     return <MunshiCallsPage dashboard={dashboard} id={id} filter={filter} />;
+  }
+  if (route === WHATSAPP_PATH) {
+    return <WhatsAppPage dashboard={dashboard} id={id} filter={filter} />;
   }
   if (route === HEALTH_PATH) return <HealthPage dashboard={dashboard} />;
   if (route === '/ops') return <OpsPage dashboard={dashboard} id={id} />;

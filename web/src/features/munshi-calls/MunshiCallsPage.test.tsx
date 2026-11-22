@@ -9,6 +9,18 @@ describe('MunshiCallsPage', () => {
     const link = await screen.findByRole('link', { name: /Nov/ });
     expect(link).toHaveAttribute('href', `/munshi-calls?id=${OWNER_CALL.id}`);
     expect(screen.getByText('₹12.39')).toBeInTheDocument();
+    expect(screen.queryByText('Test call')).toBeNull();
+  });
+
+  it('tags a call a test script opened, and keeps it in the list', async () => {
+    const fake = fakeDashboard();
+    fake.dashboard.ownerCalls = () => Promise.resolve([{ ...OWNER_CALL, isTest: true }]);
+    render(<MunshiCallsPage dashboard={fake.dashboard} id={null} />);
+    expect(await screen.findByText('Test call')).toHaveAttribute(
+      'title',
+      expect.stringContaining('Left out of Agent health'),
+    );
+    expect(screen.getByRole('link', { name: /Nov/ })).toBeInTheDocument();
   });
 
   it('one report: facts, scorecard, tools needed vs ran above the transcript', async () => {

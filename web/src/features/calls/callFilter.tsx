@@ -39,12 +39,15 @@ export function FilteredCard({
   filter,
   shown,
   children,
+  many = 'calls',
 }: {
   readonly title: string;
   readonly page: string;
   readonly filter: CallFilter | null;
   readonly shown: number;
   readonly children: React.ReactNode;
+  /** "calls", or "messages" on the WhatsApp page. */
+  readonly many?: string;
 }): React.JSX.Element {
   const older = filter ? filter.ids.length - shown : 0;
   return (
@@ -55,11 +58,11 @@ export function FilteredCard({
             Showing: {filter.label} ({filter.ids.length})
           </span>
           <a href={page} className="text-brand underline">
-            Show all calls
+            Show all {many}
           </a>
           {older > 0 ? (
             <span className="text-xs text-ink-muted">
-              {older} of these are older than the calls listed here.
+              {older} of these are older than the {many} listed here.
             </span>
           ) : null}
         </p>

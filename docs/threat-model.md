@@ -42,6 +42,7 @@ Who could attack what, what stops them today, and what does not. One page, writt
 - **No login.** The prototype has no user accounts. The signed link is the only gate on the dashboard.
 - **`DASHBOARD_PUBLIC=on`** opens every dashboard read (and the one display setting) to anyone with the web address. It exists for showing the demo and must be off anywhere real.
 - **The Ops and Evals pages** follow the same rule. They hold no personal data, by construction.
+- **WhatsApp message text (ADR-0022, 2026-11-22):** the owner's WhatsApp messages and the bot's replies are kept for 30 days for the live checks, and with `DASHBOARD_PUBLIC=on` anyone with the web address can read them on "WhatsApp chats", as with call transcripts. Fake data only; phone numbers are never kept.
 - **One write is open too (found at CP3, S-M2):** with `DASHBOARD_PUBLIC=on`, "Add as a test case" (`POST /v1/dashboard/test-drafts`) lets anyone save a free-text draft, with no rate limit. Drafts never join the gate without Saim's approval, so the harm is clutter, not a changed agent. Keep it for the demo or put it behind the operator key: Saim's decision (backlog item 17).
 
 ## Before any real trader's data

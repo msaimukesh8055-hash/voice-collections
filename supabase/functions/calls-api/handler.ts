@@ -8,6 +8,7 @@ import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
 import { DASHBOARD_TOKEN_HEADER } from '../_shared/auth/dashboard-link.ts';
 import { DASHBOARD_ROUTES } from './dashboard-routes.ts';
 import { AGENT_HEALTH_ROUTES } from './agent-health-routes.ts';
+import { WHATSAPP_ROUTES } from './whatsapp-routes.ts';
 import { TEST_DRAFT_ROUTES } from './test-draft-routes.ts';
 import { getDemo, ringLiveShopkeeper } from './demo-routes.ts';
 import { EVALS_ROUTES } from './evals-routes.ts';
@@ -58,6 +59,12 @@ const ROUTES: readonly Route[] = [
     pattern: /^\/v1\/dashboard\/owner-calls\/([^/]+)$/,
     methods: { GET: OWNER_CALL_ROUTES.detail },
   },
+  // WhatsApp live checks (2026-11-22): the owner's WhatsApp exchanges and one exchange's report.
+  { pattern: /^\/v1\/dashboard\/whatsapp$/, methods: { GET: WHATSAPP_ROUTES.list } },
+  {
+    pattern: /^\/v1\/dashboard\/whatsapp\/([^/]+)$/,
+    methods: { GET: WHATSAPP_ROUTES.detail },
+  },
   { pattern: /^\/v1\/dashboard\/settings$/, methods: { POST: DASHBOARD_ROUTES.settings } },
   // Agent health (2026-11-20): both agents across their recent calls.
   { pattern: /^\/v1\/dashboard\/health$/, methods: { GET: AGENT_HEALTH_ROUTES.summary } },
@@ -67,6 +74,10 @@ const ROUTES: readonly Route[] = [
   },
   // M9: the ops page, behind the same signed link.
   { pattern: /^\/v1\/dashboard\/evals$/, methods: { GET: EVALS_ROUTES.summary } },
+  {
+    pattern: /^\/v1\/dashboard\/evals\/runs\/([^/]+)\/cases\/([^/]+)$/,
+    methods: { GET: EVALS_ROUTES.case },
+  },
   { pattern: /^\/v1\/dashboard\/ops$/, methods: { GET: OPS_ROUTES.summary } },
   { pattern: /^\/v1\/dashboard\/ops\/traces\/([^/]+)$/, methods: { GET: OPS_ROUTES.trace } },
   {

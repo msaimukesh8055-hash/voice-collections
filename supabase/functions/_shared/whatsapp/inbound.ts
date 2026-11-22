@@ -9,7 +9,10 @@ import { z } from 'zod';
 /** Longer texts are cut before they reach the parser or the LLM (cost and prompt safety). */
 export const MAX_TEXT_LENGTH = 1000;
 
-const ReplyRef = z.looseObject({ id: z.string().min(1).max(256) });
+const ReplyRef = z.looseObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(256).optional(),
+});
 
 const MessageSchema = z.looseObject({
   from: z.string().min(1).max(32),
@@ -47,7 +50,8 @@ interface Base {
 
 export type InboundMessage =
   | (Base & { readonly kind: 'text'; readonly text: string })
-  | (Base & { readonly kind: 'tap'; readonly buttonId: string })
+  /** `title` is the button or row text he tapped, kept on the WhatsApp exchange (ADR-0022). */
+  | (Base & { readonly kind: 'tap'; readonly buttonId: string; readonly title?: string })
   /** A voice note or audio file: only Meta's media id; the sound is fetched when handled. */
   | (Base & { readonly kind: 'voice'; readonly mediaId: string })
   | (Base & { readonly kind: 'other'; readonly type: string });
@@ -60,7 +64,8 @@ function toInbound(message: MetaMessage): InboundMessage {
   }
   const tapped = message.interactive?.button_reply ?? message.interactive?.list_reply;
   if (message.type === 'interactive' && tapped) {
-    return { ...base, kind: 'tap', buttonId: tapped.id };
+    const title = tapped.title ? { title: tapped.title } : {};
+    return { ...base, kind: 'tap', buttonId: tapped.id, ...title };
   }
   if (message.type === 'audio' && message.audio) {
     return { ...base, kind: 'voice', mediaId: message.audio.id };

@@ -50,6 +50,14 @@ const ALL_CHECK_IDS = [
   'tone_friendly',
   'tone_language_match',
   'tone_on_point',
+  'wa_money_on_tap',
+  'wa_no_card_when_lost',
+  'wa_understood',
+  'wa_card_answered',
+  'wa_voice_reply',
+  'wa_delivered',
+  'wa_reply_time',
+  'wa_cost',
 ];
 
 describe('check help', () => {
@@ -103,7 +111,14 @@ describe('check help', () => {
     const links = within(group)
       .getAllByRole('link')
       .map((link) => link.textContent);
-    expect(links).toEqual(['Asha calls', 'Munshi calls', 'Agent health', 'Ops', 'Evals']);
+    expect(links).toEqual([
+      'Asha calls',
+      'Munshi calls',
+      'WhatsApp chats',
+      'Agent health',
+      'Ops',
+      'Evals',
+    ]);
     expect(within(group).queryByRole('link', { name: 'Dashboard' })).toBeNull();
     expect(screen.getByRole('complementary', { name: 'About this page' })).toHaveTextContent(
       'This is the operator console, not the product.',

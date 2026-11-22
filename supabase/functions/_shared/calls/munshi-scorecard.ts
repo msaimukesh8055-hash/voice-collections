@@ -64,7 +64,12 @@ const YES =
   /\b(yes|yeah|yep|ok|okay|correct|right|confirm|do it|save it|haan|ha|theek)\b|అవును|సరే|ఓకే|హా|हाँ|हां|ठीक/i;
 /** Munshi asking him to confirm a read-back: "…on WhatsApp. Correct?", "Shall I save it?". */
 const CONFIRM_ASK = /\b(correct|right|ok|okay)\s*\?|\bshall i\b|సరేనా|ఓకేనా|ठीक है\s*\?/i;
-const SEND = /whatsapp|send|bhej|పంపు|పంపించు|भेज/i;
+/**
+ * Him asking for a WhatsApp send, in English, Telugu or Hindi script. "పంప" is the root of
+ * పంపు / పంపించు / పంపిస్తారా / పంపండి (send, will you send, please send): the 8 Nov call used
+ * "వాట్సాప్ లో … పంపిస్తారా" and the old list missed it (Saim, 2026-11-22).
+ */
+const SEND = /whatsapp|send|bhej|వాట్సాప్|వాట్సప్|వాట్స్ ?యాప్|పంప|व्हाट्सऐप|व्हाट्सएप|वॉट्सऐप|वाट्सऐप|भेज/i;
 const LIST = /\b(list|people|who all|everyone)\b/i;
 const QUESTION = /\?|^\s*(how|what|did|has|is|kitna|ఎంత)\b/i;
 const TOTAL =

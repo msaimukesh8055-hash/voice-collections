@@ -2,7 +2,8 @@
 // "Add as a test case" (Saim, 2026-11-20), on a call report and on a WhatsApp trace: saves a
 // draft that is later written up as a scripted test and approved by Saim before it joins the
 // release gate. For a call the server takes what was said and what went wrong from the call
-// itself; for a WhatsApp message the owner types what he sent (the bot never stores the text).
+// itself; for a WhatsApp message the words he sent are filled in from the kept exchange
+// (2026-11-22, ADR-0022) and can be edited; from an Ops trace he types them.
 import { type ChangeEvent, type FormEvent, useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { TestDraftSource } from '../../lib/testDraftSchemas.ts';
@@ -105,17 +106,22 @@ function DraftForm(props: FormProps): React.JSX.Element {
   );
 }
 
+interface AddTestCaseProps {
+  readonly dashboard: Pick<DashboardApi, 'addTestDraft'>;
+  readonly source: TestDraftSource;
+  readonly refId: string;
+  /** What he sent, when it is known (a kept WhatsApp exchange). */
+  readonly initialSaid?: string;
+}
+
 export function AddTestCase({
   dashboard,
   source,
   refId,
-}: {
-  readonly dashboard: Pick<DashboardApi, 'addTestDraft'>;
-  readonly source: TestDraftSource;
-  readonly refId: string;
-}): React.JSX.Element {
+  initialSaid = '',
+}: AddTestCaseProps): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('closed');
-  const [said, setSaid] = useState('');
+  const [said, setSaid] = useState(initialSaid);
   const [expected, setExpected] = useState('');
   const needsWords = source === 'whatsapp';
 

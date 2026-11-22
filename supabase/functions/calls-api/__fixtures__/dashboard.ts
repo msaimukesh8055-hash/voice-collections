@@ -5,6 +5,8 @@ import {
   fakeCallScoreRepository,
   type FakeCallScores,
 } from '../../_shared/db/fake-call-score-repository.ts';
+import { fakeExchangeReads } from '../../_shared/db/fake-exchange-reads.ts';
+import type { ExchangeRow } from '../../_shared/db/exchange-repository.ts';
 import { fakeTestDraftRepository } from '../../_shared/db/fake-test-draft-repository.ts';
 import type { TestDraft } from '../../_shared/db/test-draft-repository.ts';
 import {
@@ -48,6 +50,21 @@ function fakeEvalReads(evals: FakeEvals = { runs: [], results: {} }): EvalReads 
   return {
     listRuns: (limit) => Promise.resolve(evals.runs.slice(0, limit)),
     listResults: (runId) => Promise.resolve(evals.results[runId] ?? []),
+    listOutcomes: (runIds) =>
+      Promise.resolve(
+        runIds.flatMap((runId) =>
+          (evals.results[runId] ?? []).map((result) => ({
+            runId,
+            scenarioId: result.scenarioId,
+            name: typeof result.scores['name'] === 'string' ? result.scores['name'] : '',
+            pass: result.pass,
+          }))
+        ),
+      ),
+    getResult: (runId, scenarioId) =>
+      Promise.resolve(
+        (evals.results[runId] ?? []).find((result) => result.scenarioId === scenarioId) ?? null,
+      ),
   };
 }
 
@@ -62,6 +79,7 @@ export function dashboardSetup(
     munshiTranscripts?: TranscriptClient | null;
     judgeTone?: ToneJudge | null;
     callScores?: Partial<FakeCallScores>;
+    exchanges?: readonly ExchangeRow[];
   } = {},
 ): DashboardSetup {
   const fakeBook = createFakeBookRepository(options.book);
@@ -85,6 +103,7 @@ export function dashboardSetup(
     judgeTone: options.judgeTone ?? null,
     callScores: scores.repo,
     testDrafts: drafts.repo,
+    exchanges: fakeExchangeReads(options.exchanges),
   };
   return {
     dashboard,

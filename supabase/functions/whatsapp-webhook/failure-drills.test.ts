@@ -119,6 +119,7 @@ function drill(
       upload: () => Promise.resolve(null),
     },
     wakeWorker: () => {},
+    exchanges: { record: () => Promise.resolve() },
   };
   const serve = tracing.serve((req) =>
     handleWebhook(req, {

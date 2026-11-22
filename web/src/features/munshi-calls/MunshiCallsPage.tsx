@@ -94,6 +94,18 @@ function One({
   );
 }
 
+/** A call a test script opened, not the owner: kept visible, left out of Agent health. */
+function TestTag(): React.JSX.Element {
+  return (
+    <span
+      className="ml-2 rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-ink-muted"
+      title="Opened by a test script, not by the owner. Left out of Agent health."
+    >
+      Test call
+    </span>
+  );
+}
+
 function CallList({ calls }: { readonly calls: readonly OwnerCallRow[] }): React.JSX.Element {
   if (calls.length === 0) {
     return <p className="text-sm text-ink-muted">No calls to Munshi yet.</p>;
@@ -118,6 +130,7 @@ function CallList({ calls }: { readonly calls: readonly OwnerCallRow[] }): React
               >
                 {dateTime(startedAt(call))}
               </a>
+              {call.isTest ? <TestTag /> : null}
             </td>
             <td className="py-2 pr-3">{call.status.replace('_', ' ')}</td>
             <td className="py-2 pr-3">{duration(call.durationSeconds)}</td>

@@ -2,6 +2,7 @@
 // Shared shapes for the app API's routes.
 import type { BookRepository, Owner } from '../_shared/db/book-repository.ts';
 import type { DashboardRepository } from '../_shared/db/dashboard-repository.ts';
+import type { ExchangeReads } from '../_shared/db/exchange-repository.ts';
 import type { EvalReads } from '../_shared/db/eval-reads.ts';
 import type { OpsRepository } from '../_shared/db/ops-repository.ts';
 import type { OwnerCallReads } from '../_shared/db/owner-call-reads.ts';
@@ -58,6 +59,8 @@ export interface DashboardDeps {
   readonly callScores: CallScoreRepository;
   /** Live failures to tests (2026-11-20): "Add as a test case" drafts. */
   readonly testDrafts: TestDraftRepository;
+  /** WhatsApp live checks (2026-11-22, ADR-0022): the owner's latest WhatsApp exchanges. */
+  readonly exchanges: ExchangeReads;
 }
 
 export interface RouteContext {

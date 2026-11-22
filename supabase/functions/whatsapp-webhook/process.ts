@@ -3,13 +3,18 @@
 //   stranger → one "not registered" reply per number per day; nothing else read or written
 //   owner    → record the message id (a retry stops here) → load the book → route → send →
 //              mark which path answered it.
+// 2026-11-22 (ADR-0022): each owner message is also kept as a WhatsApp exchange (wa_exchanges):
+// his words, the reply, the card shown or answered, ledger changes and reply time, for the live
+// checks. Best effort: a failed write is logged and never changes what the owner gets.
 // Logs carry a short sender-hash prefix, the message type, path and timing: never the number,
 // never the text. Errors go through describeFailure: database operation + code, or the error's
 // name only, never its message (CP2 L1).
+import { detectLanguage } from '../_shared/brain/language.ts';
 import type { BrainLlm } from '../_shared/brain/llm.ts';
 import type { BotContext, MunshiLinkDeps, WebDeps } from '../_shared/cards/context.ts';
 import { istDate, resolveNow } from '../_shared/clock.ts';
 import type { BookRepository } from '../_shared/db/book-repository.ts';
+import type { ExchangeLog } from '../_shared/db/exchange-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ReminderDeps } from '../_shared/reminders/deps.ts';
@@ -28,6 +33,13 @@ import {
 } from '../_shared/whatsapp/inbound.ts';
 import { NOT_REGISTERED, phrasesFor } from '../_shared/whatsapp/phrases.ts';
 import { type Reply, textReply } from '../_shared/whatsapp/replies.ts';
+import {
+  cardShown,
+  isTestMessage,
+  keptText,
+  replyWords,
+  tapAnswers,
+} from '../_shared/whatsapp/exchange.ts';
 import { identifySender, maskedHash, type SenderConfig } from '../_shared/whatsapp/sender.ts';
 import { type Outcome, routeMessage } from './route.ts';
 
@@ -59,12 +71,21 @@ export interface ProcessDeps {
   /** Asks the worker to sweep (follow-ups, queued simulated calls): the fallback if pg_cron is
    * not running (M5 risk table). Fire and forget. */
   readonly wakeWorker: () => void;
+  /** WhatsApp live checks (ADR-0022): one row per owner message. */
+  readonly exchanges: ExchangeLog;
 }
 
 interface Delivery {
   readonly message: InboundMessage;
   readonly senderHash: string;
   readonly istDay: string;
+  /** Replies Meta accepted or refused while answering this message (ADR-0022). */
+  readonly count?: SendCount;
+}
+
+interface SendCount {
+  sent: number;
+  failed: number;
 }
 
 async function sendAll(
@@ -72,8 +93,13 @@ async function sendAll(
   replies: readonly Reply[],
   deps: ProcessDeps,
 ): Promise<void> {
+  const { count } = delivery;
   for (const reply of replies) {
     const waMessageId = await deps.client.send(delivery.message.from, reply);
+    if (count) {
+      if (waMessageId) count.sent += 1;
+      else count.failed += 1;
+    }
     await deps.book.recordOutbound({
       waMessageId,
       senderHash: delivery.senderHash,
@@ -112,7 +138,7 @@ async function sendVoiceReply(
   delivery: Delivery,
   outcome: Outcome & { speakIn: Language },
   deps: ProcessDeps,
-): Promise<void> {
+): Promise<boolean> {
   const language = outcome.speakIn;
   const sentToday = await deps.book.countMessages({
     direction: 'out',
@@ -122,17 +148,20 @@ async function sendVoiceReply(
   });
   if (sentToday >= DAILY_VOICE_REPLY_CAP) {
     deps.log('info', 'voice_reply_cap', { sent: sentToday });
-    return;
+    return false;
   }
   // Nothing to say ('') gives no audio: the speaker returns null without calling Bulbul.
   const mp3 = await deps.voice.speak(await wordsToSpeak(outcome, deps), language);
-  if (!mp3) return;
+  if (!mp3) return false;
   const mediaId = await deps.voice.upload({
     bytes: mp3,
     mimeType: 'audio/mpeg',
     fileName: 'reply.mp3',
   });
-  if (mediaId) await sendAll(delivery, [{ kind: 'audio', mediaId }], deps);
+  if (!mediaId) return false;
+  const before = delivery.count?.sent ?? 0;
+  await sendAll(delivery, [{ kind: 'audio', mediaId }], deps);
+  return (delivery.count?.sent ?? 0) > before;
 }
 
 async function replyToStranger(delivery: Delivery, deps: ProcessDeps): Promise<void> {
@@ -177,23 +206,108 @@ function voiceNotesToday(delivery: Delivery, deps: ProcessDeps): () => Promise<n
     });
 }
 
-async function answerOwner(delivery: Delivery, deps: ProcessDeps): Promise<Outcome> {
+/** The book, counting every ledger change made while one message is handled (ADR-0022). */
+function countingBook(book: BookRepository): { book: BookRepository; writes: () => number } {
+  let writes = 0;
+  function counted<A extends unknown[], R>(
+    run: (...args: A) => Promise<R>,
+  ): (...args: A) => Promise<R> {
+    return async function countedWrite(...args: A): Promise<R> {
+      const result = await run(...args);
+      writes += 1;
+      return result;
+    };
+  }
+  return {
+    book: {
+      ...book,
+      insertEntry: counted(book.insertEntry),
+      settleClaim: counted(book.settleClaim),
+      reverseEntry: counted(book.reverseEntry),
+    },
+    writes: () => writes,
+  };
+}
+
+interface Answer {
+  readonly outcome: Outcome;
+  readonly errorCode: string | null;
+}
+
+async function answerOwner(delivery: Delivery, deps: ProcessDeps): Promise<Answer> {
   const loaded = await loadContext(deps);
   if (!loaded) throw new Error('no owner row');
   try {
-    return await routeMessage(delivery.message, loaded.ctx, {
+    const outcome = await routeMessage(delivery.message, loaded.ctx, {
       llm: deps.llm,
       demoNow: loaded.demoNow,
       hear: (mediaId) =>
         hear(mediaId, { ...deps.listen, countToday: voiceNotesToday(delivery, deps) }),
     });
+    return { outcome, errorCode: null };
   } catch (error) {
-    deps.log('error', 'whatsapp_route_failed', { error: describeFailure(error) });
+    const errorCode = describeFailure(error);
+    deps.log('error', 'whatsapp_route_failed', { error: errorCode });
     return {
-      replies: [textReply(phrasesFor(loaded.ctx.owner.language).somethingWrong)],
-      path: 'failed',
-      command: 'error',
+      outcome: {
+        replies: [textReply(phrasesFor(loaded.ctx.owner.language).somethingWrong)],
+        path: 'failed',
+        command: 'error',
+      },
+      errorCode,
     };
+  }
+}
+
+/** What he sent, as kept on the exchange: his words, what was heard, or the button's text. */
+function theirWords(message: InboundMessage, outcome: Outcome): string | null {
+  if (message.kind === 'text') return message.text;
+  if (message.kind === 'voice') return outcome.heard ?? null;
+  if (message.kind === 'tap') return message.title ?? message.buttonId;
+  return `(${message.type})`;
+}
+
+interface Handled {
+  readonly answer: Answer;
+  readonly count: SendCount;
+  readonly voiceReply: boolean;
+  readonly moneyWrites: number;
+  readonly ms: number;
+}
+
+function replyLanguageOf(message: InboundMessage, outcome: Outcome): string | null {
+  if (outcome.speakIn) return outcome.speakIn;
+  return message.kind === 'text' ? detectLanguage(message.text) : null;
+}
+
+async function keepExchange(
+  delivery: Delivery,
+  handled: Handled,
+  deps: ProcessDeps,
+): Promise<void> {
+  const { message } = delivery;
+  const { outcome, errorCode } = handled.answer;
+  try {
+    await deps.exchanges.record({
+      waMessageId: message.id,
+      msgType: message.kind,
+      path: outcome.path,
+      command: outcome.command,
+      inText: keptText(theirWords(message, outcome)),
+      replyText: replyWords(outcome.replies),
+      language: replyLanguageOf(message, outcome),
+      repliesSent: handled.count.sent,
+      repliesFailed: handled.count.failed,
+      voiceReply: handled.voiceReply,
+      cardActionId: cardShown(outcome.replies),
+      answersActionId: message.kind === 'tap' ? tapAnswers(message.buttonId) : null,
+      moneyWrites: handled.moneyWrites,
+      errorCode,
+      handleMs: handled.ms,
+      isTest: isTestMessage(message.id),
+    });
+  } catch (error) {
+    deps.log('warn', 'exchange_log_failed', { error: describeFailure(error) });
   }
 }
 
@@ -210,15 +324,24 @@ async function handleOwner(delivery: Delivery, deps: ProcessDeps): Promise<void>
     deps.log('info', 'whatsapp_duplicate', { sender: maskedHash(senderHash) });
     return;
   }
-  const outcome = await answerOwner(delivery, deps);
-  await sendAll(delivery, outcome.replies, deps);
+  const counting = countingBook(deps.book);
+  const answer = await answerOwner(delivery, { ...deps, book: counting.book });
+  const { outcome } = answer;
+  const count: SendCount = { sent: 0, failed: 0 };
+  const sending: Delivery = { ...delivery, count };
+  await sendAll(sending, outcome.replies, deps);
+  let voiceReply = false;
   if (outcome.speakIn) {
     const voiced = { ...outcome, speakIn: outcome.speakIn };
-    await sendVoiceReply(delivery, voiced, deps).catch((error: unknown) =>
-      deps.log('warn', 'voice_reply_failed', { error: describeFailure(error) })
-    );
+    voiceReply = await sendVoiceReply(sending, voiced, deps).catch((error: unknown) => {
+      deps.log('warn', 'voice_reply_failed', { error: describeFailure(error) });
+      return false;
+    });
   }
   await deps.book.markInboundHandled(message.id, { path: outcome.path, command: outcome.command });
+  const ms = Date.now() - started;
+  const moneyWrites = counting.writes();
+  await keepExchange(delivery, { answer, count, voiceReply, moneyWrites, ms }, deps);
   deps.wakeWorker();
   deps.log('info', 'whatsapp_message', {
     sender: maskedHash(senderHash),

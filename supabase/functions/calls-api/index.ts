@@ -1,6 +1,7 @@
 // supabase/functions/calls-api/index.ts
 // JWT verification stays on: the dashboard and phone page send the public anon key (the phone
 // page adds it to the Sarvam SDK's request too), which Supabase checks.
+import { createSupabaseExchangeReads } from '../_shared/db/supabase-exchange-repository.ts';
 import { createPostgrestClient } from '../_shared/db/postgrest.ts';
 import { createSupabaseRepository } from '../_shared/db/supabase-repository.ts';
 import { createSupabaseBookRepository } from '../_shared/db/supabase-book-repository.ts';
@@ -74,6 +75,7 @@ const deps: CallsApiDeps = {
     ownerCalls: createSupabaseOwnerCallReads(query),
     callScores: createSupabaseCallScoreRepository(query),
     testDrafts: createSupabaseTestDraftRepository(query),
+    exchanges: createSupabaseExchangeReads(query),
     judgeTone: env.GEMINI_API_KEY
       ? createToneJudge({
         sarvamApiKey: env.SARVAM_API_KEY ?? '',

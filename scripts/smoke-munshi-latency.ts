@@ -74,6 +74,8 @@ async function createTestCall(run: Run): Promise<string> {
       status: 'accepted',
       expires_at: new Date(now + LINK_TTL_MS).toISOString(),
       accepted_at: new Date(now).toISOString(),
+      // Flagged so Agent health leaves this script call out (2026-11-22).
+      is_test: true,
     })
     .select('id')
     .single();

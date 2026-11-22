@@ -14,6 +14,8 @@ export interface OwnerCallRow {
   readonly acceptedAt: string | null;
   readonly endedAt: string | null;
   readonly durationSeconds: number | null;
+  /** Opened by a test script, not the owner: tagged on Munshi calls, left out of Agent health. */
+  readonly isTest: boolean;
 }
 
 export interface OwnerCallDetail extends OwnerCallRow {

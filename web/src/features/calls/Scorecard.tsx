@@ -19,10 +19,17 @@ const STATUS: Readonly<Record<Status, { readonly label: string; readonly tone: T
 
 const VERDICT: Readonly<Record<Card['verdict'], { readonly label: string; readonly tone: Tone }>> =
   {
-    good: { label: '✅ Call went well', tone: 'good' },
+    good: { label: 'went well', tone: 'good' },
     check: { label: '⚠ Worth a look', tone: 'warn' },
     failed: { label: '❌ A guardrail failed', tone: 'bad' },
   };
+
+function verdictLabel(verdict: Card['verdict'], noun: string): string {
+  return verdict === 'good' ? `✅ ${noun} went well` : VERDICT[verdict].label;
+}
+
+const CALL_NOTE =
+  "worked out in code from this call's records, except Tone: an AI judge (Gemini, free tier) scores it once and it is kept";
 
 /** The plain-English line under a check: what it means, and what a miss means. */
 export function CheckExplained({
@@ -65,17 +72,25 @@ function Group({ group }: { readonly group: Card['groups'][number] }): React.JSX
   );
 }
 
-export function Scorecard({ card }: { readonly card: Card }): React.JSX.Element {
+export function Scorecard({
+  card,
+  noun = 'Call',
+  note = CALL_NOTE,
+}: {
+  readonly card: Card;
+  /** "Call", or "Message" on the WhatsApp page (2026-11-22). */
+  readonly noun?: string;
+  readonly note?: string;
+}): React.JSX.Element {
   const verdict = VERDICT[card.verdict];
   return (
-    <Section title="Call scorecard">
+    <Section title={`${noun} scorecard`}>
       <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className={`text-lg font-semibold ${TONE_CLASSES[verdict.tone]}`}>
-          {verdict.label}
+          {verdictLabel(card.verdict, noun)}
         </span>
         <span className="text-sm text-ink-muted">
-          {card.passed} of {card.applicable} checks passed · worked out in code from this call's
-          records, except Tone: an AI judge (Gemini, free tier) scores it once and it is kept
+          {card.passed} of {card.applicable} checks passed · {note}
         </span>
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

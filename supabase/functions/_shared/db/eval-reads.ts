@@ -27,10 +27,22 @@ export interface EvalCaseResult {
   readonly pass: boolean;
 }
 
+/** One case's pass or fail in one run, without the transcript (the case history grid). */
+export interface EvalOutcome {
+  readonly runId: string;
+  readonly scenarioId: string;
+  readonly name: string;
+  readonly pass: boolean;
+}
+
 export interface EvalReads {
   /** Newest first. */
   listRuns(limit: number): Promise<readonly EvalRun[]>;
   listResults(runId: string): Promise<readonly EvalCaseResult[]>;
+  /** Pass or fail for every case of these runs (2026-11-22, "How it got fixed"). */
+  listOutcomes(runIds: readonly string[]): Promise<readonly EvalOutcome[]>;
+  /** One case of one run, with its conversation; null when not stored. */
+  getResult(runId: string, scenarioId: string): Promise<EvalCaseResult | null>;
 }
 
 const JsonObject = z.record(z.string(), z.unknown()).catch({});
@@ -59,8 +71,35 @@ const ResultRow = z.object({
   pass: row.pass,
 }));
 
+const OutcomeRow = z.object({
+  run_id: z.string(),
+  scenario_id: z.string(),
+  name: z.string().nullable(),
+  pass: z.boolean(),
+}).transform((row): EvalOutcome => ({
+  runId: row.run_id,
+  scenarioId: row.scenario_id,
+  name: row.name ?? '',
+  pass: row.pass,
+}));
+/** Up to 10 runs of a few dozen cases each. */
+const MAX_OUTCOMES = 1000;
+
 export function createEvalReads(query: PostgrestClient): EvalReads {
   return {
+    async listOutcomes(runIds): Promise<readonly EvalOutcome[]> {
+      if (runIds.length === 0) return [];
+      const ids = runIds.map(encodeURIComponent).join(',');
+      const path = `eval_results?select=run_id,scenario_id,name:scores->>name,pass` +
+        `&run_id=in.(${ids})&limit=${MAX_OUTCOMES}`;
+      return z.array(OutcomeRow).parse((await query('listEvalOutcomes', path)).rows);
+    },
+    async getResult(runId, scenarioId): Promise<EvalCaseResult | null> {
+      const path = `eval_results?select=${RESULT_COLUMNS}&run_id=eq.${encodeURIComponent(runId)}` +
+        `&scenario_id=eq.${encodeURIComponent(scenarioId)}&limit=1`;
+      const rows = z.array(ResultRow).parse((await query('getEvalResult', path)).rows);
+      return rows[0] ?? null;
+    },
     async listRuns(limit): Promise<readonly EvalRun[]> {
       const path = `eval_runs?select=${RUN_COLUMNS}&order=created_at.desc&limit=${limit}`;
       return z.array(RunRow).parse((await query('listEvalRuns', path)).rows);

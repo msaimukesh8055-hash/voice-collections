@@ -5,7 +5,8 @@
 // it), guardrail fails, reply time, cost, tone, the same numbers per prompt version, and a 14-day
 // trend. Worked out from each call's kept scorecard. A summary of the Asha calls and Munshi calls
 // pages (Saim, 2026-11-22): every count opens those pages filtered to the calls behind it, and
-// "Why N calls need a look" counts only the calls that need a look or failed.
+// "Why N calls need a look" counts only the calls that need a look or failed. WhatsApp bot
+// (2026-11-22, ADR-0022): a third card, scored per owner message, opening /whatsapp.
 import { type CallFilter, filteredCallsHref } from '../calls/callFilter.tsx';
 import { checkHelp } from '../calls/checkHelp.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
@@ -16,25 +17,65 @@ import { useLoad } from '../dashboard/useLoad.ts';
 import { type Tone, TONE_CLASSES } from '../ops/opsFormat.ts';
 
 export const HEALTH_PATH = '/health';
-/** Same aims as the call scorecard. */
-const COST_AIM_INR = 15;
-const REPLY_AIM_MS = 1_500;
 const GOOD_TONE = 4;
 const CELL = 'px-2 py-1.5';
 const HEAD = `${CELL} text-left text-xs font-medium uppercase tracking-wide text-ink-muted`;
 
-const NAMES: Readonly<Record<AgentHealth['agent'], string>> = {
-  asha: 'Asha · calls shopkeepers',
-  munshi: 'Munshi · the owner’s clerk',
+interface AgentInfo {
+  readonly name: string;
+  readonly short: string;
+  /** The page that lists this agent's calls (or messages). */
+  readonly page: string;
+  readonly one: string;
+  readonly many: string;
+  /** Same aims as the agent's scorecard. */
+  readonly costAimInr: number;
+  readonly replyAimMs: number;
+  /** Tone is judged and prompt versions are tracked for the voice agents only. */
+  readonly voiceAgent: boolean;
+}
+
+const AGENTS: Readonly<Record<AgentHealth['agent'], AgentInfo>> = {
+  asha: {
+    name: 'Asha · calls shopkeepers',
+    short: 'Asha',
+    page: '/calls',
+    one: 'call',
+    many: 'calls',
+    costAimInr: 15,
+    replyAimMs: 1_500,
+    voiceAgent: true,
+  },
+  munshi: {
+    name: 'Munshi · the owner’s clerk',
+    short: 'Munshi',
+    page: '/munshi-calls',
+    one: 'call',
+    many: 'calls',
+    costAimInr: 15,
+    replyAimMs: 1_500,
+    voiceAgent: true,
+  },
+  whatsapp: {
+    name: 'WhatsApp bot · the owner’s chat',
+    short: 'WhatsApp',
+    page: '/whatsapp',
+    one: 'message',
+    many: 'messages',
+    costAimInr: 2,
+    replyAimMs: 3_000,
+    voiceAgent: false,
+  },
 };
 
 /** The agent's calls page showing just these calls. */
 function callsHref(agent: AgentHealth['agent'], filter: CallFilter): string {
-  return filteredCallsHref(agent === 'asha' ? '/calls' : '/munshi-calls', filter);
+  return filteredCallsHref(AGENTS[agent].page, filter);
 }
 
-function callCount(count: number): string {
-  return count === 1 ? '1 call' : `${count} calls`;
+function callCount(count: number, agent: AgentHealth['agent']): string {
+  const info = AGENTS[agent];
+  return count === 1 ? `1 ${info.one}` : `${count} ${info.many}`;
 }
 
 const VERDICT_LINKS = [
@@ -98,6 +139,7 @@ function Figure({
 
 function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Element {
   const { verdicts, calls, replyP50Ms, averageCostInr, guardrailFails } = health;
+  const { one, many, replyAimMs, costAimInr } = AGENTS[health.agent];
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Figure
@@ -111,19 +153,19 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
         label="Guardrail fails"
         value={String(guardrailFails)}
         tone={guardrailFails > 0 ? 'bad' : 'good'}
-        note="calls with at least one"
+        note={`${many} with at least one`}
       />
       <Figure
         label="Reply time, typical"
         value={replyP50Ms === null ? 'n/a' : `${(replyP50Ms / 1000).toFixed(1)} s`}
-        tone={replyP50Ms === null ? 'plain' : replyP50Ms <= REPLY_AIM_MS ? 'good' : 'warn'}
-        note={`aim ≤ ${REPLY_AIM_MS / 1000} s`}
+        tone={replyP50Ms === null ? 'plain' : replyP50Ms <= replyAimMs ? 'good' : 'warn'}
+        note={`aim ≤ ${replyAimMs / 1000} s`}
       />
       <Figure
-        label="Cost per call"
+        label={`Cost per ${one}`}
         value={averageCostInr === null ? 'n/a' : formatInr(averageCostInr)}
-        tone={averageCostInr === null ? 'plain' : averageCostInr <= COST_AIM_INR ? 'good' : 'warn'}
-        note={`aim ≤ ${formatInr(COST_AIM_INR)}`}
+        tone={averageCostInr === null ? 'plain' : averageCostInr <= costAimInr ? 'good' : 'warn'}
+        note={`aim ≤ ${formatInr(costAimInr)}`}
       />
     </div>
   );
@@ -131,7 +173,8 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
 
 function problemsTitle(health: AgentHealth): string {
   const flagged = health.verdicts.check + health.verdicts.failed;
-  return flagged === 1 ? 'Why 1 call needs a look' : `Why ${flagged} calls need a look`;
+  const { one, many } = AGENTS[health.agent];
+  return flagged === 1 ? `Why 1 ${one} needs a look` : `Why ${flagged} ${many} need a look`;
 }
 
 function ProblemExplained({ id }: { readonly id: string }): React.JSX.Element | null {
@@ -155,7 +198,7 @@ function Problems({ health }: { readonly health: AgentHealth }): React.JSX.Eleme
           <th className={HEAD}>What went wrong</th>
           <th className={HEAD}>Fails</th>
           <th className={HEAD}>Warnings</th>
-          <th className={HEAD}>Calls</th>
+          <th className={HEAD}>{AGENTS[health.agent].many}</th>
         </tr>
       </thead>
       <tbody>
@@ -175,7 +218,7 @@ function Problems({ health }: { readonly health: AgentHealth }): React.JSX.Eleme
                 href={callsHref(health.agent, { ids: problem.callIds, label: problem.label })}
                 className="font-medium text-brand underline"
               >
-                {callCount(problem.callIds.length)}
+                {callCount(problem.callIds.length, health.agent)}
               </a>
             </td>
           </tr>
@@ -260,36 +303,49 @@ function Trend({ health }: { readonly health: AgentHealth }): React.JSX.Element 
   );
 }
 
-function AgentCard({ health }: { readonly health: AgentHealth }): React.JSX.Element {
+/** Tone, prompt versions and the trend: tone and versions only for the voice agents. */
+function Details({ health }: { readonly health: AgentHealth }): React.JSX.Element {
+  const voiceAgent = AGENTS[health.agent].voiceAgent;
   return (
-    <Card title={`${NAMES[health.agent]} · last ${health.calls} calls`}>
+    <div className={`grid gap-5 ${voiceAgent ? 'md:grid-cols-3' : ''}`}>
+      {voiceAgent ? (
+        <section>
+          <h3 className="mb-2 text-sm font-semibold">Tone (AI judge)</h3>
+          <ToneList health={health} />
+        </section>
+      ) : null}
+      {voiceAgent ? (
+        <section>
+          <h3 className="mb-2 text-sm font-semibold">By prompt version</h3>
+          <Versions health={health} />
+        </section>
+      ) : null}
+      <section>
+        <h3 className="mb-2 text-sm font-semibold">Last 14 days</h3>
+        <Trend health={health} />
+      </section>
+    </div>
+  );
+}
+
+function AgentCard({ health }: { readonly health: AgentHealth }): React.JSX.Element {
+  const info = AGENTS[health.agent];
+  return (
+    <Card title={`${info.name} · last ${health.calls} ${info.many}`}>
       {health.calls === 0 ? (
-        <p className="text-sm text-ink-muted">No finished calls yet.</p>
+        <p className="text-sm text-ink-muted">No finished {info.many} yet.</p>
       ) : (
         <div className="flex flex-col gap-5">
           <Figures health={health} />
           <section>
             <h3 className="text-sm font-semibold">{problemsTitle(health)}</h3>
             <p className="mb-2 text-xs text-ink-muted">
-              Counts only the calls that need a look or failed. Small warnings on calls that went
-              well are on those calls&apos; own pages.
+              Counts only the {info.many} that need a look or failed. Small warnings on {info.many}{' '}
+              that went well are on their own pages.
             </p>
             <Problems health={health} />
           </section>
-          <div className="grid gap-5 md:grid-cols-3">
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Tone (AI judge)</h3>
-              <ToneList health={health} />
-            </section>
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">By prompt version</h3>
-              <Versions health={health} />
-            </section>
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">Last 14 days</h3>
-              <Trend health={health} />
-            </section>
-          </div>
+          <Details health={health} />
         </div>
       )}
     </Card>
@@ -350,7 +406,7 @@ export function AgentQualityLink({
           ? state.data.agents
               .map(
                 (health) =>
-                  `${health.agent === 'asha' ? 'Asha' : 'Munshi'} ${health.verdicts.good}/${health.calls} went well`,
+                  `${AGENTS[health.agent].short} ${health.verdicts.good}/${health.calls} went well`,
               )
               .join(' · ')
           : 'Each agent’s calls, scored'}

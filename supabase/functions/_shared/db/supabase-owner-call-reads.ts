@@ -11,7 +11,7 @@ import { firstRow } from './supabase-rows.ts';
 const id = encodeURIComponent;
 const MAX_TOOL_EVENTS = 50;
 const STARTED = 'accepted,in_progress,completed';
-const COLUMNS = 'id,status,issued_at,accepted_at,ended_at,duration_seconds';
+const COLUMNS = 'id,status,issued_at,accepted_at,ended_at,duration_seconds,is_test';
 
 const Row = z.object({
   id: z.uuid(),
@@ -20,6 +20,7 @@ const Row = z.object({
   accepted_at: z.string().nullable(),
   ended_at: z.string().nullable(),
   duration_seconds: z.number().int().nullable(),
+  is_test: z.boolean().default(false),
 }).transform((row): OwnerCallRow => ({
   id: row.id,
   status: row.status,
@@ -27,6 +28,7 @@ const Row = z.object({
   acceptedAt: row.accepted_at,
   endedAt: row.ended_at,
   durationSeconds: row.duration_seconds,
+  isTest: row.is_test,
 }));
 
 const DetailRow = z.object({ interaction_id: z.string().nullable(), ...TRANSCRIPT_FIELDS });
