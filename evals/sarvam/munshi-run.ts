@@ -159,6 +159,9 @@ async function main(): Promise<void> {
       suiteId: outcome.suiteId,
       runId: outcome.runId,
       evalRun: plan.data.runLabel,
+      // A run of some cases only (--only) never stands in for the full release gate on the
+      // Evals page (2026-11-23).
+      ...(argAfter('--only') ? { only: plan.cases.map((evalCase) => evalCase.id).join(',') } : {}),
     },
   };
   write(`Stored as eval run ${await store.saveRun(toStoredRun(info, outcome.results, summary))}`);

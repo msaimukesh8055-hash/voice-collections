@@ -81,6 +81,35 @@ describe('EvalsPage', () => {
     expect(runs[1]).toHaveTextContent('2/2 · passed');
   });
 
+  it('a new case run on its own is shown, marked as outside the latest gate', async () => {
+    const fake = fakeDashboard();
+    const [asha, ...rest] = EVALS.targets;
+    const first = asha?.cases[0];
+    if (!asha || !first) throw new Error('fake evals need an Asha case');
+    const alone = {
+      ...asha.latest,
+      id: 'run-alone',
+      metrics: { ...asha.latest.metrics, only: 'asha-10' },
+    };
+    const added = {
+      ...first,
+      scenarioId: 'asha-10',
+      ranAlone: { runId: 'run-alone', createdAt: '2026-11-23T10:00:00.000Z' },
+    };
+    fake.evals = {
+      ...EVALS,
+      targets: [
+        { ...asha, cases: [...asha.cases, added], history: [alone, ...asha.history] },
+        ...rest,
+      ],
+    };
+    render(<EvalsPage dashboard={fake.dashboard} />);
+    const row = (await screen.findByText('asha-10')).closest('tr');
+    expect(row).toHaveTextContent(/New case, run on its own .*; not in this gate/);
+    const trend = within(card(/Asha/)).getByRole('list', { name: 'Recent runs' });
+    expect(within(trend).getAllByRole('listitem')[0]).toHaveTextContent('only asha-10');
+  });
+
   it('says how to run evals when nothing is stored yet', async () => {
     const fake = fakeDashboard();
     fake.evals = { ...EVALS, targets: [] };

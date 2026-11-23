@@ -12,9 +12,9 @@ function scenario(id: string): (typeof MUNSHI_SCENARIOS)[number] {
 }
 
 describe('Munshi eval scenarios', () => {
-  it('16 of them, 01 to 16, each with goals and at least one line', () => {
+  it('17 of them, 01 to 17, each with goals and at least one line', () => {
     expect(MUNSHI_SCENARIOS.map((candidate) => candidate.id)).toEqual(
-      Array.from({ length: 16 }, (_, n) => String(n + 1).padStart(2, '0')),
+      Array.from({ length: 17 }, (_, n) => String(n + 1).padStart(2, '0')),
     );
     expect(
       MUNSHI_SCENARIOS.every(
@@ -26,7 +26,7 @@ describe('Munshi eval scenarios', () => {
   it('cover Telugu, Hindi and English', () => {
     const count = (language: string): number =>
       MUNSHI_SCENARIOS.filter((candidate) => candidate.language === language).length;
-    expect([count('te'), count('hi'), count('en')]).toEqual([4, 3, 9]);
+    expect([count('te'), count('hi'), count('en')]).toEqual([4, 3, 10]);
   });
 
   it('expect the plan outcomes: one entry, two claims settled, a send, a reminder', () => {

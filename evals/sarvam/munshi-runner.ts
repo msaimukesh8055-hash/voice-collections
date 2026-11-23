@@ -8,7 +8,7 @@ import { OWNER_CALL_TOKEN_VARIABLE } from '../../supabase/functions/_shared/sarv
 import type { AgentVersion, NewSuite, SarvamTests, SuiteVariable } from './client.ts';
 import { casePassed } from './gate.ts';
 import type { MunshiCase } from './munshi-cases.ts';
-import { checkMunshiCall } from './munshi-checks.ts';
+import { checkMunshiCall, checkNoPhoneNumbers } from './munshi-checks.ts';
 import type { MunshiEvalDb } from './munshi-eval-db.ts';
 import {
   buildMunshiEvalRows,
@@ -72,14 +72,18 @@ async function resultFor(
   const execution = executions[0];
   const verdicts = execution?.verdicts ?? [];
   const outcome = outcomeFor(evalCase.outcome, caseRows.ids);
-  const checks = checkMunshiCall(evalCase, { outcome, ids: caseRows.ids }, evidence);
+  const transcript = execution?.transcript ?? [];
+  const checks = [
+    ...checkMunshiCall(evalCase, { outcome, ids: caseRows.ids }, evidence),
+    checkNoPhoneNumbers(transcript),
+  ];
   const judged = { verdicts, checks };
   return {
     id: evalCase.id,
     name: evalCase.name,
     category: evalCase.category,
     ...judged,
-    transcript: execution?.transcript ?? [],
+    transcript,
     // A case Sarvam returned no verdicts for cannot count as a pass.
     passed: verdicts.length > 0 && casePassed(judged),
   };

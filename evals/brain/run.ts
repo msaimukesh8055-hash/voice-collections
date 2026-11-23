@@ -5,6 +5,7 @@
 // passes. Costs a few LLM calls (only the messages code cannot read). Needs SARVAM_API_KEY,
 // GEMINI_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env. Never prints a key.
 //   --no-store   do not write the run to the database
+//   --only brain-21,brain-23   run just these messages (stored as a partial run, 2026-11-23)
 import { createHash } from 'node:crypto';
 import { interpret } from '../../supabase/functions/_shared/brain/interpret.ts';
 import { createBrainLlm } from '../../supabase/functions/_shared/brain/llm.ts';
@@ -28,6 +29,18 @@ function quietLog(): void {
   // LLM timings are not part of this report; failures show up as a wrong answer.
 }
 
+function argAfter(flag: string): string | null {
+  const index = process.argv.indexOf(flag);
+  return index === -1 ? null : (process.argv[index + 1] ?? null);
+}
+
+function chosenCases(): typeof BRAIN_CASES {
+  const only = argAfter('--only');
+  if (only === null) return BRAIN_CASES;
+  const ids = new Set(only.split(','));
+  return BRAIN_CASES.filter((evalCase) => ids.has(evalCase.id));
+}
+
 async function answerAll(now: Date): Promise<readonly BrainResult[]> {
   const llm = createBrainLlm({
     sarvamApiKey: requireEnv('SARVAM_API_KEY'),
@@ -43,7 +56,7 @@ async function answerAll(now: Date): Promise<readonly BrainResult[]> {
   };
   const results: BrainResult[] = [];
   // One at a time: Gemini's free tier allows only a few requests a minute.
-  for (const evalCase of BRAIN_CASES) {
+  for (const evalCase of chosenCases()) {
     const answer = await interpret(evalCase.text, deps);
     const result = checkAnswer(evalCase, { command: answer.command, path: answer.path });
     results.push(result);
@@ -63,7 +76,12 @@ async function store(results: readonly BrainResult[], now: Date): Promise<string
   return await db.saveRun({
     target: 'brain',
     promptHash: createHash('sha256').update(prompt).digest('hex').slice(0, HASH_LENGTH),
-    metrics: { kind: 'code-checks', promptVersion: BRAIN_PROMPT_VERSION, ...summary },
+    metrics: {
+      kind: 'code-checks',
+      promptVersion: BRAIN_PROMPT_VERSION,
+      ...summary,
+      ...(argAfter('--only') ? { only: results.map((result) => result.id).join(',') } : {}),
+    },
     results: results.map((result) => ({
       scenarioId: result.id,
       scores: {
@@ -94,7 +112,7 @@ async function store(results: readonly BrainResult[], now: Date): Promise<string
 
 async function main(): Promise<void> {
   const now = new Date();
-  write(`Brain: ${BRAIN_CASES.length} messages`);
+  write(`Brain: ${chosenCases().length} messages`);
   const results = await answerAll(now);
   const summary = summarise(results);
   write(`\n${formatTable(results, summary)}`);

@@ -28,6 +28,8 @@ const MetricsSchema = z.object({
   moneyFailures: z.number().optional().catch(undefined),
   promptVersion: z.string().optional().catch(undefined),
   appVersion: z.number().optional().catch(undefined),
+  /** Set on a run of some cases only ("asha-10"); it never stands in for the full gate. */
+  only: z.string().optional().catch(undefined),
 });
 const RunSchema = z.object({
   id: z.string(),
@@ -57,6 +59,12 @@ const CaseSchema = z.object({
   }),
   transcript: z.string(),
   pass: z.boolean(),
+  /** A case the latest full run did not have, taken from a newer run of some cases only. */
+  ranAlone: z
+    .object({ runId: z.string(), createdAt: z.string() })
+    .nullable()
+    .optional()
+    .catch(undefined),
 });
 
 /** "How it got fixed" (2026-11-22): each case across the recent runs, oldest run first. */

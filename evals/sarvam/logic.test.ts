@@ -42,10 +42,10 @@ function failed(evalCase: EvalCase, found: CallEvidence): readonly string[] {
 }
 
 describe('Asha cases', () => {
-  it('are 9 cases with unique ids, shop names and at least two judged behaviours each', () => {
-    expect(ASHA_CASES).toHaveLength(9);
-    expect(new Set(ASHA_CASES.map((evalCase) => evalCase.id)).size).toBe(9);
-    expect(new Set(ASHA_CASES.map((evalCase) => evalCase.setup.shopName)).size).toBe(9);
+  it('are 10 cases with unique ids, shop names and at least two judged behaviours each', () => {
+    expect(ASHA_CASES).toHaveLength(10);
+    expect(new Set(ASHA_CASES.map((evalCase) => evalCase.id)).size).toBe(10);
+    expect(new Set(ASHA_CASES.map((evalCase) => evalCase.setup.shopName)).size).toBe(10);
     for (const evalCase of ASHA_CASES) expect(evalCase.behaviours.length).toBeGreaterThanOrEqual(2);
   });
 

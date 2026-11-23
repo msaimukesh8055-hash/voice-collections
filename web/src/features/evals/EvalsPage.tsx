@@ -106,6 +106,11 @@ function CaseRow({ evalCase, golden, agent, opened, onToggle }: CaseRowProps): R
         <td className={CELL}>{golden?.outcome ?? '—'}</td>
         <td className={`${CELL} font-medium ${TONE_CLASSES[evalCase.pass ? 'good' : 'bad']}`}>
           {evalCase.pass ? 'Pass' : 'Fail'}
+          {evalCase.ranAlone ? (
+            <span className="block text-xs font-normal text-ink-muted">
+              New case, run on its own {dateTime(evalCase.ranAlone.createdAt)}; not in this gate
+            </span>
+          ) : null}
         </td>
       </tr>
       {opened ? (
@@ -168,6 +173,7 @@ function Trend({ history }: { readonly history: readonly EvalRun[] }): React.JSX
         >
           {dateTime(run.createdAt)} · {run.metrics.casesPassed}/{run.metrics.cases} ·{' '}
           {run.metrics.passed ? 'passed' : 'failed'}
+          {run.metrics.only ? ` · only ${run.metrics.only}` : ''}
         </li>
       ))}
     </ul>

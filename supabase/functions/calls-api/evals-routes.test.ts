@@ -82,10 +82,30 @@ Deno.test('evals route › each target: its latest run with cases, and its runs 
   assertEquals(golden[0]?.[0], 'asha-01');
   assertEquals(golden[1]?.includes('brain-21'), true);
   assertEquals(targets, [
-    { target: 'asha', latest, cases: [CASE], history: [latest, older] },
+    { target: 'asha', latest, cases: [{ ...CASE, ranAlone: null }], history: [latest, older] },
     { target: 'brain', latest: brain, cases: [], history: [brain] },
   ]);
   assertEquals(body.generatedAt, FAKE_NOW.toISOString());
+});
+
+Deno.test('evals route › a newer run of some cases only keeps the full run as latest', async () => {
+  const full = run('asha', 10, RUN_ID);
+  const alone = { ...run('asha', 30), metrics: { passed: true, cases: 1, only: 'asha-10' } };
+  const newCase = { ...CASE, scenarioId: 'asha-10' };
+  const rerun = { ...CASE, pass: true };
+  const evals = {
+    runs: [alone, full],
+    results: { [RUN_ID]: [CASE], [alone.id]: [newCase, rerun] },
+  };
+  const { body } = await get(deps(evals));
+  const [asha] = body.targets as Array<{ latest: EvalRun; cases: unknown[]; history: EvalRun[] }>;
+  assertEquals(asha?.latest.id, RUN_ID);
+  // The full run's own case stays as it ran; only the case it never had is added.
+  assertEquals(asha?.cases, [
+    { ...CASE, ranAlone: null },
+    { ...newCase, ranAlone: { runId: alone.id, createdAt: alone.createdAt } },
+  ]);
+  assertEquals(asha?.history.map((one) => one.id), [alone.id, RUN_ID]);
 });
 
 Deno.test('evals route › a target with no golden set gets an empty list', async () => {
