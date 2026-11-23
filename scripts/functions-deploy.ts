@@ -40,7 +40,19 @@ const OPTIONAL_SECRETS = [
   'DASHBOARD_PUBLIC',
   // M9: who gets failure alerts; blank means the owner's number.
   'OPS_ALERT_WHATSAPP_NUMBER',
+  // Step 6 (ADR-0023): Langfuse LLM tracing, off without both keys; REDACT "on" masks names,
+  // phone numbers and amounts. The host goes up as LANGFUSE_HOST (see langfuseHostLine).
+  'LANGFUSE_PUBLIC_KEY',
+  'LANGFUSE_SECRET_KEY',
+  'LANGFUSE_REDACT',
 ] as const;
+
+/** Langfuse's settings page now calls the host LANGFUSE_BASE_URL; older docs say LANGFUSE_HOST.
+ * Either name in .env works; the functions read LANGFUSE_HOST. */
+function langfuseHostLine(): string[] {
+  const host = readEnv('LANGFUSE_HOST') || readEnv('LANGFUSE_BASE_URL');
+  return host ? [`LANGFUSE_HOST=${host}`] : [];
+}
 
 function readEnv(name: string): string {
   return process.env[name]?.trim() ?? '';
@@ -70,7 +82,7 @@ function secretLines(): string[] {
   const optional = OPTIONAL_SECRETS.filter((name) => readEnv(name) !== '').map(
     (name) => `${name}=${readEnv(name)}`,
   );
-  return [...required, ...optional, `RELEASE_VERSION=${releaseVersion()}`];
+  return [...required, ...optional, ...langfuseHostLine(), `RELEASE_VERSION=${releaseVersion()}`];
 }
 
 requireEnv('SUPABASE_ACCESS_TOKEN');

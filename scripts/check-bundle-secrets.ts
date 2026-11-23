@@ -22,6 +22,9 @@ const SECRET_NAMES = [
   'DASHBOARD_LINK_SECRET',
   'MUNSHI_LINK_SECRET',
   'SARVAM_OWNER_TOOL_SECRET',
+  // Step 6 (ADR-0023): the public key is not secret on its own, but has no place in the browser.
+  'LANGFUSE_SECRET_KEY',
+  'LANGFUSE_PUBLIC_KEY',
 ] as const;
 
 /** Must never ship: the dev server's token endpoint and anything that looks like a signed token. */

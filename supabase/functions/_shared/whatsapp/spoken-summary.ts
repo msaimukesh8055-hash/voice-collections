@@ -4,6 +4,7 @@
 // timeout (8 s), bad JSON or any failed check → today's spokenText, which is always correct.
 // Logged as `spoken_summary` with the outcome, reason, time and prompt version, never the text.
 import { z } from 'zod';
+import type { LlmObserver } from '../llm/langfuse.ts';
 import type { Logger } from '../log.ts';
 import { askSarvamChat, extractJson } from '../llm/json-llm.ts';
 import type { Language } from '../schemas/shopkeeper.ts';
@@ -38,6 +39,8 @@ export interface SpokenSummarizerConfig {
   readonly log: Logger;
   /** [0, 1), picks the opening; Math.random in production. */
   readonly random: () => number;
+  /** Step 6: Langfuse tracing; absent when off. */
+  readonly observe?: LlmObserver;
 }
 
 type Outcome = { readonly say: string } | { readonly reason: SpokenCheckReason | 'llm_failed' };

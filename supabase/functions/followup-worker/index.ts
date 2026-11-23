@@ -42,6 +42,7 @@ import { runPromiseCheck } from '../_shared/reminders/promise-check-job.ts';
 import { runNextSimulation, type SimulatorDeps } from '../_shared/simulator/run.ts';
 import { logToConsole } from '../_shared/log.ts';
 import { createOpsEventWriter } from '../_shared/ops/store.ts';
+import { createLlmObserver } from '../_shared/llm/observer.ts';
 import { createTracing } from '../_shared/ops/tracing.ts';
 import { createTranscriptClient } from '../_shared/sarvam-analytics.ts';
 import { createWhatsAppClient } from '../_shared/whatsapp/client.ts';
@@ -79,6 +80,8 @@ const llmConfig: JsonLlmConfig = {
   geminiApiKey: env.GEMINI_API_KEY,
   fetchImpl: fetch,
   log,
+  // Step 6: Langfuse tracing of every LLM call here; undefined (off) without the keys.
+  observe: createLlmObserver(env, { defer, log }),
 };
 
 const book = createSupabaseBookRepository(query);

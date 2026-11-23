@@ -7,8 +7,11 @@
 // Checked against the live APIs on 2026-11-02: sarvam-105b is a reasoning model, and
 // `reasoning_effort: null` turns reasoning off (~0.5 s, clean JSON; with reasoning on it spent
 // 400 tokens thinking and returned nothing). Gemini 2.5 Flash with thinking off: ~1.3 s.
+// 2026-11-23 (step 6, ADR-0023): an optional `observe` hook sees every call (input, output,
+// tokens, timing) after it ends; Langfuse tracing (langfuse.ts) plugs in there. Logs unchanged.
 import { z } from 'zod';
 import { errorName, type Logger } from '../log.ts';
+import type { Generation, LlmObserver } from './langfuse.ts';
 
 export const SARVAM_CHAT_URL = 'https://api.sarvam.ai/v1/chat/completions';
 export const SARVAM_MODEL = 'sarvam-105b';
@@ -27,6 +30,8 @@ export interface JsonLlmConfig {
   readonly geminiApiKey: string;
   readonly fetchImpl: typeof fetch;
   readonly log: Logger;
+  /** LLM tracing (Langfuse); absent when tracing is off. Called after each call ends. */
+  readonly observe?: LlmObserver;
 }
 
 /** What a Sarvam-only caller needs (M7 spoken summary): no Gemini key, so no Gemini call. */
@@ -40,6 +45,8 @@ export interface JsonRequest<T> {
   /** Text → checked value, or null when the answer is unusable (then the next provider). */
   readonly parse: (content: string) => T | null;
   readonly maxTokens?: number;
+  /** The prompt's version, for tracing (e.g. the brain's BRAIN_PROMPT_VERSION). */
+  readonly promptVersion?: string;
 }
 
 export type JsonAnswer<T> =
@@ -52,6 +59,8 @@ interface Prompt {
   readonly system: string;
   readonly message: string;
   readonly maxTokens: number;
+  readonly name: string;
+  readonly promptVersion: string | null;
 }
 
 type Provider = (prompt: Prompt) => Promise<string>;
@@ -144,6 +153,62 @@ export interface ChatRequest {
   readonly tools?: readonly ChatTool[];
   /** Another Sarvam chat model (the model bake-off, 2026-11-23); default sarvam-105b. */
   readonly model?: string;
+  /** For tracing: what asked (a log event name) and the prompt's version. */
+  readonly name?: string;
+  readonly promptVersion?: string;
+}
+
+interface Usage {
+  readonly tokensIn: number;
+  readonly tokensOut: number;
+}
+
+interface CallInfo {
+  readonly provider: LlmProvider;
+  readonly model: string;
+  readonly request: ChatRequest;
+}
+
+interface CallResult {
+  readonly startedAt: Date;
+  readonly output: string | null;
+  readonly error: string | null;
+  readonly usage: Usage | null;
+}
+
+function generationOf(call: CallInfo, result: CallResult): Generation {
+  return {
+    name: call.request.name ?? 'chat',
+    provider: call.provider,
+    model: call.model,
+    promptVersion: call.request.promptVersion ?? null,
+    system: call.request.system,
+    messages: call.request.messages.map((one) => ({ role: one.role, content: one.content })),
+    output: result.output,
+    error: result.error,
+    tokensIn: result.usage?.tokensIn ?? null,
+    tokensOut: result.usage?.tokensOut ?? null,
+    startedAt: result.startedAt,
+    endedAt: new Date(),
+  };
+}
+
+/** Runs one call and shows it to the observer, whether it worked or threw. */
+async function observed(
+  observe: LlmObserver | undefined,
+  call: CallInfo,
+  run: () => Promise<{ readonly text: string; readonly usage: Usage | null }>,
+): Promise<string> {
+  const startedAt = new Date();
+  try {
+    const { text, usage } = await run();
+    observe?.(generationOf(call, { startedAt, output: text, error: null, usage }));
+    return text;
+  } catch (error) {
+    const failure = { startedAt, output: null, error: errorName(error), usage: null };
+    observe?.(generationOf(call, failure));
+    throw error;
+  }
 }
 
 /** One tool as declared to the model: its arguments as a JSON Schema. */
@@ -213,13 +278,17 @@ export async function askSarvamChat(
     ...(request.tools ? { tools: declareTools(request.tools) } : {}),
   };
   const headers = { 'api-subscription-key': config.sarvamApiKey };
-  const reply = SarvamReply.parse(await postJson(config, { url: SARVAM_CHAT_URL, headers, body }));
-  if (reply.usage) {
-    const { prompt_tokens: tokensIn, completion_tokens: tokensOut } = reply.usage;
-    logUsage(config.log, { provider: 'sarvam', model, tokensIn, tokensOut });
-  }
-  const message = reply.choices[0]?.message;
-  return message ? sarvamText(message) : '';
+  return await observed(config.observe, { provider: 'sarvam', model, request }, async () => {
+    const reply = SarvamReply.parse(
+      await postJson(config, { url: SARVAM_CHAT_URL, headers, body }),
+    );
+    const usage = reply.usage
+      ? { tokensIn: reply.usage.prompt_tokens, tokensOut: reply.usage.completion_tokens }
+      : null;
+    if (usage) logUsage(config.log, { provider: 'sarvam', model, ...usage });
+    const message = reply.choices[0]?.message;
+    return { text: message ? sarvamText(message) : '', usage };
+  });
 }
 
 /** As askSarvamChat, on Gemini 2.5 Flash (JSON mode, thinking off). Gemini calls the model's
@@ -240,13 +309,18 @@ export async function askGeminiChat(config: JsonLlmConfig, request: ChatRequest)
   };
   // Key in a header, not the URL, so it can never appear in a logged URL.
   const headers = { 'x-goog-api-key': config.geminiApiKey };
-  const reply = GeminiReply.parse(await postJson(config, { url: GEMINI_URL, headers, body }));
-  if (reply.usageMetadata) {
-    const { promptTokenCount: tokensIn, candidatesTokenCount: tokensOut } = reply.usageMetadata;
-    logUsage(config.log, { provider: 'gemini', model: GEMINI_MODEL, tokensIn, tokensOut });
-  }
-  return reply.candidates.flatMap((candidate) => candidate.content.parts)
-    .map((part) => part.text ?? '').join('');
+  const call: CallInfo = { provider: 'gemini', model: GEMINI_MODEL, request };
+  return await observed(config.observe, call, async () => {
+    const reply = GeminiReply.parse(await postJson(config, { url: GEMINI_URL, headers, body }));
+    const meta = reply.usageMetadata;
+    const usage = meta
+      ? { tokensIn: meta.promptTokenCount, tokensOut: meta.candidatesTokenCount }
+      : null;
+    if (usage) logUsage(config.log, { provider: 'gemini', model: GEMINI_MODEL, ...usage });
+    const text = reply.candidates.flatMap((candidate) => candidate.content.parts)
+      .map((part) => part.text ?? '').join('');
+    return { text, usage };
+  });
 }
 
 function oneMessage(prompt: Prompt): ChatRequest {
@@ -254,6 +328,8 @@ function oneMessage(prompt: Prompt): ChatRequest {
     system: prompt.system,
     messages: [{ role: 'user', content: prompt.message }],
     maxTokens: prompt.maxTokens,
+    name: prompt.name,
+    ...(prompt.promptVersion ? { promptVersion: prompt.promptVersion } : {}),
   };
 }
 
@@ -286,6 +362,8 @@ async function tryProvider<T>(
     system: request.system,
     message: request.message,
     maxTokens: request.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    name: request.event,
+    promptVersion: request.promptVersion ?? null,
   };
   try {
     const value = request.parse(await ask(prompt));

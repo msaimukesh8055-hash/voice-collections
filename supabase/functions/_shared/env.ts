@@ -29,6 +29,15 @@ const OptionalText = z
   .optional()
   .transform((value) => (value ? value : null));
 
+/** Step 6 (ADR-0023): Langfuse LLM tracing. All optional: without both keys tracing is off.
+ * LANGFUSE_REDACT=on masks names, phone numbers and amounts before anything is sent. */
+const LangfuseFields = {
+  LANGFUSE_PUBLIC_KEY: OptionalText,
+  LANGFUSE_SECRET_KEY: OptionalText,
+  LANGFUSE_HOST: OptionalText.pipe(z.url().nullable()),
+  LANGFUSE_REDACT: OptionalText,
+};
+
 /** Optional Munshi link secret: blank means "Munshi is not set up yet" (M8). */
 const OptionalMunshiSecret = OptionalText.pipe(z.string().min(MIN_MUNSHI_SECRET_LENGTH).nullable());
 
@@ -46,6 +55,7 @@ const OwnerToolsEnvSchema = ServerEnvSchema.extend({
 });
 
 const CallsApiEnvSchema = ServerEnvSchema.extend({
+  ...LangfuseFields,
   /** Comma-separated dashboard origins allowed to call the API from a browser. */
   CORS_ALLOWED_ORIGINS: z
     .string()
@@ -99,6 +109,7 @@ const PhoneDigits = z
 const MetaPhoneNumberId = z.string().trim().regex(/^\d+$/);
 
 const WhatsAppEnvSchema = ServerEnvSchema.extend({
+  ...LangfuseFields,
   /** System-user token (M4 Decision 2); sends replies through the Cloud API. */
   META_ACCESS_TOKEN: NonEmpty,
   META_PHONE_NUMBER_ID: MetaPhoneNumberId,

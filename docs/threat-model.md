@@ -33,9 +33,10 @@ Who could attack what, what stops them today, and what does not. One page, writt
 | 6 | A stolen tool secret is used to read dues | It is useless without a live call token (accepted, under 10 minutes old) | Within a live call's window, a holder of both could read that one shopkeeper |
 | 7 | Scripted abuse of the public key to place calls | Rate limit per shopkeeper, attempt limits, daily session cap, the pause switch | The public key can still read the ringing state and start the demo ring |
 | 8 | A leaked dashboard link | Expires in 24 hours; read-only apart from one display setting | Anyone holding it within 24 hours sees the book |
-| 9 | Personal data in logs or traces | Logs and ops events carry ids, codes and timings only, by rule and by test; prompts and answers are never logged | A new log line could break the rule; review catches it, nothing automatic does |
+| 9 | Personal data in logs or traces | Logs and ops events carry ids, codes and timings only, by rule and by test; prompts and answers are never logged (the one exception, opt-in LLM tracing, is threat 12) | A new log line could break the rule; review catches it, nothing automatic does |
 | 10 | A runaway agent or loop spends money | Call length cap, session caps, spend shown against a cap, the pause switch, the failure alert | The spend cap is displayed, not enforced |
 | 11 | Direct database access with the public key | Row-level security is on for every table with no public policies; functions use the service role | A mistake in a future policy would be silent |
+| 12 | Prompts and answers leave our systems for LLM tracing (Langfuse, ADR-0023) | Off unless both Langfuse keys are set; the keys are function secrets only. Sent over HTTPS to one fixed host, after the reply, with a 5 s limit; a failed send is one warning. `LANGFUSE_REDACT=on` masks numbers, JSON name fields and capitalised Latin words, and sends only the system prompt's size | With redact **off** (today, fake data) Langfuse holds every prompt and answer in the EU region for the free plan's retention (30 days when written). Names in Telugu or Hindi script are not masked even with redact on. Langfuse Cloud is outside India, so it cannot hold real borrower data (RBI digital lending: data on servers in India) |
 
 ## What is deliberately open in the demo
 
@@ -54,3 +55,4 @@ Who could attack what, what stops them today, and what does not. One page, writt
 5. Secrets out of a laptop `.env` and into a managed store, with rotation dates.
 6. Retention rules for transcripts, and deletion on request.
 7. An independent security review.
+8. LLM tracing kept in India (self-hosted Langfuse) or `LANGFUSE_REDACT=on` with a script-aware masker, or tracing off.

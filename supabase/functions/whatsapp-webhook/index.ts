@@ -30,6 +30,7 @@ import {
   SIMULATION_NEXT_PATH,
   SWEEP_PATH,
 } from '../_shared/followup/kick.ts';
+import { createLlmObserver } from '../_shared/llm/observer.ts';
 import { handleWebhook, type WebhookDeps } from './handler.ts';
 import { type ProcessDeps, processPayload } from './process.ts';
 
@@ -55,6 +56,8 @@ const tracing = createTracing({
 const log = tracing.log;
 const repo = createSupabaseRepository(query);
 const defer = tracing.defer;
+// Step 6: Langfuse tracing of the brain's and spoken summary's LLM calls; off without the keys.
+const llmObserver = createLlmObserver(env, { defer, log });
 const kickJob = createJobKicker({
   workerUrl: followupWorkerUrl(env.SUPABASE_URL),
   secret: env.WORKER_SECRET,
@@ -86,6 +89,7 @@ const processDeps: ProcessDeps = {
     geminiApiKey: env.GEMINI_API_KEY,
     fetchImpl: fetch,
     log,
+    observe: llmObserver,
   }),
   sender: { ownerNumber: env.OWNER_WHATSAPP_NUMBER, hashKey: env.META_APP_SECRET },
   phoneNumberId: env.META_PHONE_NUMBER_ID,
@@ -134,6 +138,7 @@ const processDeps: ProcessDeps = {
       sarvamApiKey: env.SARVAM_API_KEY,
       fetchImpl: fetch,
       log,
+      observe: llmObserver,
       random: Math.random,
     }),
     speak: createSpeaker({ apiKey: env.SARVAM_API_KEY, fetchImpl: fetch, log }),

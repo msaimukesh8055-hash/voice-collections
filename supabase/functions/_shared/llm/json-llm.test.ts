@@ -6,9 +6,11 @@ import {
   askGeminiChat,
   askSarvamChat,
   type ChatRequest,
+  createJsonLlm,
   type JsonLlmConfig,
   LLM_USAGE_EVENT,
 } from './json-llm.ts';
+import type { Generation } from './langfuse.ts';
 
 interface Captured {
   url: string;
@@ -209,4 +211,47 @@ Deno.test('usage › missing or malformed counts log nothing and never fail the 
   });
   assertEquals(await askGeminiChat(gemini.config, REQUEST), 'hi');
   assertEquals([...sarvam.lines, ...gemini.lines], []);
+});
+
+Deno.test('observe › each call is shown once it ends: input, output, tokens, provider and model', async () => {
+  const reply = {
+    choices: [{ message: { content: '{"ok":true}' } }],
+    usage: { prompt_tokens: 812, completion_tokens: 44 },
+  };
+  const seen: Generation[] = [];
+  const { config: c } = config(reply);
+  const named = { ...REQUEST, name: 'brain_llm', promptVersion: 'v3' };
+  await askSarvamChat({ ...c, observe: (one) => seen.push(one) }, named);
+  assertEquals(seen.length, 1);
+  const [one] = seen;
+  assertEquals(
+    [one?.name, one?.provider, one?.model, one?.promptVersion, one?.output, one?.error],
+    ['brain_llm', 'sarvam', 'sarvam-105b', 'v3', '{"ok":true}', null],
+  );
+  assertEquals([one?.tokensIn, one?.tokensOut, one?.system], [812, 44, 'You are Asha.']);
+  assertEquals(one?.messages.length, 3);
+});
+
+Deno.test('observe › a failed call is shown too, with the error class, and still throws', async () => {
+  const seen: Generation[] = [];
+  const { config: c } = config({ error: 'down' }, 500);
+  await assertRejects(() => askGeminiChat({ ...c, observe: (one) => seen.push(one) }, REQUEST));
+  assertEquals([seen[0]?.provider, seen[0]?.output, seen[0]?.name], ['gemini', null, 'chat']);
+  assertEquals(typeof seen[0]?.error, 'string');
+});
+
+Deno.test('observe › the JSON call names the generation by its event and prompt version', async () => {
+  const seen: Generation[] = [];
+  const reply = { choices: [{ message: { content: '{"a":1}' } }] };
+  const { config: c } = config(reply);
+  const askJson = createJsonLlm({ ...c, observe: (one) => seen.push(one) });
+  await askJson({
+    event: 'brain_llm',
+    system: 's',
+    message: 'Ramesh paid 500',
+    parse: (text) => text,
+    promptVersion: 'v3',
+  });
+  assertEquals([seen[0]?.name, seen[0]?.promptVersion], ['brain_llm', 'v3']);
+  assertEquals(seen[0]?.messages, [{ role: 'user', content: 'Ramesh paid 500' }]);
 });

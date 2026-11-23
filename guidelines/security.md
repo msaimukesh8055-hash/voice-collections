@@ -25,6 +25,7 @@ This project simulates a BFSI system. Even with fake data, treat it like a real 
 - Edge Functions read secrets from Supabase function secrets.
 - Validate required env vars at startup with a Zod schema (`supabase/functions/_shared/env.ts`, one schema per function); fail fast if missing. Bearer secrets are at least 32 characters.
 - If a secret is ever exposed (committed, logged, pasted), **rotate it** immediately.
+- **LLM tracing (Langfuse, ADR-0023)** is the one place prompts and answers leave our systems. It is off unless `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are both set (function secrets only, never `VITE_`). It is hooked once, in `_shared/llm/json-llm.ts`; no other code sends LLM text anywhere. Sends are fire-and-forget with a 5 s limit, and a failed send logs `langfuse_send_failed` with a status or error class only. `LANGFUSE_REDACT=on` masks numbers, JSON name fields and capitalised Latin words and leaves out the system prompt. Off is allowed only while every name and amount is fake; with real data, use redact on with a host in India, or no tracing.
 
 ## Data access
 

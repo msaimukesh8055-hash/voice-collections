@@ -22,6 +22,7 @@ import { createTranslator } from '../_shared/speech/translate.ts';
 import { createToneJudge } from '../_shared/calls/tone-judge.ts';
 import { createSupabaseCallScoreRepository } from '../_shared/db/supabase-call-score-repository.ts';
 import { createSupabaseTestDraftRepository } from '../_shared/db/supabase-test-draft-repository.ts';
+import { createLlmObserver } from '../_shared/llm/observer.ts';
 import type { CallsApiDeps } from './types.ts';
 
 /** Supabase Edge Runtime global: keeps the function alive until background work finishes. */
@@ -82,6 +83,7 @@ const deps: CallsApiDeps = {
         geminiApiKey: env.GEMINI_API_KEY,
         fetchImpl: fetch,
         log,
+        observe: createLlmObserver(env, { defer: tracing.defer, log }),
       })
       : null,
     munshiTranscripts: env.SARVAM_MUNSHI_APP_ID

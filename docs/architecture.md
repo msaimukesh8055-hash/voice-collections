@@ -166,3 +166,4 @@ In step 6, `get_dues` (after identity only) first runs the **promise checker** o
 | [0020](adr/ADR-0020-munshi-confirm-grace-wait.md) | Munshi's confirm survives a tool fired beside it: 1.5 s grace wait, dated after the wait, plain "not saved", payment matches an open claim |
 | [0021](adr/ADR-0021-live-evals-and-agent-health.md) | Live calls scored once and kept, AI tone judge (warns only), live failures → test drafts, eval runners on server time |
 | [0022](adr/ADR-0022-whatsapp-live-checks.md) | WhatsApp messages scored like calls; their text kept 30 days; test calls flagged and left out of Agent health |
+| [0023](adr/ADR-0023-langfuse-llm-tracing.md) | LLM calls traced to Langfuse through one hook in `json-llm.ts`, keyed by our trace id; off without keys; redact switch (off with fake data) |

@@ -3,7 +3,7 @@
 // (`_shared/llm/json-llm.ts`) with the brain prompt and SuggestionSchema. If both providers fail,
 // the caller says "Sorry, I didn't get that" + help.
 import { createJsonLlm, type JsonLlmConfig, type LlmPath } from '../llm/json-llm.ts';
-import { buildBrainPrompt } from './prompt.ts';
+import { BRAIN_PROMPT_VERSION, buildBrainPrompt } from './prompt.ts';
 import { parseSuggestion, type Suggestion } from './suggestion.ts';
 
 export type { LlmPath } from '../llm/json-llm.ts';
@@ -25,6 +25,7 @@ export function createBrainLlm(config: BrainLlmConfig): BrainLlm {
       system: buildBrainPrompt(now),
       message,
       parse: parseSuggestion,
+      promptVersion: BRAIN_PROMPT_VERSION,
     });
     return { suggestion: answer.value, path: answer.path };
   };
