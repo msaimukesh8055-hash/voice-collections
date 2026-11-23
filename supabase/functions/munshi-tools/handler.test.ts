@@ -542,7 +542,8 @@ Deno.test('munshi-tools › an eval call never queues a reminder or kicks a What
     logs.filter((entry) => entry.event === 'eval_side_effect_skipped').map((e) =>
       e.fields['effect']
     ),
-    ['owner_send', 'queue_call'],
+    // The remind's phone-link send (2026-11-23) is skipped too.
+    ['owner_send', 'queue_call', 'owner_send'],
   );
 });
 

@@ -6,6 +6,8 @@
 // replies are built with today's WhatsApp builders (pending + its list, the due alert, one
 // shopkeeper's lookup, insights), so they read exactly like typing the command. The insights
 // chart picture is left out (no upload here); the figures and the dashboard link are the same.
+// A confirmed voice_remind goes through the same job (Saim, 2026-11-23): one message, "📞 Calling
+// X… Answer here: <phone page>", exactly as WhatsApp's Remind says it.
 import { istDate, resolveNow } from '../clock.ts';
 import type { BookRepository, BookShopkeeper, Owner } from '../db/book-repository.ts';
 import type { ReminderRepository } from '../db/reminder-repository.ts';
@@ -20,10 +22,11 @@ import { VOICE_PAYLOADS, type VoicePayload } from '../owner-tools/actions.ts';
 import type { SendWhat } from '../owner-tools/schemas.ts';
 import type { CallStatus } from '../schemas/shopkeeper.ts';
 import type { WhatsAppClient } from '../whatsapp/client.ts';
-import type { Reply } from '../whatsapp/replies.ts';
+import { blocks, type Reply, textIn } from '../whatsapp/replies.ts';
 import { identifySender, type SenderConfig } from '../whatsapp/sender.ts';
 import { dueAlertReplies } from './alert-replies.ts';
 import { loadDueAlert } from './load-alert.ts';
+import { reminderPhrasesFor } from './phrases.ts';
 import { scoreFrom, type ScoreReads } from './score-explain.ts';
 
 export interface OwnerSendDeps {
@@ -40,6 +43,8 @@ export interface OwnerSendDeps {
   /** Signed dashboard links when a dashboard is set up, else null (the line is left out). */
   readonly dashboardLink: () => Promise<string | null>;
   readonly shopkeeperLink: (shopkeeperId: string) => Promise<string | null>;
+  /** The phone page where Asha's live calls ring, when a dashboard is set up, else null. */
+  readonly phonePageLink: string | null;
   readonly clock: () => Date;
   readonly log: Logger;
 }
@@ -161,6 +166,30 @@ async function send(replies: readonly Reply[], deps: OwnerSendDeps): Promise<voi
   }
 }
 
+/** "📞 Calling Lakshmi now… Answer here: <phone page>", as WhatsApp's Remind words it. */
+function remindReply(name: string, owner: Owner, link: string | null): Reply {
+  return textIn(owner.language, (language) => {
+    const phrases = reminderPhrasesFor(language);
+    return blocks(phrases.ringing(name), link ? phrases.answerHere(link) : null);
+  });
+}
+
+async function sendRemindLink(
+  action: NonNullable<Awaited<ReturnType<OwnerSendDeps['actions']['getVoiceAction']>>>,
+  owner: Owner | null,
+  deps: OwnerSendDeps,
+): Promise<OwnerSendOutcome> {
+  const payload = VOICE_PAYLOADS.voice_remind.safeParse(action.data);
+  if (!payload.success) return 'not_a_send';
+  if (!owner || owner.id !== action.ownerId) return 'not_owner';
+  if (!(await deps.actions.transitionVoiceAction(action.id, 'saved', 'done'))) {
+    return 'already_sent';
+  }
+  await send([remindReply(payload.data.name, owner, deps.phonePageLink)], deps);
+  deps.log('info', 'owner_send_sent', { what: 'remind', messages: 1 });
+  return 'sent';
+}
+
 export async function sendOwnerRequest(
   actionId: string,
   deps: OwnerSendDeps,
@@ -171,6 +200,7 @@ export async function sendOwnerRequest(
     deps.repo.getDemoSettings(),
   ]);
   if (!action) return 'not_found';
+  if (action.kind === 'voice_remind') return sendRemindLink(action, owner, deps);
   const payload = VOICE_PAYLOADS.voice_send.safeParse(action.data);
   if (action.kind !== 'voice_send' || !payload.success) return 'not_a_send';
   if (!owner || owner.id !== action.ownerId) return 'not_owner';

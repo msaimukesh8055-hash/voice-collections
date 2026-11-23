@@ -2,7 +2,7 @@
 // The worker's /owner-send job (M8 B5): only a saved voice_send of the owner is sent, exactly
 // once, to the owner's number only, and the replies are exactly what typing the command on
 // WhatsApp gives (runCommand on the same fake book). FAKE DATA ONLY.
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { type BotSetup, botSetup, FAKE_WEB } from '../cards/__fixtures__/bot-context.ts';
 import type { Command } from '../brain/commands.ts';
 import { FAKE_OWNER, RAMESH } from '../db/fake-book-repository.ts';
@@ -67,6 +67,7 @@ function job(action: VoiceAction): Job {
     owner: { ownerNumber: OWNER_NUMBER, hashKey: 'fake-app-secret' },
     dashboardLink: FAKE_WEB.dashboardLink,
     shopkeeperLink: FAKE_WEB.shopkeeperLink,
+    phonePageLink: 'https://example.test/phone',
     clock: () => FAKE_NOW,
     log: () => {},
   };
@@ -179,4 +180,25 @@ Deno.test('owner-send › a failed message-log write does not stop the rest bein
   const expected = await typed({ kind: 'pending' });
   assertEquals(run.sent.length, expected.length);
   assertEquals(logged.filter((event) => event === 'owner_send_log_failed').length, expected.length);
+});
+
+Deno.test('owner-send › a confirmed remind: one message with the phone-page link, once only', async () => {
+  const run = job(sendAction('pending', {
+    kind: 'voice_remind',
+    data: { shopkeeperId: RAMESH.id, name: 'Ramesh' },
+  }));
+
+  const outcome = await sendOwnerRequest(run.action.id, run.deps);
+  const again = await sendOwnerRequest(run.action.id, run.deps);
+
+  assertEquals([outcome, again, run.sent.length, run.statusOf()], [
+    'sent',
+    'already_sent',
+    1,
+    'done',
+  ]);
+  const [first] = run.sent;
+  assert(first && first.reply.kind === 'text');
+  assertStringIncludes(first.reply.text, 'Ramesh');
+  assertStringIncludes(first.reply.text, 'https://example.test/phone');
 });

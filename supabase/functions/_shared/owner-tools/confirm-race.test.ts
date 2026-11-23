@@ -37,7 +37,8 @@ for (const [kind, prepare] of KINDS) {
 
     const codes = outcomes.map((outcome) => outcome.result.ok ? 'ok' : outcome.result.code);
     assertEquals(codes.sort(), ['ALREADY_DONE', 'ok']);
-    assertEquals(context.queued.length + context.kicked.length <= 1, true);
+    // Only the winner acts: at most one call queued and one WhatsApp kick (a remind does both).
+    assertEquals([context.queued.length <= 1, context.kicked.length <= 1], [true, true]);
   });
 }
 

@@ -6,6 +6,8 @@
 // rings /phone only after he hangs up. A blocked call is told in plain words (the same English
 // lines as WhatsApp's) and nothing is queued.
 // Rounds: prepare ① name + ref ② store; confirm ② claim ③ queueCall (its own reads).
+// Once queued, the owner also gets the phone-page link on WhatsApp (Saim, 2026-11-23), the same
+// "📞 Calling X… Answer here: <link>" that WhatsApp's Remind sends, through the owner-send job.
 import { reminderPhrasesFor } from '../reminders/phrases.ts';
 import {
   done,
@@ -40,7 +42,7 @@ export async function prepareRemind(
 }
 
 export async function executeRemind(
-  { payload, ctx, claim }: ExecuteInput<VoicePayload<'voice_remind'>>,
+  { payload, action, ctx, claim }: ExecuteInput<VoicePayload<'voice_remind'>>,
 ): Promise<Executed> {
   if (!(await claim())) return LOST;
   const result = await ctx.writes.queueCall(payload.shopkeeperId);
@@ -48,6 +50,7 @@ export async function executeRemind(
     const reason = reminderPhrasesFor('en').blocked(result.code, payload.name);
     return refused(ownerFail('CALL_BLOCKED', `${reason} Tell him that simply.`));
   }
+  ctx.writes.kickOwnerSend(action.id);
   const say = result.alreadyQueued
     ? `Asha is already set to call ${payload.name}; she rings right after this call ends.`
     : `Done: Asha will call ${payload.name} right after this call ends. Tell him that.`;

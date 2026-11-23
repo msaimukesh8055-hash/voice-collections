@@ -4,6 +4,7 @@
 import {
   callLink,
   dashboardLink,
+  phonePageLink,
   shopkeeperLink,
   traceLink,
 } from '../_shared/auth/dashboard-link.ts';
@@ -157,6 +158,7 @@ const ownerSendDeps = {
     linkBase
       ? shopkeeperLink(linkBase.url, linkBase.secret, { shopkeeperId, now: new Date() })
       : Promise.resolve(null),
+  phonePageLink: linkBase ? phonePageLink(linkBase.url) : null,
 };
 
 // M9: the failure alert. Its own send failures are warnings, so an alert that WhatsApp refuses

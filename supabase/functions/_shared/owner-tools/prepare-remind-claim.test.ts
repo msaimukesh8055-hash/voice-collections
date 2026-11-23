@@ -71,6 +71,7 @@ Deno.test('confirm remind › one live call queued for him; says Asha calls afte
   assert(result.ok);
   assertEquals(context.queued, [RAMESH.id]);
   assertStringIncludes(result.say, 'Asha will call Ramesh right after this call ends.');
+  assertEquals(context.kicked.length, 1, 'the phone link goes out on WhatsApp');
 });
 
 Deno.test('confirm remind › a call already waiting is not stacked', async () => {
