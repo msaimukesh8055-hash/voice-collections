@@ -36,6 +36,16 @@ const RunSchema = z.object({
   metrics: MetricsSchema,
   createdAt: z.string(),
 });
+/** What the WhatsApp brain answered (stored from 2026-11-23; older runs keep only the kind). */
+const GotSchema = z
+  .object({
+    kind: z.string().nullable().catch(null),
+    name: z.string().nullable().catch(null),
+    amount: z.number().nullable().catch(null),
+  })
+  .nullable()
+  .catch(null)
+  .default(null);
 const CaseSchema = z.object({
   scenarioId: z.string(),
   scores: z.object({
@@ -43,6 +53,7 @@ const CaseSchema = z.object({
     category: z.string().catch(''),
     verdicts: z.array(VerdictSchema).catch([]),
     checks: z.array(CheckSchema).catch([]),
+    got: GotSchema,
   }),
   transcript: z.string(),
   pass: z.boolean(),
@@ -88,6 +99,34 @@ const CaseHistorySchema = z.object({
   cases: z.array(HistoryCaseSchema),
 });
 
+/** Golden outcomes (2026-11-23): what each case expects, from the case definitions in evals/
+ * (supabase/functions/_shared/evals/golden.ts). */
+const GoldenRowSchema = z.object({
+  source: z.enum(['check', 'verdict']),
+  key: z.string(),
+  label: z.string(),
+  expected: z.string(),
+  checkedBy: z.enum(['code', 'judge']),
+  blocker: z.boolean(),
+});
+const GoldenCaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  outcome: z.string(),
+  test: z.string(),
+  meaning: z.string().nullable(),
+  rows: z.array(GoldenRowSchema),
+  command: z
+    .object({
+      kind: z.string().nullable(),
+      name: z.string().nullable(),
+      amount: z.number().nullable(),
+      readsAllowed: z.boolean(),
+    })
+    .nullable(),
+  money: z.boolean(),
+});
+
 export const EvalsSchema = z.object({
   targets: z.array(
     z.object({
@@ -96,6 +135,7 @@ export const EvalsSchema = z.object({
       cases: z.array(CaseSchema),
       history: z.array(RunSchema),
       caseHistory: CaseHistorySchema.default({ runs: [], cases: [] }),
+      golden: z.array(GoldenCaseSchema).catch([]).default([]),
     }),
   ),
   generatedAt: z.string(),
@@ -111,3 +151,5 @@ export type EvalCase = EvalTarget['cases'][number];
 export type CaseHistory = EvalTarget['caseHistory'];
 export type HistoryRun = CaseHistory['runs'][number];
 export type HistoryCase = CaseHistory['cases'][number];
+export type GoldenCase = EvalTarget['golden'][number];
+export type GoldenRow = GoldenCase['rows'][number];

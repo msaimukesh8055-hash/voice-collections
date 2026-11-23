@@ -6,8 +6,12 @@
 //   the recent runs, what changed before each run, which cases a run fixed), and
 //   GET /v1/dashboard/evals/runs/:runId/cases/:caseId gives one case of an older run with its
 //   conversation, for the before / after view.
+//   2026-11-23 (golden outcomes): each target also carries what every case expects (golden-cases.ts,
+//   generated from evals/), so the page can show expected vs this run row by row.
 // The page shows what the runners stored; nothing is re-judged here.
 import type { EvalCaseResult, EvalRun } from '../_shared/db/eval-reads.ts';
+import type { GoldenCase, GoldenTarget } from '../_shared/evals/golden.ts';
+import { GOLDEN } from '../_shared/evals/golden-cases.ts';
 import { type CaseHistory, caseHistory, type HistoryRunInput } from '../_shared/evals/history.ts';
 import { jsonResponse } from '../_shared/http.ts';
 import { openInDemo } from './dashboard-routes.ts';
@@ -24,6 +28,12 @@ export interface EvalTarget {
   /** Newest first, the latest run included. */
   readonly history: readonly EvalRun[];
   readonly caseHistory: CaseHistory;
+  /** What each case expects; empty for a target with no golden set. */
+  readonly golden: readonly GoldenCase[];
+}
+
+function goldenOf(target: string): readonly GoldenCase[] {
+  return Object.hasOwn(GOLDEN, target) ? GOLDEN[target as GoldenTarget] : [];
 }
 
 function historyRun(run: EvalRun): HistoryRunInput {
@@ -62,6 +72,7 @@ async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Re
         cases,
         history,
         caseHistory: caseHistory(history.map(historyRun), outcomes, target),
+        golden: goldenOf(target),
       };
     }),
   );

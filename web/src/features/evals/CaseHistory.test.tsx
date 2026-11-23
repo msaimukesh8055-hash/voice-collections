@@ -1,17 +1,20 @@
 // web/src/features/evals/CaseHistory.test.tsx
-// "How it got fixed" (2026-11-22): each case across runs, what changed before each run, a cell
-// opening that run's conversation, and before / after for a case that was fixed.
+// The prompt-version table (2026-11-22, folded in 2026-11-23): each case across runs with each
+// run's prompt version and what changed, a cell opening that run's conversation, and before /
+// after (with the fix note, prompt lines and the run's note) for a case that was fixed.
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { EVALS, fakeDashboard } from '../../test/dashboardFakes.ts';
 import { brokeThenFixed, storyOf } from './CaseHistory.tsx';
 import { EvalsPage } from './EvalsPage.tsx';
 
-describe('How it got fixed', () => {
+describe('Prompt versions, case by case', () => {
   it('shows every run with what changed, and every case across the runs', async () => {
     render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
-    expect(await screen.findByText('How it got fixed')).toBeInTheDocument();
+    expect(await screen.findByText('Prompt versions, case by case')).toBeInTheDocument();
+    expect(screen.queryByText('How it got fixed')).toBeNull();
     expect(screen.getByText('Prompt changed')).toBeInTheDocument();
-    expect(screen.getByText('Prompt v7: read a promise back in a full sentence.')).toBeVisible();
+    // The run's note now lives in the before / after panel only.
+    expect(screen.queryByText('Prompt v7: read a promise back in a full sentence.')).toBeNull();
     expect(screen.getByText(/1 case\(s\) failed before and pass now/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /asha-02 failed on/ })).toHaveTextContent('✗');
     expect(screen.getAllByText('prompt v7')[0]).toBeInTheDocument();
@@ -47,7 +50,7 @@ describe('How it got fixed', () => {
   it('a cell opens that run’s conversation', async () => {
     render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
     fireEvent.click(await screen.findByRole('button', { name: /asha-02 failed on/ }));
-    expect(await screen.findByText('assistant: OK, bye')).toBeInTheDocument();
+    expect(await screen.findByText('OK, bye')).toBeInTheDocument();
   });
 
   it('before / after shows the failing and the passing conversation with what changed', async () => {
@@ -66,8 +69,8 @@ describe('How it got fixed', () => {
     expect(
       within(compare).getByText('+ Read the promise back in a full sentence.'),
     ).toBeInTheDocument();
-    expect(await within(compare).findByText('assistant: OK, bye')).toBeInTheDocument();
-    expect(await within(compare).findByText('assistant: So 2,000 by Monday?')).toBeInTheDocument();
+    expect(await within(compare).findByText('OK, bye')).toBeInTheDocument();
+    expect(await within(compare).findByText('So 2,000 by Monday?')).toBeInTheDocument();
     expect(within(compare).getByText(/Reads the promise back: Not read back/)).toBeInTheDocument();
   });
 });

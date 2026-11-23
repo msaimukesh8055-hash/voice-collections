@@ -4,6 +4,10 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 
 ---
 
+**2026-11-23 · Evals page: golden outcomes visible (interview step 1) · 🔨 Built (not committed)**
+Each case now shows its **expected outcome**; opening one shows the simulated caller's script, an **Expected vs this run** table (checked by code or AI judge, 🔒 release blocker, ✓/✗ with the reason) and the conversation with "Asha"/"Munshi" and "Simulated caller". The brain shows expected vs got for command, name and amount. "How it got fixed" is folded into the prompt-version table's Before / after panel.
+Golden outcomes are generated from `evals/` into `_shared/evals/golden-cases.ts` (`npm run evals:golden`); a test fails if they drift. Saved runs only, nothing re-run · ₹0 Sarvam
+
 **2026-11-23 · Agent reply time measured on real calls · ✅ Done**
 Every Asha and Munshi call since 20 Nov timed 0 replies: the page waited for Sarvam's "person stopped speaking" event, which never arrives. The first fix (`b6f8661`) fell back to the mic but switched itself off once any other Sarvam speech event arrived, so the two calls after it still timed nothing. Now the mic is used whenever no "stopped speaking" arrived for that turn (quieter speech counts too), and each call saves which signals the page got, so a call that times nothing shows why. Past calls cannot be backfilled · ₹0 Sarvam
 First real calls on it (10:11 and 10:13): 6 replies each, but typical 0.02 s and 0.5 s, impossible for speech → AI → voice; Sarvam sent 0 "stopped speaking" and 10–11 "interrupted". Gaps under 0.3 s are now left out (counted as too fast) and each call keeps its full list of reply times · ✅ Done

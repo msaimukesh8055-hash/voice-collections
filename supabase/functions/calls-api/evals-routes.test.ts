@@ -72,15 +72,25 @@ Deno.test('evals route › each target: its latest run with cases, and its runs 
   const evals = { runs: [latest, brain, older], results: { [RUN_ID]: [CASE] } };
   const { status, body } = await get(deps(evals));
   assertEquals(status, 200);
-  const targets = (body.targets as Array<Record<string, unknown>>).map((one) => {
-    const { caseHistory: _shown, ...rest } = one;
+  const all = body.targets as Array<Record<string, unknown>>;
+  const targets = all.map((one) => {
+    const { caseHistory: _shown, golden: _expected, ...rest } = one;
     return rest;
   });
+  // Each target carries its golden outcomes (generated from evals/).
+  const golden = all.map((one) => (one.golden as Array<{ id: string }>).map((it) => it.id));
+  assertEquals(golden[0]?.[0], 'asha-01');
+  assertEquals(golden[1]?.includes('brain-21'), true);
   assertEquals(targets, [
     { target: 'asha', latest, cases: [CASE], history: [latest, older] },
     { target: 'brain', latest: brain, cases: [], history: [brain] },
   ]);
   assertEquals(body.generatedAt, FAKE_NOW.toISOString());
+});
+
+Deno.test('evals route › a target with no golden set gets an empty list', async () => {
+  const { body } = await get(deps({ runs: [run('other', 30)], results: {} }));
+  assertEquals((body.targets as Array<{ golden: unknown[] }>)[0]?.golden, []);
 });
 
 Deno.test('evals route › the trend is capped; nothing stored yet is an empty list, not an error', async () => {

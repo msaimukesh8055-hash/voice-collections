@@ -23,6 +23,9 @@ export interface BrainResult {
   readonly path: string;
   /** The command kind the brain gave, or "none". */
   readonly got: string;
+  /** The name and amount on that command, when it has them (shown as expected vs got). */
+  readonly gotName: string | null;
+  readonly gotAmount: number | null;
   readonly passed: boolean;
   /** Empty when passed; otherwise what was wrong. */
   readonly detail: string;
@@ -68,12 +71,16 @@ function problemWith(evalCase: BrainCase, command: Command | null): string | nul
 
 export function checkAnswer(evalCase: BrainCase, answer: BrainAnswer): BrainResult {
   const problem = problemWith(evalCase, answer.command);
+  const name = answer.command ? field(answer.command, 'name') : null;
+  const amount = answer.command ? field(answer.command, 'amount') : null;
   return {
     id: evalCase.id,
     text: evalCase.text,
     money: evalCase.money,
     path: answer.path,
     got: answer.command?.kind ?? 'none',
+    gotName: typeof name === 'string' ? name : null,
+    gotAmount: typeof amount === 'number' ? amount : null,
     passed: problem === null,
     detail: problem ?? '',
   };

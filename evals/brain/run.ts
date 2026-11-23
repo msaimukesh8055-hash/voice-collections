@@ -79,6 +79,12 @@ async function store(results: readonly BrainResult[], now: Date): Promise<string
           },
         ],
         path: result.path,
+        // What the brain answered, so the Evals page shows expected vs got (2026-11-23).
+        got: {
+          kind: result.got === 'none' ? null : result.got,
+          name: result.gotName,
+          amount: result.gotAmount,
+        },
       },
       transcript: `owner: ${result.text}\nbrain (${result.path}): ${result.got}`,
       pass: result.passed,

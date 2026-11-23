@@ -14,7 +14,7 @@ import {
   type ShopkeeperDetail,
   type ShopkeeperList,
 } from '../lib/dashboardApi.ts';
-import type { EvalRun, Evals } from '../lib/evalsSchemas.ts';
+import type { EvalRun, Evals, GoldenCase } from '../lib/evalsSchemas.ts';
 import type { OpsSummary, Trace } from '../lib/opsSchemas.ts';
 
 export const RAMESH = {
@@ -322,6 +322,61 @@ const ASHA_HISTORY: Evals['targets'][number]['caseHistory'] = {
   ],
 };
 
+const ASHA_08_GOLDEN: GoldenCase = {
+  id: 'asha-08',
+  name: 'Angry, asks to stop calling',
+  outcome: 'Owner call back, nothing logged',
+  test: 'You are Ravi. Say angrily that they must stop calling you.',
+  meaning: null,
+  rows: [
+    {
+      source: 'check',
+      key: 'must_call',
+      label: 'Must call',
+      expected: 'confirm_identity, request_owner_callback',
+      checkedBy: 'code',
+      blocker: false,
+    },
+    {
+      source: 'check',
+      key: 'promises_saved',
+      label: 'Promises saved',
+      expected: 'No promises',
+      checkedBy: 'code',
+      blocker: true,
+    },
+    {
+      source: 'check',
+      key: 'short_turns',
+      label: 'Short turns',
+      expected: 'No Asha turn over 180 characters',
+      checkedBy: 'code',
+      blocker: false,
+    },
+    {
+      source: 'verdict',
+      key: 'Hands over to the owner',
+      label: 'Hands over to the owner',
+      expected: 'The agent says the owner will call back.',
+      checkedBy: 'judge',
+      blocker: false,
+    },
+  ],
+  command: null,
+  money: false,
+};
+
+const BRAIN_10_GOLDEN: GoldenCase = {
+  id: 'brain-10',
+  name: 'Praveen gave me 1,000 rupees yesterday',
+  outcome: 'Mark paid · Praveen · ₹1,000',
+  test: 'Praveen gave me 1,000 rupees yesterday',
+  meaning: null,
+  rows: [],
+  command: { kind: 'mark_paid', name: 'praveen', amount: 1000, readsAllowed: false },
+  money: true,
+};
+
 export const EVALS: Evals = {
   generatedAt: '2026-11-11T16:45:00.000Z',
   targets: [
@@ -338,6 +393,7 @@ export const EVALS: Evals = {
             category: 'promise',
             verdicts: [{ name: 'States the dues', passed: true, reasoning: 'Said it.' }],
             checks: [{ id: 'identity_first', critical: true, passed: true, detail: '' }],
+            got: null,
           },
           transcript: 'assistant: Namaste',
           pass: true,
@@ -361,19 +417,43 @@ export const EVALS: Evals = {
                 passed: false,
                 detail: 'not called: request_owner_callback',
               },
+              { id: 'promises_saved', critical: true, passed: true, detail: '' },
             ],
+            got: null,
           },
-          transcript: 'assistant: Namaste',
+          transcript: 'assistant: Namaste\nuser: Stop calling me',
           pass: false,
         },
       ],
+      golden: [ASHA_08_GOLDEN],
     },
     {
       target: 'brain',
       latest: BRAIN_LATEST,
       history: [BRAIN_LATEST],
-      cases: [],
+      cases: [
+        {
+          scenarioId: 'brain-10',
+          scores: {
+            name: 'Praveen gave me 1,000 rupees yesterday',
+            category: 'money',
+            verdicts: [],
+            checks: [
+              {
+                id: 'understood_as_mark_paid',
+                critical: true,
+                passed: false,
+                detail: 'expected amount 1000, got 10000',
+              },
+            ],
+            got: null,
+          },
+          transcript: 'owner: Praveen gave me 1,000 rupees yesterday\nbrain (sarvam): mark_paid',
+          pass: false,
+        },
+      ],
       caseHistory: { runs: [], cases: [] },
+      golden: [BRAIN_10_GOLDEN],
     },
   ],
 };
@@ -624,6 +704,7 @@ function fakeEvalCase(runId: string, caseId: string): EvalCaseReply {
         ? [{ name: 'Reads the promise back', passed: false, reasoning: 'Not read back.' }]
         : [],
       checks: [],
+      got: null,
     },
     transcript: before ? 'assistant: OK, bye' : 'assistant: So 2,000 by Monday?',
     pass: !before,

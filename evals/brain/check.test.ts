@@ -60,6 +60,11 @@ describe('marking one answer', () => {
     expect(mark('brain-07', PAID)).toMatchObject({ passed: true, got: 'mark_paid', detail: '' });
   });
 
+  it('keeps the name and amount the brain gave, for expected vs got', () => {
+    expect(mark('brain-07', PAID)).toMatchObject({ gotName: 'Suresh', gotAmount: 3000 });
+    expect(mark('brain-07', null)).toMatchObject({ got: 'none', gotName: null, gotAmount: null });
+  });
+
   it('wrong amount, wrong name, wrong kind or nothing → fail, saying which', () => {
     expect(mark('brain-07', { ...PAID, amount: 30000 }).detail).toBe(
       'expected amount 3000, got 30000',

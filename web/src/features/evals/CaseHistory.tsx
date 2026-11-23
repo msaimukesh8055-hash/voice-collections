@@ -3,6 +3,9 @@
 // a "what changed" line for each run, and for a case that failed and now passes, a before / after
 // view: the last failing conversation, what changed, and the passing one. Whether the prompt
 // changed comes from the prompt hash; the note is written per run (run-notes.ts).
+// 2026-11-23: shown as the prompt-version table (one column per run, its prompt version on top).
+// The separate "How it got fixed" list is gone: what changed, the fix note, the prompt lines and
+// the case's story live in the Before / after panel opened from the Fixed column.
 import { useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type {
@@ -15,6 +18,7 @@ import { dateTime } from '../dashboard/format.ts';
 import { LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { TONE_CLASSES } from '../ops/opsFormat.ts';
+import { Transcript } from './CaseDetail.tsx';
 
 const CHANGE_LABELS: Readonly<Record<HistoryRun['change'], string>> = {
   first: 'First run',
@@ -34,12 +38,6 @@ type Opened =
 
 function shortRun(run: HistoryRun): string {
   return dateTime(run.createdAt);
-}
-
-/** "prompt v9 · released": our prompt name, and whether a version that was tried went live. */
-function versionOf(run: HistoryRun): string {
-  const name = run.promptName ? `prompt ${run.promptName}` : '';
-  return [name, run.release ?? ''].filter(Boolean).join(' · ');
 }
 
 /** "Broke on prompt v7, fixed on prompt v8 (Prompt changed)." or, on one prompt,
@@ -88,17 +86,21 @@ function failures(evalCase: EvalCase): readonly string[] {
   return [...judged, ...checked];
 }
 
+interface ConversationProps {
+  readonly dashboard: Pick<DashboardApi, 'evalCase'>;
+  readonly runId: string;
+  readonly caseId: string;
+  readonly title: string;
+  readonly agent: string;
+}
+
 function Conversation({
   dashboard,
   runId,
   caseId,
   title,
-}: {
-  readonly dashboard: Pick<DashboardApi, 'evalCase'>;
-  readonly runId: string;
-  readonly caseId: string;
-  readonly title: string;
-}): React.JSX.Element {
+  agent,
+}: ConversationProps): React.JSX.Element {
   const state = useLoad(() => dashboard.evalCase(runId, caseId), `eval-case:${runId}:${caseId}`);
   return (
     <div className="min-w-0 flex-1 rounded-xl bg-canvas p-3 ring-1 ring-border">
@@ -118,34 +120,12 @@ function Conversation({
                   ))}
                 </ul>
               ) : null}
-              <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-brand-soft p-2 text-xs text-ink">
-                {evalCase.transcript}
-              </pre>
+              <Transcript transcript={evalCase.transcript} agent={agent} />
             </>
           );
         }}
       </LoadState>
     </div>
-  );
-}
-
-function ChangeLine({ run }: { readonly run: HistoryRun }): React.JSX.Element {
-  return (
-    <li className="text-sm">
-      <span className="font-medium">{shortRun(run)}</span>
-      {versionOf(run) ? <span className="ml-2 text-xs">{versionOf(run)}</span> : null}
-      <span
-        className={`ml-2 rounded-full px-2 py-0.5 text-xs ring-1 ring-border ${
-          run.change === 'prompt' ? 'bg-brand-soft text-brand' : 'text-ink-muted'
-        }`}
-      >
-        {CHANGE_LABELS[run.change]}
-      </span>
-      <span className={`ml-2 text-xs ${TONE_CLASSES[run.passed ? 'good' : 'bad']}`}>
-        {run.casesPassed}/{run.cases} · {run.passed ? 'passed' : 'failed'}
-      </span>
-      {run.note ? <span className="block text-ink-muted">{run.note}</span> : null}
-    </li>
   );
 }
 
@@ -191,6 +171,10 @@ function FixSummary({
       <p className="mt-1 text-sm">
         {fixLine(before, after, brokeThenFixed(history.runs, evalCase))}
       </p>
+      <p className="mt-1 text-xs text-ink-muted">
+        Before: {shortRun(before)}, {before.casesPassed}/{before.cases} cases. After:{' '}
+        {shortRun(after)}, {after.casesPassed}/{after.cases} cases.
+      </p>
       {evalCase.fixNote ? (
         <p className="mt-1 text-sm">
           <span className="font-medium">What fixed it: </span>
@@ -210,10 +194,12 @@ function BeforeAfter({
   dashboard,
   history,
   evalCase,
+  agent,
 }: {
   readonly dashboard: Pick<DashboardApi, 'evalCase'>;
   readonly history: History;
   readonly evalCase: HistoryCase;
+  readonly agent: string;
 }): React.JSX.Element | null {
   const before = history.runs.find((run) => run.id === evalCase.lastFailedIn);
   const after = history.runs.find((run) => run.id === evalCase.fixedIn);
@@ -232,13 +218,15 @@ function BeforeAfter({
           dashboard={dashboard}
           runId={before.id}
           caseId={evalCase.scenarioId}
-          title={`Before · ${shortRun(before)}`}
+          title={`Before · ${stepName(before)} · ${shortRun(before)}`}
+          agent={agent}
         />
         <Conversation
           dashboard={dashboard}
           runId={after.id}
           caseId={evalCase.scenarioId}
-          title={`After · ${shortRun(after)}`}
+          title={`After · ${stepName(after)} · ${shortRun(after)}`}
+          agent={agent}
         />
       </div>
     </section>
@@ -323,16 +311,18 @@ function Opened({
   dashboard,
   history,
   opened,
+  agent,
 }: {
   readonly dashboard: Pick<DashboardApi, 'evalCase'>;
   readonly history: History;
   readonly opened: Opened;
+  readonly agent: string;
 }): React.JSX.Element | null {
   if (opened.kind === 'none') return null;
   if (opened.kind === 'compare') {
     const evalCase = history.cases.find((one) => one.scenarioId === opened.caseId);
     return evalCase ? (
-      <BeforeAfter dashboard={dashboard} history={history} evalCase={evalCase} />
+      <BeforeAfter dashboard={dashboard} history={history} evalCase={evalCase} agent={agent} />
     ) : null;
   }
   const run = history.runs.find((one) => one.id === opened.runId);
@@ -343,7 +333,8 @@ function Opened({
         dashboard={dashboard}
         runId={run.id}
         caseId={opened.caseId}
-        title={`${opened.caseId} · ${shortRun(run)}`}
+        title={`${opened.caseId} · ${stepName(run)} · ${shortRun(run)}`}
+        agent={agent}
       />
     </div>
   );
@@ -356,11 +347,15 @@ function HeadRow({ runs }: { readonly runs: readonly HistoryRun[] }): React.JSX.
         <th className={HEAD}>Case</th>
         {runs.map((run) => (
           <th key={run.id} className={`${HEAD} text-center`}>
-            {shortRun(run)}
-            <span className="block font-normal">{versionOf(run)}</span>
+            <span className="block text-ink">
+              {run.promptName ? `prompt ${run.promptName}` : '—'}
+            </span>
+            <span className="block font-normal">{shortRun(run)}</span>
+            {run.release ? <span className="block font-normal">{run.release}</span> : null}
+            <span className="block font-normal">{CHANGE_LABELS[run.change]}</span>
           </th>
         ))}
-        <th className={HEAD}>Fixed?</th>
+        <th className={HEAD}>Fixed? (before / after)</th>
       </tr>
     </thead>
   );
@@ -369,25 +364,22 @@ function HeadRow({ runs }: { readonly runs: readonly HistoryRun[] }): React.JSX.
 export function CaseHistory({
   dashboard,
   history,
+  agent,
 }: {
   readonly dashboard: Pick<DashboardApi, 'evalCase'>;
   readonly history: History;
+  readonly agent: string;
 }): React.JSX.Element | null {
   const [opened, setOpened] = useState<Opened>({ kind: 'none' });
   if (history.runs.length < 2) return null;
   const fixed = history.cases.filter((one) => one.fixedIn !== null).length;
   return (
     <section className="mt-4">
-      <h3 className="text-sm font-semibold">How it got fixed</h3>
+      <h3 className="text-sm font-semibold">Prompt versions, case by case</h3>
       <p className="text-xs text-ink-muted">
         Each case across the recent runs, oldest on the left. {fixed} case(s) failed before and pass
-        now. Click ✓ or ✗ for that conversation, or &quot;before / after&quot; to compare.
+        now. Click ✓ or ✗ for that conversation, or &quot;before / after&quot; for what fixed it.
       </p>
-      <ol className="mt-2 flex flex-col gap-2">
-        {history.runs.map((run) => (
-          <ChangeLine key={run.id} run={run} />
-        ))}
-      </ol>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <HeadRow runs={history.runs} />
@@ -403,7 +395,7 @@ export function CaseHistory({
           </tbody>
         </table>
       </div>
-      <Opened dashboard={dashboard} history={history} opened={opened} />
+      <Opened dashboard={dashboard} history={history} opened={opened} agent={agent} />
     </section>
   );
 }

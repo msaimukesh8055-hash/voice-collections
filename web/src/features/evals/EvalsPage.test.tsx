@@ -1,5 +1,5 @@
 // web/src/features/evals/EvalsPage.test.tsx
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { EVALS, fakeDashboard } from '../../test/dashboardFakes.ts';
 import { EvalsPage } from './EvalsPage.tsx';
 
@@ -27,15 +27,48 @@ describe('EvalsPage', () => {
     expect(brain.getByText('21 of 21 cases passed · 0 money cases wrong')).toBeInTheDocument();
   });
 
-  it('lists the latest run case by case, with the reason for each failure and the conversation', async () => {
+  it('lists the latest run case by case with its expected outcome', async () => {
     render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
     const row = (await screen.findByText('asha-08')).closest('tr');
     expect(row).toHaveTextContent('Angry, asks to stop calling');
+    expect(row).toHaveTextContent('Owner call back, nothing logged');
     expect(row).toHaveTextContent('Fail');
-    expect(row).toHaveTextContent('Hands over to the owner: The agent did not offer a callback.');
-    expect(row).toHaveTextContent('must_call: not called: request_owner_callback');
-    expect(row).toHaveTextContent('assistant: Namaste');
     expect(screen.getAllByText('asha-01')[0]?.closest('tr')).toHaveTextContent('Pass');
+    expect(screen.queryByText('The test: the simulated caller’s script')).toBeNull();
+  });
+
+  it('opening a case shows the test, expected vs this run, then the conversation', async () => {
+    render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Angry, asks to stop calling' }));
+    const test = screen.getByRole('region', { name: 'The test' });
+    expect(test).toHaveTextContent('Say angrily that they must stop calling you.');
+    const table = within(screen.getByRole('region', { name: 'Expected vs this run' }));
+    const rows = table.getAllByRole('row').map((one) => one.textContent);
+    expect(rows[1]).toMatch(/Must call.*Code—✗not called: request_owner_callback/);
+    expect(rows[2]).toMatch(/Promises saved.*Code🔒✓/);
+    expect(rows[3]).toMatch(/Short turns.*Not checked in this run/);
+    expect(rows[4]).toMatch(
+      /Hands over to the owner.*AI judge.*The agent did not offer a callback/,
+    );
+    const talk = screen.getByRole('region', { name: 'The conversation' });
+    expect(talk).toHaveTextContent('Asha: Namaste');
+    expect(talk).toHaveTextContent('Simulated caller: Stop calling me');
+    expect(talk).not.toHaveTextContent('assistant:');
+  });
+
+  it('a brain case shows expected vs got for the command, name and amount', async () => {
+    render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Praveen gave me 1,000 rupees yesterday' }),
+    );
+    const table = within(screen.getByRole('region', { name: 'Expected vs this run' }));
+    const rows = table.getAllByRole('row').map((one) => one.textContent);
+    expect(rows[1]).toBe('Commandmark_paidmark_paidCode🔒✓');
+    expect(rows[2]).toBe('NamepraveenpraveenCode🔒✓');
+    expect(rows[3]).toBe('Amount100010000Code🔒✗');
+    expect(screen.getByRole('region', { name: 'The conversation' })).toHaveTextContent(
+      'Brain (answered by sarvam): mark_paid',
+    );
   });
 
   it('shows the recent runs as a trend, newest first', async () => {
