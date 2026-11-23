@@ -8,7 +8,9 @@
 // ran either. The SDK reports the mic level only while the agent is not speaking, and the mic has
 // echo cancellation on, so the agent's own voice does not count as the person speaking.
 // The page also counts which signals it got (signals()), saved with the call, so a call that
-// times nothing shows why.
+// times nothing shows why. The first calls with the mic (23 Nov) showed Sarvam sends only
+// "interrupted" (10-11 per call) and timed some replies at 0.02 s: the agent carrying on after a
+// pause, not answering. A gap under MIN_REPLY_MS is not counted as a reply (counted as tooFast).
 import { HOLD_MS } from './micLevel.ts';
 
 /** Sarvam's speech events for the person on the page (SDK ServerMsgType values). */
@@ -23,6 +25,9 @@ export const MAX_REPLY_TIMES = 100;
 export const REPLY_SPEECH_RMS = 0.015;
 /** A sound shorter than this is a click or a cough, not something the agent replies to. */
 export const MIN_SPEECH_MS = 250;
+/** No agent answers this fast (speech to text, the model and text to speech take longer); a
+ * shorter gap is the agent carrying on after a pause, not a reply (23 Nov: 0.02 s "replies"). */
+export const MIN_REPLY_MS = 300;
 /** A longer silence means the agent spoke up on its own after a pause, not a reply. */
 export const MAX_REPLY_WAIT_MS = 15_000;
 
@@ -35,6 +40,8 @@ export interface SpeechSignals {
   readonly micSpeech: number;
   /** The loudest mic level heard (0..1 RMS, 3 decimals); 0 means the mic level never arrived. */
   readonly micPeak: number;
+  /** Gaps under MIN_REPLY_MS, left out of the reply times. */
+  readonly tooFast: number;
 }
 
 export interface ReplyTimer {
@@ -68,7 +75,7 @@ function micSpeechEnd(heard: Heard, at: number): number | null {
 export function createReplyTimer(now: () => number): ReplyTimer {
   const times: number[] = [];
   const heard: Heard = { startedAt: null, lastLoudAt: null };
-  const counts = { speechStart: 0, speechEnd: 0, interrupt: 0, micSpeech: 0 };
+  const counts = { speechStart: 0, speechEnd: 0, interrupt: 0, micSpeech: 0, tooFast: 0 };
   let micPeak = 0;
   let speechEndedAt: number | null = null;
 
@@ -94,9 +101,9 @@ export function createReplyTimer(now: () => number): ReplyTimer {
       if (state !== 'speaking') return;
       const at = now();
       const endedAt = speechEndedAt ?? micSpeechEnd(heard, at);
-      if (endedAt !== null && times.length < MAX_REPLY_TIMES) {
-        times.push(Math.max(0, Math.round(at - endedAt)));
-      }
+      const gap = endedAt === null ? null : Math.max(0, Math.round(at - endedAt));
+      if (gap !== null && gap < MIN_REPLY_MS) counts.tooFast += 1;
+      else if (gap !== null && times.length < MAX_REPLY_TIMES) times.push(gap);
       speechEndedAt = null;
       heard.startedAt = null;
       heard.lastLoudAt = null;

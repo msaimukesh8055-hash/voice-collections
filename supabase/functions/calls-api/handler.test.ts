@@ -334,8 +334,10 @@ Deno.test('calls-api › ended with reply times: their summary goes on the call_
   const body = { seconds: 60, replyMs: [900, 1200, 700, 3100, 1000] };
   const response = await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, body), traced);
   assertEquals(await json(response), { status: 'completed' });
-  const { replyCount, replyP50Ms, replyP90Ms, replyMaxMs } = fields[0] ?? {};
+  const { replyCount, replyP50Ms, replyP90Ms, replyMaxMs, replyList } = fields[0] ?? {};
   assertEquals([replyCount, replyP50Ms, replyP90Ms, replyMaxMs], [5, 1000, 3100, 3100]);
+  // The full list in call order, so each reply can be checked (2026-11-23).
+  assertEquals(replyList, '900,1200,700,3100,1000');
 });
 
 Deno.test('calls-api › ended with speech signals: the counts go on the call_ended trace', async () => {
@@ -348,8 +350,16 @@ Deno.test('calls-api › ended with speech signals: the counts go on the call_en
       if (event === 'call_ended' && extra) fields.push(extra);
     },
   };
-  const signals = { speechStart: 4, speechEnd: 0, interrupt: 2, micSpeech: 9, micPeak: 0.21 };
+  const signals = {
+    speechStart: 4,
+    speechEnd: 0,
+    interrupt: 2,
+    micSpeech: 9,
+    micPeak: 0.21,
+    tooFast: 3,
+  };
   await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 60, signals }), traced);
+  assertEquals(fields[0]?.['sigTooFast'], 3);
   const { sigSpeechStart, sigSpeechEnd, sigInterrupt, sigMicSpeech, sigMicPeak } = fields[0] ?? {};
   assertEquals([sigSpeechStart, sigSpeechEnd, sigInterrupt, sigMicSpeech, sigMicPeak], [
     4,

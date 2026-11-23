@@ -139,6 +139,7 @@ async function fakeStart(fake: FakeVoice, events: CallEvents): Promise<VoiceSess
       interrupt: 0,
       micSpeech: 2,
       micPeak: 0.2,
+      tooFast: 0,
     }),
   };
 }

@@ -35,6 +35,8 @@ export const EndedBodySchema = z.object({
     interrupt: SIGNAL_COUNT,
     micSpeech: SIGNAL_COUNT,
     micPeak: z.number().min(0).max(1),
+    /** Gaps too short to be a reply (2026-11-23); pages from before then leave it out. */
+    tooFast: SIGNAL_COUNT.optional(),
   }).optional(),
 });
 
@@ -49,6 +51,7 @@ export function signalLog(
     sigInterrupt: signals.interrupt,
     sigMicSpeech: signals.micSpeech,
     sigMicPeak: signals.micPeak,
+    ...(signals.tooFast === undefined ? {} : { sigTooFast: signals.tooFast }),
   };
 }
 
@@ -76,10 +79,12 @@ export function replyFields(
   };
 }
 
-/** The reply-time log fields: none if the page sent nothing, a zero count if it timed none. */
-export function replyLog(replyMs: readonly number[] | undefined): Record<string, number> {
+/** The reply-time log fields: none if the page sent nothing, a zero count if it timed none. The
+ * full list, in call order, is kept too (2026-11-23) so each reply can be checked. */
+export function replyLog(replyMs: readonly number[] | undefined): Record<string, number | string> {
   if (!replyMs) return {};
-  return replyMs.length > 0 ? replyFields(replyStats(replyMs)) : { replyCount: 0 };
+  if (replyMs.length === 0) return { replyCount: 0 };
+  return { ...replyFields(replyStats(replyMs)), replyList: replyMs.join(',') };
 }
 
 /** Every ended call (completed, declined, missed) gets a follow-up (M5 Decision 4). */

@@ -18,7 +18,7 @@ import {
   USER_SPEECH_END,
   USER_SPEECH_START,
 } from './sarvamClient.ts';
-import { MAX_REPLY_WAIT_MS } from './replyTimer.ts';
+import { MAX_REPLY_WAIT_MS, MIN_REPLY_MS } from './replyTimer.ts';
 
 const PROXY: SarvamProxy = { baseUrl: 'https://x/v1/sarvam/', headers: { 'x-call-token': TOKEN } };
 
@@ -288,7 +288,7 @@ describe('reply times (live evals)', () => {
     const timer = createReplyTimer(() => clock);
     for (let reply = 0; reply < MAX_REPLY_TIMES + 5; reply += 1) {
       timer.onServerEvent(USER_SPEECH_END);
-      clock += 10;
+      clock += MIN_REPLY_MS;
       timer.onState('speaking');
     }
     expect(timer.times()).toHaveLength(MAX_REPLY_TIMES);
@@ -370,7 +370,21 @@ describe('reply times (live evals)', () => {
       interrupt: 1,
       micSpeech: 1,
       micPeak: 0.02,
+      tooFast: 0,
     });
+  });
+
+  it('a gap too short to be a reply is left out and counted (23 Nov: 0.02 s "replies")', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    for (clock = 0; clock <= 600; clock += 100) timer.onInputLevel(0.2);
+    clock = 620;
+    timer.onState('speaking');
+    for (clock = 1000; clock <= 1600; clock += 100) timer.onInputLevel(0.2);
+    clock = 1600 + MIN_REPLY_MS;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([MIN_REPLY_MS]);
+    expect(timer.signals().tooFast).toBe(1);
   });
 
   it('a live session times replies from the mic level', async () => {
