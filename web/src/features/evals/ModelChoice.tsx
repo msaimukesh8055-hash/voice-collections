@@ -2,7 +2,8 @@
 // "Model choice" (Saim, 2026-11-23): the WhatsApp brain's eval messages, same prompt and same
 // checker, through each model on its own. One row per model: accuracy, money mistakes, Telugu and
 // Hindi, typical and slowest reply, cost per 1,000 messages, and whether it would pass the gate.
-// Read-only; the numbers are what evals:bakeoff stored.
+// Read-only; the numbers are what evals:bakeoff stored. Each row says what that model does in the
+// product today (sarvam-105b first, Gemini fallback only; Saim, 2026-11-23).
 import type { ModelRun } from '../../lib/modelChoiceSchemas.ts';
 import { dateTime, formatInr } from '../dashboard/format.ts';
 import { Card } from '../dashboard/Layout.tsx';
@@ -20,11 +21,21 @@ function percentOf(part: number, whole: number): string {
   return whole === 0 ? '—' : `${Math.round((part / whole) * 100)}%`;
 }
 
+/** What each model does in the product today (Saim's decision, 2026-11-23). */
+const MODEL_ROLE: Readonly<Record<string, string>> = {
+  'sarvam-105b': 'In use (first)',
+  'gemini-2.5-flash': 'Fallback only (if Sarvam fails)',
+};
+
 function Row({ run }: { readonly run: ModelRun }): React.JSX.Element {
   const m = run.metrics;
+  const role = MODEL_ROLE[m.model];
   return (
     <tr className="border-t border-border">
-      <td className={`${CELL} font-mono text-xs`}>{m.model}</td>
+      <td className={CELL}>
+        <span className="font-mono text-xs">{m.model}</span>
+        {role ? <span className="block text-xs text-ink-muted">{role}</span> : null}
+      </td>
       <td className={CELL}>
         {percentOf(m.casesPassed, m.cases)}{' '}
         <span className="text-xs text-ink-muted">
@@ -87,6 +98,10 @@ export function ModelChoice({
         checker, sent to each model on its own: no fallback, and no code parser first (in the
         product, code answers fixed commands before any model is asked). Run{' '}
         {dateTime(newest.createdAt)}.
+      </p>
+      <p className="mt-1 text-sm">
+        Decision (Saim, 23 Nov): sarvam-105b runs the WhatsApp brain; Gemini is only the fallback
+        when Sarvam fails. Gemini is slower, and its free tier left some calls unanswered.
       </p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-sm">

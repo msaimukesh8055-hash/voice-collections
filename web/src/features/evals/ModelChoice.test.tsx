@@ -37,6 +37,15 @@ describe('ModelChoice', () => {
     expect(notes).toHaveTextContent('Gemini free tier.');
   });
 
+  it('says what each model does in the product: Sarvam first, Gemini only as fallback', () => {
+    render(<ModelChoice runs={MODEL_RUNS} />);
+    expect(within(rowOf('sarvam-105b')).getByText('In use (first)')).toBeInTheDocument();
+    expect(
+      within(rowOf('gemini-2.5-flash')).getByText('Fallback only (if Sarvam fails)'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Decision \(Saim, 23 Nov\)/)).toBeInTheDocument();
+  });
+
   it('shows nothing before any bake-off has run', () => {
     const { container } = render(<ModelChoice runs={[]} />);
     expect(container).toBeEmptyDOMElement();
