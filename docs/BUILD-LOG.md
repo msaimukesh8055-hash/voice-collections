@@ -5,7 +5,7 @@ The story of the build, newest first: three lines per step. Full detail (plans, 
 ---
 
 **2026-11-23 · Agent reply time measured on real calls · ✅ Done**
-Every Asha and Munshi call since 20 Nov reported 0 timed replies: the page waited for Sarvam's "person stopped speaking" event, which Sarvam never sends. The page now falls back to the microphone level (the last loud moment before the agent speaks; sounds under 0.25 s and gaps over 15 s are ignored), so call reports and Agent health's "Reply time, typical" fill in from the next call. Past calls cannot be backfilled · ₹0 Sarvam
+Every Asha and Munshi call since 20 Nov timed 0 replies: the page waited for Sarvam's "person stopped speaking" event, which never arrives. The first fix (`b6f8661`) fell back to the mic but switched itself off once any other Sarvam speech event arrived, so the two calls after it still timed nothing. Now the mic is used whenever no "stopped speaking" arrived for that turn (quieter speech counts too), and each call saves which signals the page got, so a call that times nothing shows why. Past calls cannot be backfilled · ₹0 Sarvam
 
 **2026-11-22 · WhatsApp live checks, test calls out of health, "How it got fixed" · 🔨 Built (not committed)**
 New **WhatsApp chats** page and a WhatsApp card on Agent health: each owner message is kept with the reply for 30 days (`wa_exchanges`, ADR-0022) and scored in code (money only on a tap, understood, card answered, delivered, reply time, cost). Munshi's "WhatsApp only when he asked" check now hears Telugu and Hindi script; the 3 latency-script calls are flagged `is_test` and left out of Agent health (Munshi now shows its 4 real calls).

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { REGION_HEADER } from '@shared/region.ts';
 import { CALL_TOKEN_HEADER, SARVAM_PROXY_PATH } from '@shared/sarvam.ts';
 import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
+import type { SpeechSignals } from './replyTimer.ts';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const CALLS_API_SUFFIX = '/calls-api';
@@ -74,6 +75,8 @@ export interface EndedReport {
   readonly seconds: number;
   /** Asha's reply times in ms, as the page heard them (live evals); left out when empty. */
   readonly replyMs?: readonly number[];
+  /** Which speech signals the page got (2026-11-23). */
+  readonly signals?: SpeechSignals;
 }
 
 export interface SarvamProxy {
@@ -141,6 +144,7 @@ function endedBody(report: EndedReport): Record<string, unknown> {
     seconds: Math.min(MAX_REPORTED_SECONDS, Math.max(0, Math.round(report.seconds))),
     ...(report.interactionId ? { interactionId: report.interactionId } : {}),
     ...(report.replyMs ? { replyMs: report.replyMs } : {}),
+    ...(report.signals ? { signals: report.signals } : {}),
   };
 }
 

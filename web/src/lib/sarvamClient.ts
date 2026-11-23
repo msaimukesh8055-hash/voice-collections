@@ -11,6 +11,7 @@ import type { AcceptedCall, AcceptedMunshiCall, SarvamProxy } from './appApi.ts'
 import { createSpeechDetector } from './micLevel.ts';
 import {
   createReplyTimer,
+  type SpeechSignals,
   USER_INTERRUPT,
   USER_SPEECH_END,
   USER_SPEECH_START,
@@ -19,6 +20,7 @@ import {
 export {
   createReplyTimer,
   MAX_REPLY_TIMES,
+  type SpeechSignals,
   USER_INTERRUPT,
   USER_SPEECH_END,
   USER_SPEECH_START,
@@ -88,6 +90,8 @@ export interface VoiceSession {
   /** Live evals (2026-11-20): ms from the person's speech ending to the agent's voice starting,
    * one per reply, as this page heard it (Sarvam's speech events, else the mic level). */
   readonly replyTimes: () => readonly number[];
+  /** Which speech signals the page got (2026-11-23), saved with the call to explain the times. */
+  readonly speechSignals: () => SpeechSignals;
 }
 
 export interface VoiceClient {
@@ -213,13 +217,14 @@ function createSpeakerTracker(
 function createCallbacks(
   events: CallEvents,
   now: () => number,
-): AgentCallbacks & { readonly replyTimes: () => readonly number[] } {
+): AgentCallbacks & Pick<VoiceSession, 'replyTimes' | 'speechSignals'> {
   const speakers = createSpeakerTracker(events, now);
   const replies = createReplyTimer(now);
   let ended = false;
 
   return {
     replyTimes: replies.times,
+    speechSignals: replies.signals,
     onTranscript(role, text) {
       const trimmed = text.trim();
       if (trimmed)
@@ -291,6 +296,7 @@ export function createSarvamClient(
         return agent.getInteractionId() ?? null;
       },
       replyTimes: callbacks.replyTimes,
+      speechSignals: callbacks.speechSignals,
     };
   }
 

@@ -333,14 +333,44 @@ describe('reply times (live evals)', () => {
     expect(timer.times()).toEqual([800]);
   });
 
-  it('once Sarvam sends speech events, the mic level is not used', () => {
+  it('a Sarvam "speech started" with no "speech ended" still times from the mic (23 Nov bug)', () => {
     let clock = 0;
     const timer = createReplyTimer(() => clock);
+    timer.onServerEvent(USER_INTERRUPT);
     timer.onServerEvent(USER_SPEECH_START);
     for (clock = 0; clock <= 1000; clock += 100) timer.onInputLevel(0.2);
     clock = 1500;
     timer.onState('speaking');
-    expect(timer.times()).toEqual([]);
+    expect(timer.times()).toEqual([500]);
+  });
+
+  it('a Sarvam "speech ended" time wins over the mic', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    for (clock = 0; clock <= 1000; clock += 100) timer.onInputLevel(0.2);
+    clock = 1200;
+    timer.onServerEvent(USER_SPEECH_END);
+    clock = 2000;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([800]);
+  });
+
+  it('quiet speech above the timing level counts; it reports the signals it got', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    for (clock = 0; clock <= 600; clock += 100) timer.onInputLevel(0.02);
+    timer.onServerEvent(USER_INTERRUPT);
+    timer.onServerEvent('server.event.tool_call');
+    clock = 1600;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([1000]);
+    expect(timer.signals()).toEqual({
+      speechStart: 0,
+      speechEnd: 0,
+      interrupt: 1,
+      micSpeech: 1,
+      micPeak: 0.02,
+    });
   });
 
   it('a live session times replies from the mic level', async () => {
@@ -359,6 +389,7 @@ describe('reply times (live evals)', () => {
     clock = 1500;
     fake.callbacks?.onState('speaking');
     expect(session.replyTimes()).toEqual([900]);
+    expect(session.speechSignals().micSpeech).toBe(1);
   });
 
   it('a live session reports the reply times it heard', async () => {

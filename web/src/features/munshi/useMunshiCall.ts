@@ -98,12 +98,13 @@ async function finishCall(
   live.finished = true;
   const interactionId = live.session ? await live.session.stop() : null;
   const replyMs = live.session ? live.session.replyTimes() : [];
+  const signals = live.session ? live.session.speechSignals() : undefined;
   const seconds = live.startedAt === null ? 0 : (Date.now() - live.startedAt) / 1000;
   dispatch({ type: 'ended', seconds: Math.round(seconds), note });
   // Closing the owner call is what stops the token working; a failure is covered by the TTL.
   // The answer carries this call's report link (live evals).
   const report = await api
-    .munshiEnded(live.token, { interactionId, seconds, replyMs })
+    .munshiEnded(live.token, { interactionId, seconds, replyMs, ...(signals ? { signals } : {}) })
     .catch(() => null);
   if (report) dispatch({ type: 'report', href: reportHref(report) });
 }

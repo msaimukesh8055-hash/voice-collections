@@ -15,7 +15,7 @@ import { istDayLabel, resolveNow } from '../_shared/clock.ts';
 import type { OwnerCall, OwnerCallStatus } from '../_shared/db/owner-call-repository.ts';
 import { errorResponse, jsonResponse, readJson } from '../_shared/http.ts';
 import { CALL_TOKEN_HEADER } from '../_shared/sarvam.ts';
-import { EndedBodySchema, replyLog } from './phone-routes.ts';
+import { EndedBodySchema, replyLog, signalLog } from './phone-routes.ts';
 import type { RouteContext } from './types.ts';
 
 export type LinkState = 'ready' | 'used' | 'expired';
@@ -92,7 +92,7 @@ export async function endMunshi(req: Request, ctx: RouteContext): Promise<Respon
   if (!body.success) return errorResponse('BAD_REQUEST', ctx.cors);
   const found = await findOwnerCall(req, ctx);
   if (!found) return errorResponse('NOT_FOUND', ctx.cors);
-  const { interactionId, seconds, replyMs } = body.data;
+  const { interactionId, seconds, replyMs, signals } = body.data;
   const ended = await ctx.deps.munshi.ownerCalls.transitionOwnerCall(found.id, LIVE, {
     status: 'completed',
     endedAt: ctx.deps.clock().toISOString(),
@@ -104,6 +104,7 @@ export async function endMunshi(req: Request, ctx: RouteContext): Promise<Respon
     ownerCallId: found.id,
     seconds,
     ...replyLog(replyMs),
+    ...signalLog(signals),
   });
   const token = await signDashboardToken(ctx.deps.dashboard.linkSecret, ctx.deps.clock());
   return jsonResponse(

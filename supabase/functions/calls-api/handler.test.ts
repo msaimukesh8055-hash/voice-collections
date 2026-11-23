@@ -338,6 +338,28 @@ Deno.test('calls-api › ended with reply times: their summary goes on the call_
   assertEquals([replyCount, replyP50Ms, replyP90Ms, replyMaxMs], [5, 1000, 3100, 3100]);
 });
 
+Deno.test('calls-api › ended with speech signals: the counts go on the call_ended trace', async () => {
+  // 2026-11-23: calls timed 0 replies with no clue why; the page now says which signals it got.
+  const { deps } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
+  const fields: Record<string, unknown>[] = [];
+  const traced: CallsApiDeps = {
+    ...deps,
+    log: (_level, event, extra) => {
+      if (event === 'call_ended' && extra) fields.push(extra);
+    },
+  };
+  const signals = { speechStart: 4, speechEnd: 0, interrupt: 2, micSpeech: 9, micPeak: 0.21 };
+  await handleCallsApi(post(`/v1/calls/${TOKEN}/ended`, { seconds: 60, signals }), traced);
+  const { sigSpeechStart, sigSpeechEnd, sigInterrupt, sigMicSpeech, sigMicPeak } = fields[0] ?? {};
+  assertEquals([sigSpeechStart, sigSpeechEnd, sigInterrupt, sigMicSpeech, sigMicPeak], [
+    4,
+    0,
+    2,
+    9,
+    0.21,
+  ]);
+});
+
 Deno.test('calls-api › ended: reply times out of range → 400', async () => {
   const { deps } = setup({ calls: [fakeCall({ status: 'in_progress' })] });
   const late = await handleCallsApi(

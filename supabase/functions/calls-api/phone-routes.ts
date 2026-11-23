@@ -18,6 +18,8 @@ const MAX_REPLIES = 100;
 const RINGABLE: readonly CallStatus[] = ['queued', 'ringing'];
 const LIVE: readonly CallStatus[] = ['accepted', 'in_progress'];
 
+const SIGNAL_COUNT = z.number().int().min(0).max(100_000);
+
 export const EndedBodySchema = z.object({
   /** Sarvam's id, e.g. "20261102/…"; absent when the call never connected. */
   // Sarvam ids contain ':' (e.g. 20261102/182f511f-21:45:10-8bfe8bd5). M3's pattern refused
@@ -26,7 +28,29 @@ export const EndedBodySchema = z.object({
   seconds: z.number().int().min(0).max(MAX_CALL_SECONDS),
   /** Live evals: Asha's reply times in ms as the phone page heard them (2026-11-20). */
   replyMs: z.array(z.number().int().min(0).max(MAX_REPLY_MS)).max(MAX_REPLIES).optional(),
+  /** Which speech signals the page got (2026-11-23): explains a call that timed no replies. */
+  signals: z.object({
+    speechStart: SIGNAL_COUNT,
+    speechEnd: SIGNAL_COUNT,
+    interrupt: SIGNAL_COUNT,
+    micSpeech: SIGNAL_COUNT,
+    micPeak: z.number().min(0).max(1),
+  }).optional(),
 });
+
+/** The speech-signal log fields (log fields are flat); none if the page sent none. */
+export function signalLog(
+  signals: z.infer<typeof EndedBodySchema>['signals'],
+): Record<string, number> {
+  if (!signals) return {};
+  return {
+    sigSpeechStart: signals.speechStart,
+    sigSpeechEnd: signals.speechEnd,
+    sigInterrupt: signals.interrupt,
+    sigMicSpeech: signals.micSpeech,
+    sigMicPeak: signals.micPeak,
+  };
+}
 
 const NO_CALL = { call: null } as const;
 
@@ -161,7 +185,7 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
   if (!body.success) return errorResponse('BAD_REQUEST', ctx.cors);
   const call = await findCall(ctx);
   if (!call) return errorResponse('NOT_FOUND', ctx.cors);
-  const { interactionId, seconds, replyMs } = body.data;
+  const { interactionId, seconds, replyMs, signals } = body.data;
   // Never overwrite an id already stored (e.g. one fetched from Sarvam's analytics later).
   const keepsId = call.interactionId !== null || interactionId === undefined;
   const ended = await ctx.deps.repo.transitionCall(call.callId, LIVE, {
@@ -176,6 +200,7 @@ export async function endCall(req: Request, ctx: RouteContext): Promise<Response
     callId: call.callId,
     seconds,
     ...replyLog(replyMs),
+    ...signalLog(signals),
   });
   ctx.deps.kickFollowup(call.callId);
   return jsonResponse({ status: 'completed' }, 200, ctx.cors);

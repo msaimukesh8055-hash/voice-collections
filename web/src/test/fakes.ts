@@ -133,6 +133,13 @@ async function fakeStart(fake: FakeVoice, events: CallEvents): Promise<VoiceSess
       return 'interaction-1';
     },
     replyTimes: () => fake.replyTimes,
+    speechSignals: () => ({
+      speechStart: 0,
+      speechEnd: 0,
+      interrupt: 0,
+      micSpeech: 2,
+      micPeak: 0.2,
+    }),
   };
 }
 
