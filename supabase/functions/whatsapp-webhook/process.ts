@@ -17,6 +17,7 @@ import type { BookRepository } from '../_shared/db/book-repository.ts';
 import type { ExchangeLog } from '../_shared/db/exchange-repository.ts';
 import type { DemoSettings } from '../_shared/db/repository.ts';
 import type { Logger } from '../_shared/log.ts';
+import { currentTrace } from '../_shared/ops/trace.ts';
 import type { ReminderDeps } from '../_shared/reminders/deps.ts';
 import { DAILY_VOICE_CAP, hear, type HearDeps } from '../_shared/speech/hear.ts';
 import type { Speaker } from '../_shared/speech/tts.ts';
@@ -305,6 +306,7 @@ async function keepExchange(
       errorCode,
       handleMs: handled.ms,
       isTest: isTestMessage(message.id),
+      traceId: currentTrace()?.id ?? null,
     });
   } catch (error) {
     deps.log('warn', 'exchange_log_failed', { error: describeFailure(error) });

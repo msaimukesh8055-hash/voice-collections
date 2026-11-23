@@ -49,9 +49,38 @@ const OPTIONAL_SECRETS = [
 
 /** Langfuse's settings page now calls the host LANGFUSE_BASE_URL; older docs say LANGFUSE_HOST.
  * Either name in .env works; the functions read LANGFUSE_HOST. */
+function langfuseHost(): string {
+  return readEnv('LANGFUSE_HOST') || readEnv('LANGFUSE_BASE_URL');
+}
+
 function langfuseHostLine(): string[] {
-  const host = readEnv('LANGFUSE_HOST') || readEnv('LANGFUSE_BASE_URL');
+  const host = langfuseHost();
   return host ? [`LANGFUSE_HOST=${host}`] : [];
+}
+
+/** Readable traces (2026-11-23): our trace views link AI steps to Langfuse, which needs the
+ * project id. It is looked up with the keys already in .env (not a secret), so nothing new
+ * has to be added by hand; with no keys, or if the lookup fails, the links are simply left out. */
+async function langfuseProjectLine(): Promise<string[]> {
+  const publicKey = readEnv('LANGFUSE_PUBLIC_KEY');
+  const secretKey = readEnv('LANGFUSE_SECRET_KEY');
+  if (!publicKey || !secretKey) return [];
+  const host = (langfuseHost() || 'https://cloud.langfuse.com').replace(/\/+$/, '');
+  try {
+    const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
+    const response = await fetch(`${host}/api/public/projects`, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await response.json()) as { data?: { id?: unknown }[] };
+    const id = body.data?.[0]?.id;
+    return typeof id === 'string' && /^[A-Za-z0-9_-]+$/.test(id)
+      ? [`LANGFUSE_PROJECT_ID=${id}`]
+      : [];
+  } catch {
+    process.stdout.write('Langfuse project id not found; trace links to Langfuse left out\n');
+    return [];
+  }
 }
 
 function readEnv(name: string): string {
@@ -77,12 +106,18 @@ function releaseVersion(): string {
   return `${commit}${dirty ? '-dirty' : ''} ${new Date().toISOString().slice(0, 16)}Z`;
 }
 
-function secretLines(): string[] {
+async function secretLines(): Promise<string[]> {
   const required = REQUIRED_SECRETS.map((name) => `${name}=${requireEnv(name)}`);
   const optional = OPTIONAL_SECRETS.filter((name) => readEnv(name) !== '').map(
     (name) => `${name}=${readEnv(name)}`,
   );
-  return [...required, ...optional, ...langfuseHostLine(), `RELEASE_VERSION=${releaseVersion()}`];
+  return [
+    ...required,
+    ...optional,
+    ...langfuseHostLine(),
+    ...(await langfuseProjectLine()),
+    `RELEASE_VERSION=${releaseVersion()}`,
+  ];
 }
 
 requireEnv('SUPABASE_ACCESS_TOKEN');
@@ -93,7 +128,7 @@ if (!PROJECT_REF_PATTERN.test(projectRef))
 const secretsDir = mkdtempSync(join(tmpdir(), 'fn-secrets-'));
 const secretsFile = join(secretsDir, 'secrets.env');
 try {
-  const lines = secretLines();
+  const lines = await secretLines();
   writeFileSync(secretsFile, `${lines.join('\n')}\n`, { mode: 0o600 });
   runSupabase(`secrets set --env-file "${secretsFile}" --project-ref ${projectRef} --yes`);
   const names = lines.map((line) => line.slice(0, line.indexOf('=')));

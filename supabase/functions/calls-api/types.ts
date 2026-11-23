@@ -61,6 +61,8 @@ export interface DashboardDeps {
   readonly testDrafts: TestDraftRepository;
   /** WhatsApp live checks (2026-11-22, ADR-0022): the owner's latest WhatsApp exchanges. */
   readonly exchanges: ExchangeReads;
+  /** Readable traces (2026-11-23): the Langfuse link for one trace id; absent when off. */
+  readonly langfuseTraceUrl?: ((traceId: string) => string | null) | null;
 }
 
 export interface RouteContext {

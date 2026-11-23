@@ -37,6 +37,14 @@ export const AgentHealthSchema = z.object({
     VerdictCountsSchema.extend({ version: z.number().nullable(), calls: z.number() }),
   ),
   trend: z.array(VerdictCountsSchema.extend({ date: z.string() })),
+  /** 2026-11-23 (moved from Ops): Asha's and Munshi's tools over 7 days, against one target. */
+  tools: z
+    .array(z.object({ tool: z.string(), calls: z.number(), p50Ms: z.number(), p95Ms: z.number() }))
+    .default([]),
+  toolTargetMs: z.number().default(1000),
+  /** WhatsApp only: 95% of messages answered within this; target 5 s. */
+  replyP95Ms: z.number().nullable().default(null),
+  replyTargetMs: z.number().default(5000),
 });
 
 export const HealthSummarySchema = z.object({

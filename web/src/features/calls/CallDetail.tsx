@@ -1,18 +1,21 @@
 // web/src/features/calls/CallDetail.tsx
 // One call (SPEC §12 /calls): who, live or simulated, tone level, length and cost; the
 // follow-up agent's decision (rule or agent, and why); the WhatsApp summary; the transcript; and
-// every tool Asha called with what it sent and got back (the call token is removed server-side).
-// Live evals (2026-11-20): the call's scorecard under the facts, and this call's own ops steps
-// (queued, accepted, each tool, hang-up, follow-up, WhatsApp) at the bottom. "Tools: needed vs ran"
-// sits above the transcript (Saim, 2026-11-20).
+// every tool Asha called (the call token is removed server-side).
+// Live evals (2026-11-20): the call's scorecard under the facts.
+// Readable traces (Saim, 2026-11-23): one "What happened in the call" timeline replaces the
+// tool tables and the raw step list: each step in plain English, tools with what they sent and
+// got back, tools that did not run, and the mic signals in a technical fold.
 // Telugu and Hindi lines show their English (Sarvam Translate) underneath, in small grey text.
 import type { ReactNode } from 'react';
 import type { CallDetail as Detail } from '../../lib/dashboardApi.ts';
 import { dateTime, duration, formatInr } from '../dashboard/format.ts';
 import { Card } from '../dashboard/Layout.tsx';
-import { TraceSteps } from '../ops/TraceView.tsx';
-import { Scorecard } from './Scorecard.tsx';
-import { RawCalls, ToolUse } from './ToolUse.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
+import { PlainTimeline } from '../trace/PlainTimeline.tsx';
+import { timelineBadge, TIMELINE_TITLE, verdictBadge } from '../trace/badges.ts';
+import { buildPlainTrace, type PlainTrace } from '../trace/plainTrace.ts';
+import { Scorecard, TIMELINE_GROUPS } from './Scorecard.tsx';
 
 const LANGUAGE_NAMES = { te: 'Telugu', hi: 'Hindi', en: 'English' } as const;
 
@@ -119,14 +122,55 @@ export function TranscriptCard({
   );
 }
 
-function Tools({ call }: { readonly call: Detail }): React.JSX.Element {
-  const rows = call.scorecard?.toolUse ?? [];
-  if (rows.length > 0) return <ToolUse rows={rows} events={call.toolEvents} />;
-  return (
-    <Card title={`Tool calls (${call.toolEvents.length})`}>
-      <RawCalls events={call.toolEvents} />
-    </Card>
-  );
+/** Readable traces (2026-11-23): the call's steps, tools and follow-up in one plain timeline. */
+function callTrace(call: Detail): PlainTrace {
+  return buildPlainTrace({
+    steps: call.trace ?? [],
+    events: call.toolEvents,
+    toolUse: call.scorecard?.toolUse ?? [],
+    agent: 'Asha',
+  });
+}
+
+function sections(call: Detail, action: ReactNode): PageSection[] {
+  const trace = callTrace(call);
+  const scorecard: PageSection[] = call.scorecard
+    ? [
+        {
+          id: 'scorecard',
+          title: 'Call scorecard',
+          badge: verdictBadge(call.scorecard.verdict),
+          content: (
+            <>
+              <Scorecard card={call.scorecard} hide={TIMELINE_GROUPS} />
+              {action}
+            </>
+          ),
+        },
+      ]
+    : [];
+  return [
+    ...scorecard,
+    {
+      id: 'timeline',
+      title: TIMELINE_TITLE,
+      badge: timelineBadge(trace),
+      content: <PlainTimeline title={TIMELINE_TITLE} trace={trace} steps={call.trace ?? []} />,
+    },
+    { id: 'after', title: 'After the call', content: <FollowUp call={call} /> },
+    {
+      id: 'transcript',
+      title: 'Transcript',
+      content: (
+        <TranscriptCard
+          turns={call.transcript}
+          english={call.transcriptEnglish}
+          agent="Asha"
+          other={call.shopkeeperName}
+        />
+      ),
+    },
+  ];
 }
 
 export function CallDetail({
@@ -142,20 +186,7 @@ export function CallDetail({
       <a href="/calls" className="text-sm font-medium text-brand underline">
         ← All calls
       </a>
-      <Facts call={call} />
-      {call.scorecard ? <Scorecard card={call.scorecard} /> : null}
-      {action}
-      <FollowUp call={call} />
-      <Tools call={call} />
-      <TranscriptCard
-        turns={call.transcript}
-        english={call.transcriptEnglish}
-        agent="Asha"
-        other={call.shopkeeperName}
-      />
-      {call.trace && call.trace.length > 0 ? (
-        <TraceSteps title="This call, step by step" steps={call.trace} />
-      ) : null}
+      <Sections top={<Facts call={call} />} sections={sections(call, action)} />
     </>
   );
 }

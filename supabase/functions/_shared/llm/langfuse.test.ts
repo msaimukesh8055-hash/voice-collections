@@ -10,6 +10,7 @@ import {
   type LangfuseDeps,
   type LangfuseEnv,
   langfuseSettings,
+  langfuseTraceLink,
   otelTraceId,
   otlpPayload,
   redactText,
@@ -213,4 +214,18 @@ Deno.test('langfuse › a failed send is one warning, never an error or a throw'
     await Promise.all(seen.tasks);
     assertEquals(seen.logs, [['langfuse_send_failed', fields]]);
   }
+});
+
+Deno.test('langfuse › trace link: our id without dashes, under the project; off without both', () => {
+  const link = langfuseTraceLink({ ...ENV, LANGFUSE_PROJECT_ID: 'proj_1' });
+  assertEquals(
+    link?.(TRACE),
+    'https://langfuse.test/project/proj_1/traces/9fe11f9bec4f4205a9c7cddccff15ebf',
+  );
+  assertEquals(link?.('not-a-trace-id'), null);
+  assertEquals(langfuseTraceLink(ENV), null);
+  assertEquals(
+    langfuseTraceLink({ ...ENV, LANGFUSE_PUBLIC_KEY: null, LANGFUSE_PROJECT_ID: 'p' }),
+    null,
+  );
 });

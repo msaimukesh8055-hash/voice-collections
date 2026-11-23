@@ -41,7 +41,8 @@ describe('AddTestCase', () => {
   it('the Evals page lists drafts from live use, linking to the call', async () => {
     const fake = fakeDashboard();
     render(<EvalsPage dashboard={fake.dashboard} />);
-    expect(await screen.findByText('From live use (2 waiting)')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'From live use' })).toBeInTheDocument();
+    expect(await screen.findByText('2 waiting.')).toBeInTheDocument();
     expect(screen.getByText(/Who has paid me this month\?/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /^Munshi call ·/ })).toHaveAttribute(
       'href',

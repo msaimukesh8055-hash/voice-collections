@@ -39,7 +39,7 @@ describe('App', () => {
 
   it('renders the ops page on /ops, and one trace with ?id=', async () => {
     renderAt('/ops');
-    expect(await screen.findByRole('heading', { name: /Error rate/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^Now/ })).toBeInTheDocument();
   });
 
   it('renders the evals page on /evals', async () => {

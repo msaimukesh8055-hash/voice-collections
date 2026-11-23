@@ -22,6 +22,7 @@ import { createTranslator } from '../_shared/speech/translate.ts';
 import { createToneJudge } from '../_shared/calls/tone-judge.ts';
 import { createSupabaseCallScoreRepository } from '../_shared/db/supabase-call-score-repository.ts';
 import { createSupabaseTestDraftRepository } from '../_shared/db/supabase-test-draft-repository.ts';
+import { langfuseTraceLink } from '../_shared/llm/langfuse.ts';
 import { createLlmObserver } from '../_shared/llm/observer.ts';
 import type { CallsApiDeps } from './types.ts';
 
@@ -77,6 +78,8 @@ const deps: CallsApiDeps = {
     callScores: createSupabaseCallScoreRepository(query),
     testDrafts: createSupabaseTestDraftRepository(query),
     exchanges: createSupabaseExchangeReads(query),
+    // Readable traces (2026-11-23): AI steps link to their Langfuse trace when tracing is on.
+    langfuseTraceUrl: langfuseTraceLink(env),
     judgeTone: env.GEMINI_API_KEY
       ? createToneJudge({
         sarvamApiKey: env.SARVAM_API_KEY ?? '',

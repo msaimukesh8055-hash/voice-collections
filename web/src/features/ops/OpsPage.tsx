@@ -1,264 +1,106 @@
 // web/src/features/ops/OpsPage.tsx
-// /ops (M9 Build A): is the product healthy right now? Error rate, tool latency against the
-// 500 ms target, how often an LLM answer was rejected, the follow-up queue, spend against the
-// cap, and the latest errors, each opening its trace (/ops?id=<trace id>). Read-only. A tile at
-// the top links to Agent health (/health), which scores how well the agents do their job.
-// 2026-11-23 (redesign): status and uptime from the health probes, service targets, what we
-// depend on, scheduled jobs and errors grouped by kind come first (OpsStatus.tsx); every figure
-// says how it is calculated; the latency tables are folded away at the bottom.
-import type { ReactNode } from 'react';
+// /ops: is the shared machine working? (Saim, 2026-11-23: nothing about agents or tools here;
+// those are on Agent health.) A top line ("✓ All working" or what needs attention), then folding
+// sections with a menu: Now (up or down, uptime, reminder calls running or paused), Errors (by
+// kind, each opening its trace as a readable timeline), Outside services (Sarvam LLM with its
+// rejected answers, Gemini, voice, Meta, the database), Background jobs (with the follow-up
+// queue), Money (spend against the ₹1,000 cap) and Details (time per function). Each target sits
+// next to its own number. /ops?id=<trace id> opens one trace. Read-only.
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { OpsSummary } from '../../lib/opsSchemas.ts';
+import type { OpsStatus } from '../../lib/opsStatusSchemas.ts';
 import { dateTime, formatInr } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
-import { AgentQualityLink } from '../health/HealthPage.tsx';
 import {
   ErrorGroupsCard,
   How,
   JobsCard,
   ServicesCard,
   StatusCard,
-  TargetsCard,
+  TargetLine,
 } from './OpsStatus.tsx';
 import { TraceView } from './TraceView.tsx';
-import { percent, statusOfRate, type Tone, TONE_CLASSES } from './opsFormat.ts';
+import { TONE_CLASSES } from './opsFormat.ts';
 
-/** WhatsApp messages answered in code, with no model involved. */
-const CODE_PATHS = ['button', 'command'];
 const CELL = 'px-2 py-1.5';
 const HEAD = `${CELL} text-left text-xs font-medium uppercase tracking-wide text-ink-muted`;
 
-function Tile({
-  label,
-  value,
-  tone = 'plain',
-  how,
-  children,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly tone?: Tone;
-  /** One line: how the figure is worked out. */
-  readonly how: string;
-  readonly children?: ReactNode;
-}): React.JSX.Element {
+function target(status: OpsStatus | null, id: string): OpsStatus['targets'][number] | undefined {
+  return status?.targets.find((one) => one.id === id);
+}
+
+/** What needs attention, in a few words each; empty when all is working. */
+export function opsIssues(ops: OpsSummary): string[] {
+  const { status } = ops;
+  if (!status) return [];
+  const issues: string[] = [];
+  if (status.now.state === 'down') issues.push('App API down');
+  if (status.now.state === 'stale') issues.push('Health checks stopped');
+  for (const one of status.targets) if (one.met === false) issues.push(one.name);
+  for (const service of status.services) {
+    if (service.state === 'failing') issues.push(`${service.name} failing`);
+  }
+  return issues;
+}
+
+function TopLine({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  const issues = opsIssues(ops);
+  const words =
+    issues.length === 1 ? '1 thing needs attention' : `${issues.length} things need attention`;
   return (
-    <section className="rounded-2xl bg-surface/95 p-4 shadow-sm ring-1 ring-border">
-      <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</h2>
-      <p className={`mt-1 text-2xl font-semibold ${TONE_CLASSES[tone]}`}>{value}</p>
-      <div className="mt-1 text-sm text-ink-muted">{children}</div>
-      <How>{how}</How>
-    </section>
+    <p
+      className={`rounded-2xl bg-surface/95 px-5 py-3 text-lg font-semibold shadow-sm ring-1 ring-border ${
+        TONE_CLASSES[issues.length === 0 ? 'good' : 'warn']
+      }`}
+    >
+      {issues.length === 0 ? '✓ All working' : `⚠ ${words}: ${issues.join(' · ')}`}
+    </p>
   );
 }
 
-function RequestsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const { day, week } = ops;
+function CallsSwitch({ paused }: { readonly paused: boolean }): React.JSX.Element {
   return (
-    <Tile
-      label="Error rate · 24 h"
-      value={percent(day.failed, day.requests)}
-      tone={statusOfRate(day.failed, day.requests)}
-      how="Requests whose trace has an error step, out of all requests to our functions. Eval traffic left out."
-    >
-      <p>
-        {day.failed} of {day.requests} requests failed
+    <Card title="Reminder calls">
+      <p className={`text-xl font-semibold ${TONE_CLASSES[paused ? 'warn' : 'good']}`}>
+        {paused ? 'Paused' : 'Running'}
       </p>
-      <p>
-        7 days: {percent(week.failed, week.requests)} ({week.failed} of {week.requests})
-      </p>
-    </Tile>
-  );
-}
-
-function RejectedTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const answers = ops.llm.reduce((sum, row) => sum + row.answers, 0);
-  const rejected = ops.llm.reduce((sum, row) => sum + row.rejected, 0);
-  return (
-    <Tile
-      label="Rejected LLM answers · 7 d"
-      value={percent(rejected, answers)}
-      tone={statusOfRate(rejected, answers)}
-      how="Model answers our code threw away because they were badly shaped, out of all answers."
-    >
-      {ops.llm.length === 0 ? <p>No LLM calls recorded yet</p> : null}
-      {ops.llm.map((row) => (
-        <p key={row.provider}>
-          {row.provider}: {row.rejected} rejected, {row.failed} failed of {row.answers}
-        </p>
-      ))}
-    </Tile>
-  );
-}
-
-function PathsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const total = Object.values(ops.paths).reduce((sum, count) => sum + count, 0);
-  const inCode = CODE_PATHS.reduce((sum, path) => sum + (ops.paths[path] ?? 0), 0);
-  const fallback = ops.paths['gemini'] ?? 0;
-  const failed = ops.paths['failed'] ?? 0;
-  return (
-    <Tile
-      label="WhatsApp answered in code · 7 d"
-      value={percent(inCode, total)}
-      how="Owner messages handled by fixed commands or buttons, with no model asked."
-    >
-      <p>
-        {ops.paths['sarvam'] ?? 0} by Sarvam, {fallback} by the Gemini fallback
-      </p>
-      <p className={failed > 0 ? TONE_CLASSES.bad : undefined}>{failed} not understood</p>
-    </Tile>
-  );
-}
-
-function QueueTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const { waiting, stuck, failedWeek } = ops.followups;
-  return (
-    <Tile
-      label="Follow-up queue"
-      value={stuck > 0 ? `${stuck} stuck` : 'Clear'}
-      tone={stuck > 0 ? 'bad' : 'good'}
-      how="Calls waiting for their follow-up; stuck means due or running for over 10 minutes."
-    >
-      <p>{waiting} waiting now</p>
-      <p>{failedWeek} failed in 7 days</p>
-    </Tile>
-  );
-}
-
-function CallsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  return (
-    <Tile
-      label="Reminder calls"
-      value={ops.callsPaused ? 'Paused' : 'Running'}
-      tone={ops.callsPaused ? 'warn' : 'good'}
-      how="The /pause switch, read from the demo settings."
-    >
-      <p>
-        {ops.callsPaused
+      <p className="text-sm text-ink-muted">
+        {paused
           ? 'No new call starts until /resume is sent on WhatsApp.'
           : 'Send /pause on WhatsApp to stop all new calls.'}
       </p>
-    </Tile>
-  );
-}
-
-function SpendTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const { capInr, today, month } = ops.spend;
-  const used = Math.min(100, Math.round((month.totalInr / capInr) * 100));
-  return (
-    <Tile
-      label="Spend this month"
-      value={`${formatInr(month.totalInr)} of ${formatInr(capInr)}`}
-      how="Live voice minutes (each call rounded up) × ₹3.50 + GST, plus LLM tokens × the price list, eval runs included."
-    >
-      <div
-        role="progressbar"
-        aria-label="Share of the spend cap used"
-        aria-valuenow={used}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        className="my-1 h-2 overflow-hidden rounded-full bg-brand-soft"
-      >
-        <div className="h-full bg-brand" style={{ width: `${used}%` }} />
-      </div>
-      <p>
-        Voice {formatInr(month.voiceInr)} · LLM {formatInr(month.llmInr)}
-      </p>
-      <p>
-        Today: {formatInr(today.totalInr)} (voice {formatInr(today.voiceInr)}, LLM{' '}
-        {formatInr(today.llmInr)})
-      </p>
-    </Tile>
-  );
-}
-
-function ToolsCard({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  return (
-    <Card title={`Tool latency · 7 days · target p95 under ${ops.toolTargetMs} ms`}>
-      {ops.tools.length === 0 ? (
-        <p className="text-sm text-ink-muted">No tool calls in the last 7 days.</p>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className={HEAD}>Agent</th>
-              <th className={HEAD}>Tool</th>
-              <th className={HEAD}>Calls</th>
-              <th className={HEAD}>p50</th>
-              <th className={HEAD}>p95</th>
-              <th className={HEAD}>Target</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ops.tools.map((tool) => {
-              const within = tool.p95Ms < ops.toolTargetMs;
-              return (
-                <tr key={`${tool.agent}:${tool.tool}`} className="border-t border-border">
-                  <td className={`${CELL} capitalize`}>{tool.agent}</td>
-                  <td className={`${CELL} font-mono text-xs`}>{tool.tool}</td>
-                  <td className={CELL}>{tool.calls}</td>
-                  <td className={CELL}>{tool.p50Ms} ms</td>
-                  <td className={CELL}>{tool.p95Ms} ms</td>
-                  <td className={`${CELL} font-medium ${TONE_CLASSES[within ? 'good' : 'bad']}`}>
-                    {within ? 'Within' : 'Over'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+      <How>The /pause switch, read from the demo settings.</How>
     </Card>
   );
 }
 
-function SourcesCard({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+function NowSection({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   return (
-    <Card title="By function · 24 hours">
-      {ops.sources.length === 0 ? (
-        <p className="text-sm text-ink-muted">No requests in the last 24 hours.</p>
-      ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className={HEAD}>Function</th>
-              <th className={HEAD}>Requests</th>
-              <th className={HEAD}>Failed</th>
-              <th className={HEAD}>p95</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ops.sources.map((source) => (
-              <tr key={source.source} className="border-t border-border">
-                <td className={`${CELL} font-mono text-xs`}>{source.source}</td>
-                <td className={CELL}>{source.requests}</td>
-                <td className={`${CELL} ${source.failed > 0 ? TONE_CLASSES.bad : ''}`}>
-                  {source.failed}
-                </td>
-                <td className={CELL}>{source.p95Ms === null ? '–' : `${source.p95Ms} ms`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Card>
+    <>
+      {ops.status ? (
+        <>
+          <StatusCard status={ops.status} />
+          <TargetLine target={target(ops.status, 'uptime')} />
+        </>
+      ) : null}
+      <CallsSwitch paused={ops.callsPaused} />
+    </>
   );
 }
 
-function ErrorsCard({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+/** Errors from a server before the redesign: the latest error rows. */
+function LatestErrors({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   return (
-    <Card title="Latest errors">
+    <Card title="Errors">
       {ops.recentErrors.length === 0 ? (
         <p className="text-sm text-ink-muted">No errors in the last 7 days.</p>
       ) : (
         <ul className="divide-y divide-border text-sm">
           {ops.recentErrors.map((error) => (
             <li key={`${error.traceId}:${error.step}:${error.createdAt}`} className="py-2">
-              <a
-                href={`/ops?id=${error.traceId}`}
-                className="font-medium text-brand underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-brand"
-              >
+              <a href={`/ops?id=${error.traceId}`} className="font-medium text-brand underline">
                 {dateTime(error.createdAt)} · {error.step}
               </a>
               <p className="text-ink-muted">
@@ -273,45 +115,154 @@ function ErrorsCard({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   );
 }
 
-function LatencyDetails({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+function ErrorsSection({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  if (!ops.status) return <LatestErrors ops={ops} />;
   return (
-    <details className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border">
-      <summary className="cursor-pointer text-base font-semibold">
-        Latency details: tools and functions
-      </summary>
-      <div className="mt-3 space-y-4">
-        <ToolsCard ops={ops} />
-        <SourcesCard ops={ops} />
-      </div>
-    </details>
+    <>
+      <TargetLine target={target(ops.status, 'requests')} />
+      <ErrorGroupsCard groups={ops.status.errorGroups} />
+    </>
   );
 }
 
-function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
-  const { status } = ops;
+function sarvamRejected(ops: OpsSummary): { answers: number; rejected: number } | null {
+  const row = ops.llm.find((one) => one.provider === 'sarvam');
+  return row ? { answers: row.answers, rejected: row.rejected } : null;
+}
+
+function FollowUpQueue({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  const { waiting, stuck, failedWeek } = ops.followups;
+  return (
+    <Card title="Follow-up queue">
+      <p className={`text-xl font-semibold ${TONE_CLASSES[stuck > 0 ? 'bad' : 'good']}`}>
+        {stuck > 0 ? `${stuck} stuck` : 'Clear'}
+      </p>
+      <p className="text-sm text-ink-muted">
+        {waiting} waiting now · {failedWeek} failed in 7 days
+      </p>
+      <TargetLine target={target(ops.status, 'queue')} />
+    </Card>
+  );
+}
+
+function JobsSection({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   return (
     <>
-      {status ? (
+      {ops.status ? (
         <>
-          <StatusCard status={status} />
-          <TargetsCard targets={status.targets} />
-          <ServicesCard services={status.services} />
-          <JobsCard jobs={status.jobs} />
+          <TargetLine target={target(ops.status, 'jobs')} />
+          <JobsCard jobs={ops.status.jobs} />
         </>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <RequestsTile ops={ops} />
-        <RejectedTile ops={ops} />
-        <PathsTile ops={ops} />
-        <QueueTile ops={ops} />
-        <CallsTile ops={ops} />
-        <SpendTile ops={ops} />
+      <FollowUpQueue ops={ops} />
+    </>
+  );
+}
+
+function Money({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  const { capInr, today, month } = ops.spend;
+  const used = Math.min(100, Math.round((month.totalInr / capInr) * 100));
+  return (
+    <Card title="Money">
+      <p className="text-xl font-semibold">
+        {formatInr(month.totalInr)} of {formatInr(capInr)} this month
+      </p>
+      <div
+        role="progressbar"
+        aria-label="Share of the spend cap used"
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="my-2 h-2 overflow-hidden rounded-full bg-brand-soft"
+      >
+        <div className="h-full bg-brand" style={{ width: `${used}%` }} />
       </div>
-      {status ? <ErrorGroupsCard groups={status.errorGroups} /> : <ErrorsCard ops={ops} />}
-      <LatencyDetails ops={ops} />
+      <p className="text-sm text-ink-muted">
+        Voice {formatInr(month.voiceInr)} · LLM {formatInr(month.llmInr)} · today{' '}
+        {formatInr(today.totalInr)}
+      </p>
+      <How>
+        Live voice minutes (each call rounded up) × ₹3.50 + GST, plus LLM tokens × the price list,
+        eval runs included.
+      </How>
+      <TargetLine target={target(ops.status, 'spend')} />
+    </Card>
+  );
+}
+
+function FunctionTimes({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  return (
+    <Card title="Details">
+      <h3 className="mb-2 text-sm font-semibold">Time per function · 24 hours</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr>
+            <th className={HEAD}>Function</th>
+            <th className={HEAD}>Requests</th>
+            <th className={HEAD}>Failed</th>
+            <th className={HEAD}>95% within</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ops.sources.map((source) => (
+            <tr key={source.source} className="border-t border-border">
+              <td className={`${CELL} font-mono text-xs`}>{source.source}</td>
+              <td className={CELL}>{source.requests}</td>
+              <td className={`${CELL} ${source.failed > 0 ? TONE_CLASSES.bad : ''}`}>
+                {source.failed}
+              </td>
+              <td className={CELL}>{source.p95Ms === null ? '–' : `${source.p95Ms} ms`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function opsSections(ops: OpsSummary): PageSection[] {
+  const bad = (id: string): string | null => (target(ops.status, id)?.met === false ? '⚠' : null);
+  const failing = ops.status?.services.some((one) => one.state === 'failing') ?? false;
+  const downNow = ops.status?.now.state === 'down' || ops.status?.now.state === 'stale';
+  return [
+    {
+      id: 'now',
+      title: 'Now',
+      badge: downNow ? '⚠' : bad('uptime'),
+      content: <NowSection ops={ops} />,
+    },
+    { id: 'errors', title: 'Errors', badge: bad('requests'), content: <ErrorsSection ops={ops} /> },
+    {
+      id: 'services',
+      title: 'Outside services · 7 days',
+      badge: failing ? '⚠' : null,
+      content: ops.status ? (
+        <ServicesCard services={ops.status.services} sarvamRejected={sarvamRejected(ops)} />
+      ) : null,
+    },
+    {
+      id: 'jobs',
+      title: 'Background jobs',
+      badge: bad('jobs') ?? bad('queue'),
+      content: <JobsSection ops={ops} />,
+    },
+    { id: 'money', title: 'Money', badge: bad('spend'), content: <Money ops={ops} /> },
+    { id: 'details', title: 'Details', content: <FunctionTimes ops={ops} /> },
+  ];
+}
+
+function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  return (
+    <>
+      <Sections top={<TopLine ops={ops} />} sections={opsSections(ops)} />
       <p className="text-xs text-ink-muted">
         As of {dateTime(ops.generatedAt)}. Counts, timings and error codes only: no names, phone
-        numbers or amounts are recorded.
+        numbers or amounts are recorded. Pilot targets we set ourselves, not a contract. How the
+        agents are doing is on{' '}
+        <a href="/health" className="font-medium text-brand underline">
+          Agent health
+        </a>
+        .
       </p>
     </>
   );
@@ -319,12 +270,7 @@ function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
 
 function All({ dashboard }: { readonly dashboard: DashboardApi }): React.JSX.Element {
   const state = useLoad(dashboard.ops, 'ops');
-  return (
-    <>
-      <AgentQualityLink dashboard={dashboard} />
-      <LoadState state={state}>{(ops: OpsSummary) => <Summary ops={ops} />}</LoadState>
-    </>
-  );
+  return <LoadState state={state}>{(ops: OpsSummary) => <Summary ops={ops} />}</LoadState>;
 }
 
 export function OpsPage({

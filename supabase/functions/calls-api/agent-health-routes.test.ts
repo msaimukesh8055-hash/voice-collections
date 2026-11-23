@@ -5,6 +5,8 @@ import { assert, assertEquals } from '@std/assert';
 import { DASHBOARD_TOKEN_HEADER, signDashboardToken } from '../_shared/auth/dashboard-link.ts';
 import type { DashboardCallDetail } from '../_shared/db/dashboard-repository.ts';
 import { RAMESH } from '../_shared/db/fake-book-repository.ts';
+import { EMPTY_OPS_SUMMARY } from '../_shared/db/fake-ops-repository.ts';
+import type { ToolStats } from '../_shared/db/ops-repository.ts';
 import { fakeOwnerCallDetail } from '../_shared/db/fake-owner-call-reads.ts';
 import { createFakeRepository, FAKE_NOW } from '../_shared/db/fake-repository.ts';
 import { dashboardSetup, LINK_SECRET } from './__fixtures__/dashboard.ts';
@@ -33,6 +35,11 @@ const ASHA_CALL: DashboardCallDetail = {
   followup: null,
 };
 
+const TOOLS: readonly ToolStats[] = [
+  { agent: 'asha', tool: 'get_dues', calls: 40, p50Ms: 120, p95Ms: 300 },
+  { agent: 'munshi', tool: 'book_summary', calls: 25, p50Ms: 200, p95Ms: 1200 },
+];
+
 const SIMULATED: DashboardCallDetail = {
   ...ASHA_CALL,
   id: 'c0000000-0000-4000-8000-000000000002',
@@ -41,6 +48,7 @@ const SIMULATED: DashboardCallDetail = {
 
 function deps(): { all: CallsApiDeps; setup: ReturnType<typeof dashboardSetup> } {
   const setup = dashboardSetup({
+    ops: { summary: { ...EMPTY_OPS_SUMMARY, tools: TOOLS } },
     reads: { calls: [ASHA_CALL, SIMULATED] },
     ownerCalls: [
       fakeOwnerCallDetail({ transcript: [{ role: 'user', content: 'Total pending?' }] }),
@@ -131,4 +139,24 @@ Deno.test('agent health api › a test-script call and a kept score for a simula
     'whatsapp',
     1,
   ]]);
+});
+
+Deno.test('agent health api › tool speed per voice agent (1 s target) and WhatsApp p95 (5 s)', async () => {
+  const response = await get('/v1/dashboard/health', deps().all);
+  const body = await response.json() as {
+    agents: Array<{
+      agent: string;
+      tools?: Array<{ tool: string }>;
+      toolTargetMs?: number;
+      replyP95Ms?: number | null;
+      replyTargetMs?: number;
+    }>;
+  };
+  const [asha, munshi, whatsapp] = body.agents;
+  assertEquals(asha?.tools?.map((one) => one.tool), ['get_dues']);
+  assertEquals(munshi?.tools?.map((one) => one.tool), ['book_summary']);
+  assertEquals(asha?.toolTargetMs, 1000);
+  assertEquals(whatsapp?.replyTargetMs, 5000);
+  assertEquals(typeof whatsapp?.replyP95Ms, 'number');
+  assertEquals(whatsapp?.tools, undefined);
 });

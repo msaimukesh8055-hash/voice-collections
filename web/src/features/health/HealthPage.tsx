@@ -8,14 +8,18 @@
 // "Why N calls need a look" counts only the calls that need a look or failed. WhatsApp bot
 // (2026-11-22, ADR-0022): a third card, scored per owner message, opening /whatsapp.
 // 2026-11-23: the 14-day trend is hidden until calls fall on at least 7 of those days.
+// 2026-11-23 (Saim): a top line, each voice agent's tools against the 1 s target, WhatsApp's
+// "95% within 5 s", and one folding section per agent with a menu (AgentTargets.tsx).
 import { type CallFilter, filteredCallsHref } from '../calls/callFilter.tsx';
 import { checkHelp } from '../calls/checkHelp.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { AgentHealth, HealthSummary } from '../../lib/healthSchemas.ts';
 import { formatInr, shortDate } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { type Tone, TONE_CLASSES } from '../ops/opsFormat.ts';
+import { agentIssues, TopLine, ToolSpeeds, whatsappSlow } from './AgentTargets.tsx';
 
 export const HEALTH_PATH = '/health';
 const GOOD_TONE = 4;
@@ -138,6 +142,37 @@ function Figure({
   );
 }
 
+/** WhatsApp (2026-11-23): 95% of messages answered within 5 s; the voice agents: typical reply. */
+function ReplyFigure({
+  health,
+  replyP50Ms,
+  replyAimMs,
+}: {
+  readonly health: AgentHealth;
+  readonly replyP50Ms: number | null;
+  readonly replyAimMs: number;
+}): React.JSX.Element {
+  if (health.agent === 'whatsapp') {
+    const p95 = health.replyP95Ms;
+    return (
+      <Figure
+        label="95% answered within"
+        value={p95 === null ? 'n/a' : `${(p95 / 1000).toFixed(1)} s`}
+        tone={p95 === null ? 'plain' : whatsappSlow(health) ? 'warn' : 'good'}
+        note={`target ${health.replyTargetMs / 1000} s`}
+      />
+    );
+  }
+  return (
+    <Figure
+      label="Reply time, typical"
+      value={replyP50Ms === null ? 'n/a' : `${(replyP50Ms / 1000).toFixed(1)} s`}
+      tone={replyP50Ms === null ? 'plain' : replyP50Ms <= replyAimMs ? 'good' : 'warn'}
+      note={`aim ≤ ${replyAimMs / 1000} s`}
+    />
+  );
+}
+
 function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Element {
   const { verdicts, calls, replyP50Ms, averageCostInr, guardrailFails } = health;
   const { one, many, replyAimMs, costAimInr } = AGENTS[health.agent];
@@ -156,12 +191,7 @@ function Figures({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
         tone={guardrailFails > 0 ? 'bad' : 'good'}
         note={`${many} with at least one`}
       />
-      <Figure
-        label="Reply time, typical"
-        value={replyP50Ms === null ? 'n/a' : `${(replyP50Ms / 1000).toFixed(1)} s`}
-        tone={replyP50Ms === null ? 'plain' : replyP50Ms <= replyAimMs ? 'good' : 'warn'}
-        note={`aim ≤ ${replyAimMs / 1000} s`}
-      />
+      <ReplyFigure health={health} replyP50Ms={replyP50Ms} replyAimMs={replyAimMs} />
       <Figure
         label={`Cost per ${one}`}
         value={averageCostInr === null ? 'n/a' : formatInr(averageCostInr)}
@@ -332,7 +362,7 @@ function Details({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
       ) : null}
       {voiceAgent ? (
         <section>
-          <h3 className="mb-2 text-sm font-semibold">By prompt version</h3>
+          <h3 className="mb-2 text-sm font-semibold">Live calls by prompt version</h3>
           <Versions health={health} />
         </section>
       ) : null}
@@ -349,12 +379,16 @@ function Details({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
 function AgentCard({ health }: { readonly health: AgentHealth }): React.JSX.Element {
   const info = AGENTS[health.agent];
   return (
-    <Card title={`${info.name} · last ${health.calls} ${info.many}`}>
+    <Card title={info.name}>
+      <p className="mb-3 text-sm text-ink-muted">
+        Last {health.calls} {info.many}
+      </p>
       {health.calls === 0 ? (
         <p className="text-sm text-ink-muted">No finished {info.many} yet.</p>
       ) : (
         <div className="flex flex-col gap-5">
           <Figures health={health} />
+          {info.voiceAgent ? <ToolSpeeds health={health} /> : null}
           <section>
             <h3 className="text-sm font-semibold">{problemsTitle(health)}</h3>
             <p className="mb-2 text-xs text-ink-muted">
@@ -370,20 +404,35 @@ function AgentCard({ health }: { readonly health: AgentHealth }): React.JSX.Elem
   );
 }
 
+function healthSections(summary: HealthSummary): PageSection[] {
+  return summary.agents.map((health) => {
+    const issues = agentIssues(health).length + health.verdicts.failed;
+    return {
+      id: health.agent,
+      title: AGENTS[health.agent].name,
+      badge: issues > 0 ? `⚠ ${issues}` : '✅',
+      content: <AgentCard health={health} />,
+    };
+  });
+}
+
 function Summary({ summary }: { readonly summary: HealthSummary }): React.JSX.Element {
-  return (
+  const top = (
     <>
+      <TopLine summary={summary} />
       <p className="text-sm text-ink-muted">
         Is each agent doing a good job? Worked out from every finished call&apos;s scorecard. For
-        system errors and speed, see{' '}
+        the shared machine (uptime, errors, outside services, spend), see{' '}
         <a href="/ops" className="font-medium text-brand underline">
           Ops
         </a>
         .
       </p>
-      {summary.agents.map((health) => (
-        <AgentCard key={health.agent} health={health} />
-      ))}
+    </>
+  );
+  return (
+    <>
+      <Sections top={top} sections={healthSections(summary)} />
       {summary.waiting > 0 ? (
         <p className="text-xs text-ink-muted">
           {summary.waiting} older call(s) not scored yet; they are added a few at a time each time
@@ -403,33 +452,5 @@ export function HealthPage({ dashboard }: { readonly dashboard: DashboardApi }):
         {(summary: HealthSummary) => <Summary summary={summary} />}
       </LoadState>
     </Layout>
-  );
-}
-
-/** Ops page tile: each agent's share of calls that went well, opening this page. */
-export function AgentQualityLink({
-  dashboard,
-}: {
-  readonly dashboard: DashboardApi;
-}): React.JSX.Element {
-  const state = useLoad(dashboard.agentHealth, 'agent-health');
-  return (
-    <a
-      href={HEALTH_PATH}
-      className="block rounded-2xl bg-surface/95 p-4 shadow-sm ring-1 ring-border hover:ring-brand"
-    >
-      <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">Agent quality</h2>
-      <p className="mt-1 text-sm">
-        {state.kind === 'ready'
-          ? state.data.agents
-              .map(
-                (health) =>
-                  `${AGENTS[health.agent].short} ${health.verdicts.good}/${health.calls} went well`,
-              )
-              .join(' · ')
-          : 'Each agent’s calls, scored'}
-      </p>
-      <p className="mt-1 text-sm font-medium text-brand underline">Open Agent health →</p>
-    </a>
   );
 }

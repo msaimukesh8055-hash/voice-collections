@@ -7,10 +7,10 @@ import { EVALS, fakeDashboard } from '../../test/dashboardFakes.ts';
 import { brokeThenFixed, storyOf } from './CaseHistory.tsx';
 import { EvalsPage } from './EvalsPage.tsx';
 
-describe('Prompt versions, case by case', () => {
+describe('Test results by prompt version', () => {
   it('shows every run with what changed, and every case across the runs', async () => {
     render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
-    expect(await screen.findByText('Prompt versions, case by case')).toBeInTheDocument();
+    expect(await screen.findByText('Test results by prompt version')).toBeInTheDocument();
     expect(screen.queryByText('How it got fixed')).toBeNull();
     expect(screen.getByText('Prompt changed')).toBeInTheDocument();
     // The run's note now lives in the before / after panel only.

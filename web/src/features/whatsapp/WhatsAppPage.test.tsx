@@ -51,8 +51,18 @@ describe('WhatsAppPage', () => {
     expect(await screen.findByText('WhatsApp message to the bot')).toBeInTheDocument();
     expect(screen.getByText(/\[Save\] \[Edit\] \[Cancel\]/)).toBeInTheDocument();
     expect(screen.getByText('✅ Message went well')).toBeInTheDocument();
-    expect(screen.getByText('Message scorecard')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Message scorecard/ })).toBeInTheDocument();
     expect(screen.getByText(/Kept for 30 days/)).toBeInTheDocument();
+    // Readable timeline (2026-11-23): where the 10.1 s went, the AI step linked to Langfuse.
+    expect(
+      screen.getByText('Took 10.1 s: AI 1.2 s · building and sending replies 8.9 s'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('AI read the message')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Prompt and answer in Langfuse/ })).toHaveAttribute(
+      'href',
+      'https://langfuse.test/project/p/traces/abc',
+    );
+    expect(screen.getByText('3 replies sent')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Add as a test case/ }));
     expect(screen.getByDisplayValue('Ramesh 5000 due 15th')).toBeInTheDocument();
   });

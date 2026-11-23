@@ -1,96 +1,15 @@
 // web/src/features/ops/TraceView.tsx
 // /ops?id=<trace id>: every step of one request in order, from the first byte to the last
 // database write, across functions (a kick to the follow-up worker keeps the same trace).
+// 2026-11-23: shown as the readable timeline (PlainTimeline), the raw steps in its technical fold.
 import { AddTestCase } from '../evals/AddTestCase.tsx';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
-import type { Trace, TraceStep } from '../../lib/opsSchemas.ts';
+import type { Trace } from '../../lib/opsSchemas.ts';
 import { dateTime } from '../dashboard/format.ts';
-import { Card, LoadState } from '../dashboard/Layout.tsx';
+import { LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
-import { sinceStart, type Tone, TONE_CLASSES } from './opsFormat.ts';
-
-const STATUS: Readonly<Record<TraceStep['status'], { label: string; tone: Tone }>> = {
-  ok: { label: 'OK', tone: 'good' },
-  warn: { label: 'Warning', tone: 'warn' },
-  error: { label: 'Error', tone: 'bad' },
-};
-/** Already shown in their own place on the row. */
-const SHOWN_ELSEWHERE = ['ms', 'duration_ms', 'provider', 'tokens_in', 'tokens_out'];
-
-function facts(step: TraceStep): string {
-  const parts = [
-    step.durationMs === null ? null : `${step.durationMs} ms`,
-    step.provider,
-    step.tokensIn === null ? null : `${step.tokensIn} tokens in, ${step.tokensOut ?? 0} out`,
-    step.errorCode,
-  ];
-  return parts.filter((part) => part !== null).join(' · ');
-}
-
-function details(step: TraceStep): string {
-  return Object.entries(step.detail)
-    .filter(([key]) => !SHOWN_ELSEWHERE.includes(key))
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(' · ');
-}
-
-function Step({
-  step,
-  start,
-}: {
-  readonly step: TraceStep;
-  readonly start: string;
-}): React.JSX.Element {
-  const status = STATUS[step.status];
-  const extra = details(step);
-  return (
-    <li className="grid grid-cols-[5.5rem_1fr] gap-x-3 py-2 text-sm">
-      <span className="font-mono text-xs text-ink-muted">{sinceStart(start, step.createdAt)}</span>
-      <div>
-        <p>
-          <span className="font-mono text-xs">{step.step}</span>{' '}
-          <span className={`font-medium ${TONE_CLASSES[status.tone]}`}>{status.label}</span>
-        </p>
-        <p className="text-ink-muted">
-          {step.source}
-          {facts(step) ? ` · ${facts(step)}` : ''}
-        </p>
-        {extra ? <p className="break-words text-xs text-ink-muted">{extra}</p> : null}
-      </div>
-    </li>
-  );
-}
-
-/** Steps in order with their time since the first one; shared with the call page (live evals). */
-export function TraceSteps({
-  title,
-  steps,
-  traceId = null,
-}: {
-  readonly title: string;
-  readonly steps: readonly TraceStep[];
-  readonly traceId?: string | null;
-}): React.JSX.Element {
-  const start = steps[0]?.createdAt ?? '';
-  const failed = steps.filter((step) => step.status === 'error').length;
-  return (
-    <Card title={title}>
-      <p className="text-sm text-ink-muted">
-        {start ? `${dateTime(start)} · ` : ''}
-        {steps.length} steps ·{' '}
-        <span className={TONE_CLASSES[failed > 0 ? 'bad' : 'good']}>
-          {failed > 0 ? `${failed} failed` : 'no errors'}
-        </span>
-      </p>
-      {traceId ? <p className="break-all font-mono text-xs text-ink-muted">{traceId}</p> : null}
-      <ol className="mt-3 divide-y divide-border">
-        {steps.map((step, index) => (
-          <Step key={`${step.createdAt}:${step.step}:${index}`} step={step} start={start} />
-        ))}
-      </ol>
-    </Card>
-  );
-}
+import { PlainTimeline } from '../trace/PlainTimeline.tsx';
+import { buildPlainTrace } from '../trace/plainTrace.ts';
 
 /** WhatsApp requests can be saved as a test case (Saim, 2026-11-20). */
 const WHATSAPP_SOURCE = 'whatsapp-webhook';
@@ -105,7 +24,14 @@ function Timeline({
   const fromWhatsApp = trace.steps.some((step) => step.source === WHATSAPP_SOURCE);
   return (
     <>
-      <TraceSteps title="Trace" steps={trace.steps} traceId={trace.traceId} />
+      <p className="break-all font-mono text-xs text-ink-muted">
+        {trace.steps[0] ? `${dateTime(trace.steps[0].createdAt)} · ` : ''}trace {trace.traceId}
+      </p>
+      <PlainTimeline
+        title="What happened"
+        trace={buildPlainTrace({ steps: trace.steps })}
+        steps={trace.steps}
+      />
       {fromWhatsApp ? (
         <AddTestCase dashboard={dashboard} source="whatsapp" refId={trace.traceId} />
       ) : null}

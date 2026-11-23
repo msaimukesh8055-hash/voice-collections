@@ -31,8 +31,8 @@ function isTimerStep(step: TraceStep): boolean {
   return step.source === 'followup-worker' && step.step === 'request' &&
     TIMER_ROUTES.includes(String(step.detail['route'] ?? ''));
 }
-const TRACE_COLUMNS =
-  'source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,detail,created_at';
+const TRACE_COLUMNS = 'trace_id,source,step,status,error_code,provider,duration_ms,tokens_in,' +
+  'tokens_out,detail,created_at';
 
 /** An error storm is summarised from its newest steps; the rest stay on the ops page. */
 const MAX_ERRORS = 200;
@@ -80,6 +80,7 @@ const SummaryRow = z.object({
 type SummaryRow = z.infer<typeof SummaryRow>;
 
 const StepRow = z.object({
+  trace_id: z.string().optional(),
   source: z.string(),
   step: z.string(),
   status: z.enum(['ok', 'warn', 'error']),
@@ -145,6 +146,7 @@ function toStep(row: z.infer<typeof StepRow>): TraceStep {
     tokensOut: row.tokens_out,
     detail: row.detail,
     createdAt: row.created_at,
+    ...(row.trace_id ? { traceId: row.trace_id } : {}),
   };
 }
 

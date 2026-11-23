@@ -3,7 +3,8 @@
 // WhatsApp exchanges with each one's verdict, and one exchange with its full scorecard
 // (calls-api/whatsapp-routes.ts). Checked with Zod like every other reply.
 import { z } from 'zod';
-import { ScorecardSchema } from './dashboardApi.ts';
+import { TraceStepSchema } from './opsSchemas.ts';
+import { ScorecardSchema } from './scorecardSchemas.ts';
 
 const VerdictSchema = z.enum(['good', 'check', 'failed']);
 
@@ -39,6 +40,8 @@ export const ExchangeDetailSchema = z.object({
     isTest: z.boolean(),
   }),
   scorecard: ScorecardSchema,
+  /** Readable traces (2026-11-23): this message's steps; empty for older messages. */
+  trace: z.array(TraceStepSchema).default([]),
 });
 
 export type ExchangeListItem = z.infer<typeof ExchangeListItemSchema>;

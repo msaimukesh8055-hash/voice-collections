@@ -14,10 +14,8 @@ import { leadErrors } from '../_shared/ops/lead-errors.ts';
 import { buildStatus } from '../_shared/ops/status.ts';
 import { isTraceId } from '../_shared/ops/trace.ts';
 import { openInDemo } from './dashboard-routes.ts';
+import { linkSteps } from './trace-links.ts';
 import type { RouteContext, RouteHandler } from './types.ts';
-
-/** Munshi's and Asha's hard latency target for server time per tool (M8 acceptance criteria). */
-export const TOOL_TARGET_MS = 500;
 
 /** The five Edge Functions. Each is always listed, with zeros when it had no requests: a
  * missing row would read as "not monitored" when it only means "no traffic" (Saim, 2026-11-11). */
@@ -67,7 +65,6 @@ async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Resp
     row,
     summary,
     spend: { monthInr: month.totalInr, capInr: SPEND_CAP_INR },
-    toolTargetMs: TOOL_TARGET_MS,
     now: deps.clock(),
   });
   const body = {
@@ -75,7 +72,6 @@ async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Resp
     // One row per failed request, not one per error step (Saim, 2026-11-11).
     recentErrors: leadErrors(summary.recentErrors),
     sources: allSources(summary.sources),
-    toolTargetMs: TOOL_TARGET_MS,
     // M9 pause switch: true while /pause is in force (no new reminder call starts).
     callsPaused: settings.callsPaused === true,
     spend: {
@@ -89,12 +85,13 @@ async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Resp
   return jsonResponse(body, 200, cors);
 }
 
-async function getTrace(_req: Request, { deps, cors, params }: RouteContext): Promise<Response> {
+async function getTrace(_req: Request, ctx: RouteContext): Promise<Response> {
+  const { deps, cors, params } = ctx;
   const traceId = params[0] ?? null;
   if (!isTraceId(traceId)) return errorResponse('NOT_FOUND', cors);
   const steps = await deps.dashboard.ops.listTraceSteps(traceId);
   if (steps.length === 0) return errorResponse('NOT_FOUND', cors);
-  return jsonResponse({ traceId, steps }, 200, cors);
+  return jsonResponse({ traceId, steps: linkSteps(steps, ctx) }, 200, cors);
 }
 
 export const OPS_ROUTES: Readonly<Record<'summary' | 'trace', RouteHandler>> = {

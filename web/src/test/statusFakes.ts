@@ -6,7 +6,7 @@ import type { OpsSummary } from '../lib/opsSchemas.ts';
 
 export const TRACE_ID = '55555555-5555-4555-8555-555555555555';
 
-/** Ops redesign: probes since 23 Nov, two targets met, one missed, one with no data. */
+/** Ops redesign: probes since 23 Nov; uptime missed, requests met, jobs with no data yet. */
 export const OPS_STATUS: NonNullable<OpsSummary['status']> = {
   measuredSince: '2026-11-23T10:52:03.000Z',
   now: {
@@ -38,12 +38,12 @@ export const OPS_STATUS: NonNullable<OpsSummary['status']> = {
       how: 'Requests whose trace has no error step.',
     },
     {
-      id: 'whatsapp',
-      name: 'WhatsApp message handled',
-      goal: 'p95 under 5 s, 7 days',
-      now: 'No messages',
+      id: 'jobs',
+      name: 'Scheduled jobs on time',
+      goal: 'Every job, last 24 h',
+      now: 'No job has run yet',
       met: null,
-      how: 'Time from the message reaching us to the reply.',
+      how: 'On time: no failed run, and 95% of runs reached the worker.',
     },
   ],
   services: [

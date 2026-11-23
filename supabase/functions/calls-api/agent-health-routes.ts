@@ -3,7 +3,18 @@
 // Asha's and Munshi's health across their recent calls, from the kept call scores. Calls that
 // finished but were never scored (their report was never opened) are scored here, a few per
 // load, through the same report code as their call pages, so both always agree.
-import { agentHealth, HEALTH_CALLS, type HealthAgent } from '../_shared/calls/agent-health.ts';
+// 2026-11-23: each voice agent also gets its tools' speed against the 1 s target, and WhatsApp
+// its 95% reply time against 5 s (moved here from Ops).
+import {
+  agentHealth,
+  type CallScore,
+  HEALTH_CALLS,
+  type HealthAgent,
+  p95,
+  TOOL_TARGET_MS,
+  WA_REPLY_TARGET_MS,
+} from '../_shared/calls/agent-health.ts';
+import type { ToolStats } from '../_shared/db/ops-repository.ts';
 import { exchangeScore } from '../_shared/calls/whatsapp-scorecard.ts';
 import { istDate } from '../_shared/clock.ts';
 import { jsonResponse } from '../_shared/http.ts';
@@ -70,15 +81,42 @@ async function scoreMissing(ctx: RouteContext): Promise<number> {
   return missing.length - now.length;
 }
 
+/** Each voice agent's tools over 7 days (server time), from the same counts Ops used to show. */
+async function toolSpeeds(ctx: RouteContext): Promise<readonly ToolStats[]> {
+  try {
+    return (await ctx.deps.dashboard.ops.getSummary()).tools;
+  } catch (error) {
+    ctx.deps.log('warn', 'health_tools_not_read', { error: describeFailure(error) });
+    return [];
+  }
+}
+
+/** 2026-11-23: Agent health carries the agent targets (Ops is the shared machine only): tool
+ * speed for Asha and Munshi, reply time for WhatsApp. */
+function withTargets(
+  agent: HealthAgent,
+  input: { readonly scores: readonly CallScore[]; readonly tools: readonly ToolStats[] },
+): Record<string, unknown> {
+  if (agent === 'whatsapp') {
+    const times = input.scores.flatMap((one) => one.replyP50Ms === null ? [] : [one.replyP50Ms]);
+    return { replyP95Ms: p95(times), replyTargetMs: WA_REPLY_TARGET_MS };
+  }
+  return {
+    tools: input.tools.filter((tool) => tool.agent === agent),
+    toolTargetMs: TOOL_TARGET_MS,
+  };
+}
+
 async function health(_req: Request, ctx: RouteContext): Promise<Response> {
   const waiting = await scoreMissing(ctx);
   const { callScores } = ctx.deps.dashboard;
-  const [asha, munshi, publishes, calls, exchanges] = await Promise.all([
+  const [asha, munshi, publishes, calls, exchanges, tools] = await Promise.all([
     callScores.listCallScores('asha', HEALTH_CALLS),
     callScores.listCallScores('munshi', HEALTH_CALLS),
     callScores.listPublishes(),
     finishedCalls(ctx),
     ctx.deps.dashboard.exchanges.listExchanges(HEALTH_CALLS * 2),
+    toolSpeeds(ctx),
   ]);
   // Real dates: calls happen in real time, whatever the demo clock says.
   const today = istDate(ctx.deps.clock());
@@ -95,9 +133,18 @@ async function health(_req: Request, ctx: RouteContext): Promise<Response> {
       today,
       waiting,
       agents: [
-        agentHealth('asha', { scores, publishes, today }),
-        agentHealth('munshi', { scores, publishes, today }),
-        agentHealth('whatsapp', { scores: whatsapp, publishes: [], today }),
+        {
+          ...agentHealth('asha', { scores, publishes, today }),
+          ...withTargets('asha', { scores, tools }),
+        },
+        {
+          ...agentHealth('munshi', { scores, publishes, today }),
+          ...withTargets('munshi', { scores, tools }),
+        },
+        {
+          ...agentHealth('whatsapp', { scores: whatsapp, publishes: [], today }),
+          ...withTargets('whatsapp', { scores: whatsapp, tools }),
+        },
       ],
     },
     200,

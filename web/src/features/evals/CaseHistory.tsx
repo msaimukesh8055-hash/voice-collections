@@ -375,7 +375,7 @@ export function CaseHistory({
   const fixed = history.cases.filter((one) => one.fixedIn !== null).length;
   return (
     <section className="mt-4">
-      <h3 className="text-sm font-semibold">Prompt versions, case by case</h3>
+      <h3 className="text-sm font-semibold">Test results by prompt version</h3>
       <p className="text-xs text-ink-muted">
         Each case across the recent runs, oldest on the left. {fixed} case(s) failed before and pass
         now. Click ✓ or ✗ for that conversation, or &quot;before / after&quot; for what fixed it.

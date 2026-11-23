@@ -1,18 +1,21 @@
 // web/src/features/munshi-calls/MunshiCallsPage.tsx
 // Live evals for Munshi (Saim, 2026-11-20): /munshi-calls lists the owner's calls to Munshi;
 // /munshi-calls?id=… is one call's report, laid out like Asha's call page: facts, Munshi's
-// scorecard (his own guardrails), "Tools: needed vs ran", the transcript, then this call's steps.
+// scorecard (his own guardrails), "What happened in the call" (readable timeline, 2026-11-23),
+// then the transcript.
 // The Munshi page links here when a call ends.
 import type { DashboardApi, OwnerCallDetail, OwnerCallRow } from '../../lib/dashboardApi.ts';
 import { TranscriptCard } from '../calls/CallDetail.tsx';
 import { type CallFilter, FilteredCard, onlyFiltered } from '../calls/callFilter.tsx';
-import { Scorecard } from '../calls/Scorecard.tsx';
+import { Scorecard, TIMELINE_GROUPS } from '../calls/Scorecard.tsx';
 import { AddTestCase } from '../evals/AddTestCase.tsx';
-import { ToolUse } from '../calls/ToolUse.tsx';
 import { dateTime, duration, formatInr } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
-import { TraceSteps } from '../ops/TraceView.tsx';
+import { PlainTimeline } from '../trace/PlainTimeline.tsx';
+import { timelineBadge, TIMELINE_TITLE, verdictBadge } from '../trace/badges.ts';
+import { buildPlainTrace } from '../trace/plainTrace.ts';
 
 export const MUNSHI_CALLS_PATH = '/munshi-calls';
 
@@ -44,6 +47,46 @@ function Facts({ call }: { readonly call: OwnerCallDetail }): React.JSX.Element 
   );
 }
 
+function reportSections(call: OwnerCallDetail, action: React.ReactNode): PageSection[] {
+  const trace = buildPlainTrace({
+    steps: call.trace,
+    events: call.toolEvents,
+    toolUse: call.scorecard.toolUse,
+    agent: 'Munshi',
+  });
+  return [
+    {
+      id: 'scorecard',
+      title: 'Call scorecard',
+      badge: verdictBadge(call.scorecard.verdict),
+      content: (
+        <>
+          <Scorecard card={call.scorecard} hide={TIMELINE_GROUPS} />
+          {action}
+        </>
+      ),
+    },
+    {
+      id: 'timeline',
+      title: TIMELINE_TITLE,
+      badge: timelineBadge(trace),
+      content: <PlainTimeline title={TIMELINE_TITLE} trace={trace} steps={call.trace} />,
+    },
+    {
+      id: 'transcript',
+      title: 'Transcript',
+      content: (
+        <TranscriptCard
+          turns={call.transcript}
+          english={call.transcriptEnglish}
+          agent="Munshi"
+          other="You"
+        />
+      ),
+    },
+  ];
+}
+
 export function MunshiCallReport({
   call,
   action,
@@ -57,19 +100,7 @@ export function MunshiCallReport({
       <a href={MUNSHI_CALLS_PATH} className="text-sm font-medium text-brand underline">
         ← All Munshi calls
       </a>
-      <Facts call={call} />
-      <Scorecard card={call.scorecard} />
-      {action}
-      <ToolUse rows={call.scorecard.toolUse} events={call.toolEvents} />
-      <TranscriptCard
-        turns={call.transcript}
-        english={call.transcriptEnglish}
-        agent="Munshi"
-        other="You"
-      />
-      {call.trace.length > 0 ? (
-        <TraceSteps title="This call, step by step" steps={call.trace} />
-      ) : null}
+      <Sections top={<Facts call={call} />} sections={reportSections(call, action)} />
     </>
   );
 }

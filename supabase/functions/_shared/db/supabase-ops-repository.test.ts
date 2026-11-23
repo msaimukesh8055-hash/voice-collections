@@ -107,7 +107,7 @@ Deno.test('ops repository › a trace is read oldest first, capped, by its id on
   const steps = await createSupabaseOpsRepository(query).listTraceSteps(TRACE_ID);
   assertEquals(
     calls[0]?.[1],
-    'ops_events?select=source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +
+    'ops_events?select=trace_id,source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +
       `detail,created_at&trace_id=eq.${TRACE_ID}&order=created_at.asc&limit=400`,
   );
   assertEquals(steps, [{
@@ -196,7 +196,7 @@ Deno.test("ops repository › a call's steps: the traces that name it, then thei
   );
   assertEquals(
     calls[1]?.[1],
-    'ops_events?select=source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +
+    'ops_events?select=trace_id,source,step,status,error_code,provider,duration_ms,tokens_in,tokens_out,' +
       `detail,created_at&trace_id=in.(${TRACE_ID})&order=created_at.asc&limit=400`,
   );
   assertEquals(steps.map((one) => one.detail['route']), [`/calls/${CALL_ID}`, '/get_dues']);

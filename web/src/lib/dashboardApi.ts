@@ -13,6 +13,7 @@ import { LanguageSchema } from '@shared/schemas/shopkeeper.ts';
 import { AppApiError, NETWORK_ERROR, UNEXPECTED_ERROR } from './appApi.ts';
 import { type EvalCase, EvalCaseReplySchema, type Evals, EvalsSchema } from './evalsSchemas.ts';
 import { type HealthSummary, HealthSummarySchema } from './healthSchemas.ts';
+import { ScorecardSchema } from './scorecardSchemas.ts';
 import {
   type ExchangeDetail,
   ExchangeDetailSchema,
@@ -141,39 +142,6 @@ const ShopkeeperDetailSchema = z.object({
   calls: z.array(CallRowSchema),
 });
 const CallListSchema = z.object({ calls: z.array(CallRowSchema) });
-/** Live evals (2026-11-20): the call's scorecard, worked out on the server (scorecard.ts). */
-export const ScorecardSchema = z.object({
-  verdict: z.enum(['good', 'check', 'failed']),
-  passed: z.number(),
-  applicable: z.number(),
-  groups: z.array(
-    z.object({
-      name: z.string(),
-      checks: z.array(
-        z.object({
-          id: z.string(),
-          label: z.string(),
-          status: z.enum(['pass', 'warn', 'fail', 'na']),
-          value: z.string(),
-        }),
-      ),
-    }),
-  ),
-  /** Tools: needed vs ran (2026-11-20); missing on servers from before that day. */
-  toolUse: z
-    .array(
-      z.object({
-        tool: z.string(),
-        needed: z.boolean(),
-        timesMs: z.array(z.number().nullable()),
-        status: z.enum(['pass', 'warn', 'fail', 'na']),
-        why: z.string(),
-      }),
-    )
-    .default([]),
-  gaps: z.array(z.string()),
-});
-
 const CallDetailSchema = z.object({
   call: CallRowSchema.extend({
     transcript: z
@@ -233,6 +201,7 @@ const ErrorBodySchema = z.object({ error: z.object({ code: z.string(), message: 
 export type Band = z.infer<typeof BandSchema>;
 export type CallRow = z.infer<typeof CallRowSchema>;
 export type Scorecard = z.infer<typeof ScorecardSchema>;
+export { ScorecardSchema };
 export type Overview = z.infer<typeof OverviewSchema>;
 export type ShopkeeperList = z.infer<typeof ShopkeeperListSchema>;
 export type ShopkeeperDetail = z.infer<typeof ShopkeeperDetailSchema>;

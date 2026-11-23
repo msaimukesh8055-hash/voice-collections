@@ -7,12 +7,14 @@
 // 2026-11-23 (golden outcomes): each case shows its expected outcome; opening one shows the test,
 // expected vs this run row by row, and the conversation (CaseDetail.tsx).
 // 2026-11-23 (model choice): under the brain, the model bake-off table (ModelChoice.tsx).
+// 2026-11-23 (section menu): each agent, the model choice and live failures fold, with a menu.
 import type { TestDraft } from '../../lib/testDraftSchemas.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import type { EvalCase, EvalRun, Evals, EvalTarget, GoldenCase } from '../../lib/evalsSchemas.ts';
 import { dateTime } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { TONE_CLASSES } from '../ops/opsFormat.ts';
 import { CaseDetail } from './CaseDetail.tsx';
@@ -36,6 +38,7 @@ const TARGETS: Readonly<Record<string, { title: string; how: string; agent: stri
     how: 'Simulated owner and judge: Sarvam Tests. Saves, sends and reminders: checked in our database.',
   },
 };
+const LIVE_TITLE = 'From live use';
 const CELL = 'px-2 py-1.5 align-top';
 const HEAD = `${CELL} text-left text-xs font-medium uppercase tracking-wide text-ink-muted`;
 
@@ -208,35 +211,61 @@ function Target({
   );
 }
 
+function NoRuns(): React.JSX.Element {
+  return (
+    <Card title="Evals">
+      <p className="text-sm text-ink-muted">
+        No eval run is stored yet. Run <span className="font-mono">npm run evals:asha</span> or{' '}
+        <span className="font-mono">npm run evals:brain</span>.
+      </p>
+    </Card>
+  );
+}
+
+/** Section menu (2026-11-23): one section per agent, the model choice, then live failures. */
+function evalSections(evals: Evals, dashboard: DashboardApi): PageSection[] {
+  const targets = evals.targets.flatMap((target): PageSection[] => {
+    const about = TARGETS[target.target];
+    const section: PageSection = {
+      id: target.target,
+      title: about?.title ?? target.target,
+      badge: target.latest.metrics.passed ? '✅' : '❌',
+      content: <Target target={target} dashboard={dashboard} />,
+    };
+    if (target.target !== 'brain') return [section];
+    const models: PageSection = {
+      id: 'model-choice',
+      title: 'Model choice',
+      content: <ModelChoice runs={evals.modelChoice} />,
+    };
+    return [section, models];
+  });
+  const live: PageSection = {
+    id: 'live',
+    title: LIVE_TITLE,
+    content: <LiveDrafts dashboard={dashboard} />,
+  };
+  return [...targets, live];
+}
+
 function Summary({
   evals,
   dashboard,
 }: {
   readonly evals: Evals;
-  readonly dashboard: Pick<DashboardApi, 'evalCase'>;
+  readonly dashboard: DashboardApi;
 }): React.JSX.Element {
-  if (evals.targets.length === 0) {
-    return (
-      <Card title="Evals">
-        <p className="text-sm text-ink-muted">
-          No eval run is stored yet. Run <span className="font-mono">npm run evals:asha</span> or{' '}
-          <span className="font-mono">npm run evals:brain</span>.
-        </p>
-      </Card>
-    );
-  }
+  const note = (
+    <p className="text-xs text-ink-muted">
+      As of {dateTime(evals.generatedAt)}. Every shopkeeper, shop and amount on this page is fake
+      eval data, kept apart from the owner&apos;s book.
+    </p>
+  );
   return (
     <>
-      {evals.targets.map((target) => (
-        <Fragment key={target.target}>
-          <Target target={target} dashboard={dashboard} />
-          {target.target === 'brain' ? <ModelChoice runs={evals.modelChoice} /> : null}
-        </Fragment>
-      ))}
-      <p className="text-xs text-ink-muted">
-        As of {dateTime(evals.generatedAt)}. Every shopkeeper, shop and amount on this page is fake
-        eval data, kept apart from the owner&apos;s book.
-      </p>
+      {evals.targets.length === 0 ? <NoRuns /> : null}
+      <Sections sections={evalSections(evals, dashboard)} />
+      {note}
     </>
   );
 }
@@ -291,10 +320,11 @@ function LiveDrafts({ dashboard }: { readonly dashboard: DashboardApi }): React.
   const waiting =
     state.kind === 'ready' ? state.data.filter((one) => one.status === 'waiting') : [];
   return (
-    <Card title={`From live use (${waiting.length} waiting)`}>
+    <Card title={LIVE_TITLE}>
       <p className="mb-3 text-sm text-ink-muted">
-        Calls and WhatsApp messages that went wrong. Each becomes a scripted test once its wording
-        is approved, then runs in the release gate every time.
+        <span className="font-medium text-ink">{waiting.length} waiting.</span> Calls and WhatsApp
+        messages that went wrong. Each becomes a scripted test once its wording is approved, then
+        runs in the release gate every time.
       </p>
       <LoadState state={state}>
         {(drafts: readonly TestDraft[]) => <DraftList drafts={drafts} />}
@@ -308,12 +338,7 @@ export function EvalsPage({ dashboard }: { readonly dashboard: DashboardApi }): 
   return (
     <Layout current="/evals" dashboard={dashboard}>
       <LoadState state={state}>
-        {(evals: Evals) => (
-          <>
-            <Summary evals={evals} dashboard={dashboard} />
-            <LiveDrafts dashboard={dashboard} />
-          </>
-        )}
+        {(evals: Evals) => <Summary evals={evals} dashboard={dashboard} />}
       </LoadState>
     </Layout>
   );

@@ -16,6 +16,7 @@ import { englishLines, needsEnglish } from '../_shared/speech/transcript-english
 import { describeFailure } from '../_shared/tools/registry.ts';
 import { openInDemo } from './dashboard-routes.ts';
 import { keepScore, toneOf, toneScores } from './tone-route.ts';
+import { linkSteps } from './trace-links.ts';
 import type { RouteContext } from './types.ts';
 
 const OWNER_CALLS_PAGE = 50;
@@ -120,7 +121,8 @@ async function ownerCallDetail(_req: Request, ctx: RouteContext): Promise<Respon
   if (!found) return errorResponse('NOT_FOUND', ctx.cors);
   const { call, scorecard, steps } = await munshiReport(found, ctx);
   const { interactionId: _id, toneJudgement: _tone, ...shown } = call;
-  return jsonResponse({ call: { ...withCost(shown), scorecard, trace: steps } }, 200, ctx.cors);
+  const trace = linkSteps(steps, ctx);
+  return jsonResponse({ call: { ...withCost(shown), scorecard, trace } }, 200, ctx.cors);
 }
 
 export const OWNER_CALL_ROUTES = {

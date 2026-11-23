@@ -95,7 +95,7 @@ Deno.test('ops routes › the summary comes with spend in rupees against the cap
   const { status, body } = await get('/v1/dashboard/ops', deps({ summary: SUMMARY }));
   assertEquals(status, 200);
   assertEquals(body.day, { requests: 40, failed: 2 });
-  assertEquals(body.toolTargetMs, 500);
+  assertEquals(body.toolTargetMs, undefined);
   assertEquals(body.generatedAt, FAKE_NOW.toISOString());
   // Voice: 2 and 10 minutes at ₹4.13. Sarvam tokens with GST; Gemini is free.
   assertEquals(body.spend, {
@@ -116,7 +116,7 @@ Deno.test('ops routes › nothing recorded yet gives zeros, not an error', async
     now: { state: string };
     targets: unknown[];
   };
-  assertEquals([shown.measuredSince, shown.now.state, shown.targets.length], [null, 'unknown', 7]);
+  assertEquals([shown.measuredSince, shown.now.state, shown.targets.length], [null, 'unknown', 5]);
 });
 
 Deno.test('ops routes › status is built from the probes, with this month spend against the cap', async () => {

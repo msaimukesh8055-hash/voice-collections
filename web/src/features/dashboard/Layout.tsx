@@ -4,6 +4,7 @@
 // "open from WhatsApp" states. One light theme (very light blue; see CLAUDE.md).
 import { type ReactNode, useEffect, useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
+import { useSectionTitle } from './Sections.tsx';
 import type { Loaded } from './useLoad.ts';
 
 /** The shop's own pages. */
@@ -142,9 +143,12 @@ export function Card({
   readonly title?: string;
   readonly children: ReactNode;
 }): React.JSX.Element {
+  // Inside a folding section of the same name, the section's header already says it.
+  const sectionTitle = useSectionTitle();
+  const shownTitle = title && title !== sectionTitle ? title : null;
   return (
     <section className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border">
-      {title ? <h2 className="mb-3 text-base font-semibold">{title}</h2> : null}
+      {shownTitle ? <h2 className="mb-3 text-base font-semibold">{shownTitle}</h2> : null}
       {children}
     </section>
   );

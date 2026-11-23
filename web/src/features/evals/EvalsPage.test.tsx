@@ -4,7 +4,9 @@ import { EVALS, fakeDashboard } from '../../test/dashboardFakes.ts';
 import { EvalsPage } from './EvalsPage.tsx';
 
 function card(title: RegExp): HTMLElement {
-  const section = screen.getByRole('heading', { name: title }).closest('section');
+  // Each agent is a folding section (2026-11-23): its heading sits in the section's summary.
+  const heading = screen.getByRole('heading', { name: title });
+  const section = heading.closest('details') ?? heading.closest('section');
   if (!section) throw new Error(`No card ${String(title)}`);
   return section;
 }

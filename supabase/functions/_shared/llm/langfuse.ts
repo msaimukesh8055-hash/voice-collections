@@ -46,6 +46,8 @@ export interface LangfuseEnv {
   readonly LANGFUSE_SECRET_KEY: string | null;
   readonly LANGFUSE_HOST: string | null;
   readonly LANGFUSE_REDACT: string | null;
+  /** For links from our pages to one trace in Langfuse; set by functions:deploy. */
+  readonly LANGFUSE_PROJECT_ID?: string | null;
 }
 
 export interface LangfuseDeps {
@@ -63,6 +65,19 @@ export interface LangfuseSettings {
   readonly publicKey: string;
   readonly secretKey: string;
   readonly redact: boolean;
+}
+
+/** A link to one of our traces in Langfuse's UI (readable traces, 2026-11-23), or null when
+ * tracing is off or the project id is unknown. Our trace ids are UUIDs; Langfuse's are the same
+ * hex without dashes. */
+export function langfuseTraceLink(env: LangfuseEnv): ((traceId: string) => string | null) | null {
+  const settings = langfuseSettings(env);
+  const project = env.LANGFUSE_PROJECT_ID;
+  if (!settings || !project) return null;
+  return function link(traceId: string): string | null {
+    const hex = otelTraceId(traceId);
+    return hex ? `${settings.host}/project/${encodeURIComponent(project)}/traces/${hex}` : null;
+  };
 }
 
 /** Null (tracing off) unless both keys are set. */

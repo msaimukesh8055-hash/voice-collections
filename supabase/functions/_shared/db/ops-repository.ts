@@ -85,6 +85,8 @@ export interface TraceStep {
   readonly tokensOut: number | null;
   readonly detail: Readonly<Record<string, unknown>>;
   readonly createdAt: string;
+  /** The trace this step belongs to (2026-11-23: a call's steps span several traces). */
+  readonly traceId?: string;
 }
 
 /** One problem's claim on a 15-minute alert window (ops/watch.ts). */

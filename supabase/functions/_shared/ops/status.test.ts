@@ -20,7 +20,6 @@ function input(row: OpsStatusRow): StatusInput {
     row,
     summary: EMPTY_OPS_SUMMARY,
     spend: { monthInr: 12.5, capInr: 1000 },
-    toolTargetMs: 500,
     now: NOW,
   };
 }
@@ -166,8 +165,6 @@ Deno.test('targets › every target says how it is worked out; no data is neithe
   assertEquals(status.targets.map((one) => one.id), [
     'uptime',
     'requests',
-    'whatsapp',
-    'tools',
     'jobs',
     'queue',
     'spend',
@@ -177,34 +174,21 @@ Deno.test('targets › every target says how it is worked out; no data is neithe
   assertEquals(met, {
     uptime: null,
     requests: null,
-    whatsapp: null,
-    tools: null,
     jobs: null,
     queue: true,
     spend: true,
   });
 });
 
-Deno.test('targets › requests, WhatsApp time and tools against their goals', () => {
-  const row: OpsStatusRow = {
-    ...EMPTY_OPS_STATUS,
-    waReply: { messages: 20, p50Ms: 1200, p95Ms: 6400 },
-  };
+Deno.test('targets › requests against the goal; agent targets are not on Ops (2026-11-23)', () => {
   const status = buildStatus({
-    ...input(row),
-    summary: {
-      ...EMPTY_OPS_SUMMARY,
-      week: { requests: 1000, failed: 5 },
-      tools: [
-        { agent: 'asha', tool: 'get_dues', calls: 40, p50Ms: 120, p95Ms: 300 },
-        { agent: 'munshi', tool: 'book_summary', calls: 25, p50Ms: 200, p95Ms: 650 },
-      ],
-    },
+    ...input(EMPTY_OPS_STATUS),
+    summary: { ...EMPTY_OPS_SUMMARY, week: { requests: 1000, failed: 5 } },
   });
   const byId = Object.fromEntries(status.targets.map((one) => [one.id, [one.now, one.met]]));
   assertEquals(byId['requests'], ['99.50% (995 of 1000)', true]);
-  assertEquals(byId['whatsapp'], ['6.4 s (20 messages)', false]);
-  assertEquals(byId['tools'], ['1 of 2 tools within', false]);
+  assertEquals(byId['whatsapp'], undefined);
+  assertEquals(byId['tools'], undefined);
 });
 
 Deno.test('jobs › more sweeps than pg_cron ran: the rest were started by our own code', () => {

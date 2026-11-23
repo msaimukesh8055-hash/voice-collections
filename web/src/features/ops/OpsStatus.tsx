@@ -1,7 +1,7 @@
 // web/src/features/ops/OpsStatus.tsx
-// The ops page's top sections (redesign, Saim 2026-11-23): up or down now with uptime since the
-// first health probe, service targets, outside services, scheduled jobs, and errors grouped by
-// kind. Each figure has a one-line "how it's calculated" under it. Nothing before the first
+// The ops page's sections (redesign, Saim 2026-11-23): up or down now with uptime since the
+// first health probe, outside services, background jobs, and errors grouped by kind; each
+// target sits next to its own number (TargetLine), not in a separate table. Each figure has a one-line "how it's calculated" under it. Nothing before the first
 // probe is shown as uptime: the page says "measured since" instead.
 import type { ReactNode } from 'react';
 import type {
@@ -84,47 +84,23 @@ function metWords(met: boolean | null): { text: string; tone: Tone } {
   return met ? { text: 'Met', tone: 'good' } : { text: 'Missed', tone: 'bad' };
 }
 
-function TargetRow({ target }: { readonly target: OpsTarget }): React.JSX.Element {
+/** A target next to its own number (2026-11-23): goal, where it is now, met or missed. */
+export function TargetLine({
+  target,
+}: {
+  readonly target: OpsTarget | undefined;
+}): React.JSX.Element | null {
+  if (!target) return null;
   const words = metWords(target.met);
   return (
-    <tr className="border-t border-border">
-      <td className={CELL}>
-        <span className="font-medium">{target.name}</span>
-        <How>{target.how}</How>
-      </td>
-      <td className={CELL}>{target.goal}</td>
-      <td className={CELL}>{target.now}</td>
-      <td className={`${CELL} font-medium ${TONE_CLASSES[words.tone]}`}>{words.text}</td>
-    </tr>
-  );
-}
-
-export function TargetsCard({
-  targets,
-}: {
-  readonly targets: readonly OpsTarget[];
-}): React.JSX.Element {
-  return (
-    <Card title="Service targets">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr>
-              <th className={HEAD}>Target</th>
-              <th className={HEAD}>Goal</th>
-              <th className={HEAD}>Now</th>
-              <th className={HEAD}>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {targets.map((target) => (
-              <TargetRow key={target.id} target={target} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <How>Pilot targets we set ourselves, not a contract.</How>
-    </Card>
+    <div className="mt-3 rounded-xl bg-canvas px-3 py-2 text-sm ring-1 ring-border">
+      <p>
+        <span className="font-medium">Target: {target.goal}</span>
+        <span className="text-ink-muted"> · now {target.now} · </span>
+        <span className={`font-medium ${TONE_CLASSES[words.tone]}`}>{words.text}</span>
+      </p>
+      <How>{target.how}</How>
+    </div>
   );
 }
 
@@ -136,13 +112,30 @@ const SERVICE_WORDS: Readonly<Record<OpsService['state'], { text: string; tone: 
   unknown: { text: 'Not checked yet', tone: 'plain' },
 };
 
-function ServiceRow({ service }: { readonly service: OpsService }): React.JSX.Element {
+/** Sarvam LLM's row also says how many answers our code threw away (badly shaped). */
+export interface Rejected {
+  readonly answers: number;
+  readonly rejected: number;
+}
+
+function ServiceRow({
+  service,
+  rejected,
+}: {
+  readonly service: OpsService;
+  readonly rejected: Rejected | null;
+}): React.JSX.Element {
   const words = SERVICE_WORDS[service.state];
   return (
     <tr className="border-t border-border">
       <td className={CELL}>
         <span className="font-medium">{service.name}</span>
         <span className="block text-xs text-ink-muted">{service.use}</span>
+        {rejected ? (
+          <span className={`block text-xs ${rejected.rejected > 0 ? TONE_CLASSES.warn : ''}`}>
+            {rejected.rejected} of {rejected.answers} answers rejected as badly shaped
+          </span>
+        ) : null}
         <How>{service.how}</How>
       </td>
       <td className={CELL}>{service.calls}</td>
@@ -161,11 +154,13 @@ function ServiceRow({ service }: { readonly service: OpsService }): React.JSX.El
 
 export function ServicesCard({
   services,
+  sarvamRejected = null,
 }: {
   readonly services: readonly OpsService[];
+  readonly sarvamRejected?: Rejected | null;
 }): React.JSX.Element {
   return (
-    <Card title="What we depend on · 7 days">
+    <Card title="Outside services · 7 days">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -178,7 +173,11 @@ export function ServicesCard({
           </thead>
           <tbody>
             {services.map((service) => (
-              <ServiceRow key={service.name} service={service} />
+              <ServiceRow
+                key={service.name}
+                service={service}
+                rejected={service.name.startsWith('Sarvam LLM') ? sarvamRejected : null}
+              />
             ))}
           </tbody>
         </table>
@@ -219,7 +218,7 @@ function JobRow({ job }: { readonly job: OpsJob }): React.JSX.Element {
 
 export function JobsCard({ jobs }: { readonly jobs: readonly OpsJob[] }): React.JSX.Element {
   return (
-    <Card title="Scheduled jobs">
+    <Card title="Background jobs">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -268,7 +267,7 @@ export function ErrorGroupsCard({
   readonly groups: readonly OpsErrorGroup[];
 }): React.JSX.Element {
   return (
-    <Card title="Errors by kind · 7 days">
+    <Card title="Errors">
       {groups.length === 0 ? (
         <p className="text-sm text-ink-muted">No errors in the last 7 days.</p>
       ) : (
@@ -282,8 +281,8 @@ export function ErrorGroupsCard({
         </ul>
       )}
       <How>
-        Every error step, grouped by function, step and error code, newest first; the link opens the
-        latest one&apos;s trace. Eval traffic left out.
+        Every error step in 7 days, grouped by function, step and error code, newest first; the link
+        opens the latest one&apos;s trace as a readable timeline. Eval traffic left out.
       </How>
     </Card>
   );

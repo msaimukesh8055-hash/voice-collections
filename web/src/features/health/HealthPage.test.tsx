@@ -8,7 +8,10 @@ describe('HealthPage', () => {
   it('shows each agent: verdicts, guardrail fails, cost, top problems linking to their calls', async () => {
     const fake = fakeDashboard();
     render(<HealthPage dashboard={fake.dashboard} />);
-    expect(await screen.findByText('Asha · calls shopkeepers · last 4 calls')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /^Asha · calls shopkeepers/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Last 4 calls')).toBeInTheDocument();
     expect(fake.requests).toContain('agent-health');
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '1 need a look' })).toHaveAttribute(
@@ -44,8 +47,9 @@ describe('HealthPage', () => {
   it('the WhatsApp bot card counts messages and opens the WhatsApp page', async () => {
     render(<HealthPage dashboard={fakeDashboard().dashboard} />);
     expect(
-      await screen.findByText('WhatsApp bot · the owner’s chat · last 3 messages'),
+      await screen.findByRole('heading', { name: /^WhatsApp bot · the owner’s chat/ }),
     ).toBeInTheDocument();
+    expect(screen.getByText('Last 3 messages')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '2 need a look' })).toHaveAttribute(
       'href',
       '/whatsapp?ids=e2%2Ce3&label=Need+a+look',
@@ -58,17 +62,33 @@ describe('HealthPage', () => {
     expect(screen.getByText('Cost per message')).toBeInTheDocument();
   });
 
-  it('the Ops page has an Agent quality tile that opens this page', async () => {
-    render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
+  it('a top line says what needs a look across the agents (2026-11-23)', async () => {
+    render(<HealthPage dashboard={fakeDashboard().dashboard} />);
     expect(
-      await screen.findByText('Asha 2/4 went well · Munshi 0/0 went well · WhatsApp 1/3 went well'),
+      await screen.findByText(
+        '⚠ Asha: 1 with a guardrail fail · Asha: 1 tool over 1 s · WhatsApp replies slow (8.7 s, target 5 s)',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Agent quality/ })).toHaveAttribute('href', '/health');
+  });
+
+  it('each voice agent lists its tools against the 1 s target; WhatsApp shows 95% within', async () => {
+    render(<HealthPage dashboard={fakeDashboard().dashboard} />);
+    expect(await screen.findByText('1400 ms · over')).toBeInTheDocument();
+    expect(screen.getByText('300 ms ✓')).toBeInTheDocument();
+    expect(screen.getByText('95% answered within')).toBeInTheDocument();
+    expect(screen.getByText('8.7 s')).toBeInTheDocument();
+    expect(screen.getByText('target 5 s')).toBeInTheDocument();
+  });
+
+  it('the Ops page no longer has an agent quality strip (Ops is the shared machine only)', async () => {
+    render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
+    expect(await screen.findByRole('heading', { name: /^Now/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Agent quality/ })).toBeNull();
   });
 
   it('keeps problems and prompt versions, hides the 14-day trend while calls span few days', async () => {
     render(<HealthPage dashboard={fakeDashboard().dashboard} />);
-    expect(await screen.findByText('By prompt version')).toBeInTheDocument();
+    expect(await screen.findByText('Live calls by prompt version')).toBeInTheDocument();
     expect(screen.queryByText('Last 14 days')).toBeNull();
     expect(screen.queryByLabelText('Calls per day, last 14 days')).toBeNull();
   });

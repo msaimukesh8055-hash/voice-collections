@@ -23,19 +23,21 @@ describe('MunshiCallsPage', () => {
     expect(screen.getByRole('link', { name: /Nov/ })).toBeInTheDocument();
   });
 
-  it('one report: facts, scorecard, tools needed vs ran above the transcript', async () => {
+  it('one report: facts, scorecard, the readable timeline above the transcript', async () => {
     const fake = fakeDashboard();
     render(<MunshiCallsPage dashboard={fake.dashboard} id={OWNER_CALL.id} />);
     expect(await screen.findByRole('heading', { name: 'Call with Munshi' })).toBeInTheDocument();
     expect(fake.requests).toContain(`owner-call:${OWNER_CALL.id}`);
-    expect(screen.getByRole('heading', { name: 'Call scorecard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Call scorecard/ })).toBeInTheDocument();
     expect(screen.getByText('Every change read back before it was saved')).toBeInTheDocument();
-    const tools = screen.getByRole('heading', { name: 'Tools: needed vs ran' });
+    const timeline = screen.getByRole('heading', { name: /^What happened in the call/ });
     const transcript = screen.getByRole('heading', { name: 'Transcript' });
     expect(
-      tools.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING,
+      timeline.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByText('"How much does Ramesh owe?"')).toBeInTheDocument();
+    // The stored lookup reads as plain English; the tool's real name stays small beside it.
+    expect(screen.getByText('Looked up Ramesh')).toBeInTheDocument();
+    expect(screen.getByText('lookup_shopkeeper')).toBeInTheDocument();
     expect(screen.getByText('How much does Ramesh owe?')).toBeInTheDocument();
   });
 });

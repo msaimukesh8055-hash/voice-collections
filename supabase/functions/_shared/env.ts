@@ -36,6 +36,8 @@ const LangfuseFields = {
   LANGFUSE_SECRET_KEY: OptionalText,
   LANGFUSE_HOST: OptionalText.pipe(z.url().nullable()),
   LANGFUSE_REDACT: OptionalText,
+  /** Langfuse's project id, for links from our trace views (functions:deploy looks it up). */
+  LANGFUSE_PROJECT_ID: OptionalText,
 };
 
 /** Optional Munshi link secret: blank means "Munshi is not set up yet" (M8). */

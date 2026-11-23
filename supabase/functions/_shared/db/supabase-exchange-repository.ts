@@ -9,7 +9,7 @@ import type { PostgrestClient } from './postgrest.ts';
 
 const COLUMNS = 'id,created_at,wa_message_id,msg_type,path,command,in_text,reply_text,language,' +
   'replies_sent,replies_failed,voice_reply,card_action_id,answers_action_id,money_writes,' +
-  'error_code,handle_ms,is_test';
+  'error_code,handle_ms,is_test,trace_id';
 
 const Row = z.object({
   id: z.string(),
@@ -30,6 +30,7 @@ const Row = z.object({
   error_code: z.string().nullable(),
   handle_ms: z.number().int(),
   is_test: z.boolean(),
+  trace_id: z.string().nullable().optional(),
 });
 type RowData = z.infer<typeof Row>;
 
@@ -60,6 +61,7 @@ function toRow(row: RowData, cards: ReadonlyMap<string, z.infer<typeof CardRow>>
     errorCode: row.error_code,
     handleMs: row.handle_ms,
     isTest: row.is_test,
+    traceId: row.trace_id ?? null,
     card: card ? { status: card.status, expiresAt: card.expires_at } : null,
   };
 }
@@ -82,6 +84,7 @@ function toInsert(exchange: NewExchange): Record<string, unknown> {
     error_code: exchange.errorCode,
     handle_ms: exchange.handleMs,
     is_test: exchange.isTest,
+    trace_id: exchange.traceId ?? null,
   };
 }
 

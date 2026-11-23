@@ -1,7 +1,8 @@
 // web/src/features/whatsapp/WhatsAppPage.tsx
 // WhatsApp live checks (Saim, 2026-11-22; ADR-0022): /whatsapp lists the owner's latest WhatsApp
 // messages to the bot, each with its verdict; /whatsapp?id=… is one message's report, laid out like
-// a call page: facts, what he sent and what the bot replied, the scorecard, "Add as a test case".
+// a call page: facts, what he sent and what the bot replied, the scorecard, "Add as a test case",
+// and "What happened" (readable timeline, 2026-11-23: AI time vs building and sending replies).
 // The text is kept for 30 days. Agent health's WhatsApp card links here, filtered.
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { ExchangeDetail, ExchangeListItem } from '../../lib/whatsappSchemas.ts';
@@ -9,9 +10,13 @@ import { type CallFilter, FilteredCard, onlyFiltered } from '../calls/callFilter
 import { Scorecard } from '../calls/Scorecard.tsx';
 import { dateTime } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
+import { type PageSection, Sections } from '../dashboard/Sections.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { AddTestCase } from '../evals/AddTestCase.tsx';
 import { type Tone, TONE_CLASSES } from '../ops/opsFormat.ts';
+import { PlainTimeline } from '../trace/PlainTimeline.tsx';
+import { timelineBadge, verdictBadge } from '../trace/badges.ts';
+import { buildPlainTrace } from '../trace/plainTrace.ts';
 
 export const WHATSAPP_PATH = '/whatsapp';
 const SHORT_TEXT = 60;
@@ -165,6 +170,38 @@ function Conversation({
   );
 }
 
+const MESSAGE_TIMELINE = 'What happened';
+
+function reportSections(detail: ExchangeDetail, action: React.ReactNode): PageSection[] {
+  const trace = buildPlainTrace({ steps: detail.trace });
+  const timeline: PageSection[] =
+    detail.trace.length > 0
+      ? [
+          {
+            id: 'timeline',
+            title: MESSAGE_TIMELINE,
+            badge: timelineBadge(trace),
+            content: <PlainTimeline title={MESSAGE_TIMELINE} trace={trace} steps={detail.trace} />,
+          },
+        ]
+      : [];
+  return [
+    {
+      id: 'scorecard',
+      title: 'Message scorecard',
+      badge: verdictBadge(detail.scorecard.verdict),
+      content: (
+        <>
+          <Scorecard card={detail.scorecard} noun="Message" note={SCORE_NOTE} />
+          {action}
+        </>
+      ),
+    },
+    { id: 'message', title: 'The message', content: <Conversation exchange={detail.exchange} /> },
+    ...timeline,
+  ];
+}
+
 export function ExchangeReport({
   detail,
   action,
@@ -177,10 +214,10 @@ export function ExchangeReport({
       <a href={WHATSAPP_PATH} className="text-sm font-medium text-brand underline">
         ← All WhatsApp messages
       </a>
-      <Facts exchange={detail.exchange} />
-      <Conversation exchange={detail.exchange} />
-      <Scorecard card={detail.scorecard} noun="Message" note={SCORE_NOTE} />
-      {action}
+      <Sections
+        top={<Facts exchange={detail.exchange} />}
+        sections={reportSections(detail, action)}
+      />
     </>
   );
 }

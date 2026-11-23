@@ -31,6 +31,8 @@ export interface NewExchange {
   readonly errorCode: string | null;
   readonly handleMs: number;
   readonly isTest: boolean;
+  /** The request's trace (2026-11-23), for the report's step-by-step view; null when unknown. */
+  readonly traceId?: string | null;
 }
 
 function cut(text: string): string {

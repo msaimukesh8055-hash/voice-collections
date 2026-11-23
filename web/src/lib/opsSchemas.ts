@@ -45,7 +45,6 @@ export const OpsSummarySchema = z.object({
       createdAt: z.string(),
     }),
   ),
-  toolTargetMs: z.number(),
   /** M9 pause switch; a server from before it reads as not paused. */
   callsPaused: z.boolean().catch(false),
   spend: z.object({ capInr: z.number(), today: SpendSchema, month: SpendSchema }),
@@ -65,6 +64,10 @@ export const TraceStepSchema = z.object({
   tokensOut: z.number().nullable(),
   detail: z.record(z.string(), z.unknown()),
   createdAt: z.string(),
+  /** Readable traces (2026-11-23): a call's steps span several traces. */
+  traceId: z.string().optional(),
+  /** AI steps link to the same trace in Langfuse when tracing is on. */
+  langfuseUrl: z.string().optional(),
 });
 
 export const TraceSchema = z.object({

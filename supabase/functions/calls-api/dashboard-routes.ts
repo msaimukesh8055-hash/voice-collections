@@ -21,6 +21,7 @@ import { computeDues } from '../_shared/ledger/dues.ts';
 import { computeInsights } from '../_shared/ledger/insights.ts';
 import { scoreFrom } from '../_shared/reminders/score-explain.ts';
 import { keepScore, toneOf, toneScores } from './tone-route.ts';
+import { linkSteps } from './trace-links.ts';
 import type { RouteContext, RouteHandler } from './types.ts';
 
 const RECENT_CALLS = 10;
@@ -258,7 +259,7 @@ async function callDetail(_req: Request, ctx: RouteContext): Promise<Response> {
   const { call, shopkeepers, scorecard, steps } = await ashaReport(found, ctx);
   const { toneJudgement: _tone, ...shown } = call;
   return jsonResponse(
-    { call: { ...callRow(shown, nameMap(shopkeepers)), scorecard, trace: steps } },
+    { call: { ...callRow(shown, nameMap(shopkeepers)), scorecard, trace: linkSteps(steps, ctx) } },
     200,
     ctx.cors,
   );

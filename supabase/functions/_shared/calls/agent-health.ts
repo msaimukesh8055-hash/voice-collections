@@ -95,6 +95,11 @@ export interface AgentHealth {
   readonly trend: readonly DayHealth[];
 }
 
+/** The one tool target (Saim, 2026-11-23): each tool answers within 1 s for 95% of its calls. */
+export const TOOL_TARGET_MS = 1_000;
+/** WhatsApp: 95% of the owner's messages answered within 5 s (Saim agreed, 2026-11-22). */
+export const WA_REPLY_TARGET_MS = 5_000;
+
 export const HEALTH_CALLS = 50;
 export const TREND_DAYS = 14;
 const TOP_PROBLEMS = 8;
@@ -172,6 +177,13 @@ function middle(values: readonly number[]): number | null {
   const half = Math.floor(sorted.length / 2);
   const upper = sorted[half] ?? 0;
   return sorted.length % 2 === 1 ? upper : Math.round(((sorted[half - 1] ?? 0) + upper) / 2);
+}
+
+/** The value 95% of them are at or under (nearest rank); null when there are none. */
+export function p95(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)] ?? null;
 }
 
 function average(values: readonly number[]): number | null {

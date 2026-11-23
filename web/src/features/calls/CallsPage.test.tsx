@@ -1,5 +1,5 @@
 // web/src/features/calls/CallsPage.test.tsx
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import type { CallDetail } from '../../lib/dashboardApi.ts';
 import { CALL, fakeDashboard, TRACE } from '../../test/dashboardFakes.ts';
 import { CallsPage } from './CallsPage.tsx';
@@ -29,7 +29,9 @@ describe('CallsPage', () => {
     expect(screen.getByText('check promise')).toBeInTheDocument();
     expect(screen.getByText(/Promised to pay/)).toBeInTheDocument();
     expect(screen.getByText('Monday I will pay.')).toBeInTheDocument();
-    expect(screen.getByText('get_dues · 120 ms')).toBeInTheDocument();
+    // Readable timeline (2026-11-23): the tool in plain words, its real name small.
+    expect(screen.getByText('Looked up the dues')).toBeInTheDocument();
+    expect(screen.getByText('get_dues')).toBeInTheDocument();
     expect(screen.getByText('I will give on Monday.')).toBeInTheDocument();
     expect(screen.getByText('Telugu')).toBeInTheDocument();
     expect(screen.queryByText(/\*/)).not.toBeInTheDocument();
@@ -109,17 +111,49 @@ describe('CallsPage', () => {
     const fake = fakeDashboard();
     const dashboard = { ...fake.dashboard, call: () => Promise.resolve(scored) };
     render(<CallsPage dashboard={dashboard} id={CALL.id} />);
-    expect(await screen.findByRole('heading', { name: 'Call scorecard' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^Call scorecard/ })).toBeInTheDocument();
     expect(screen.getByText('❌ A guardrail failed')).toBeInTheDocument();
     expect(screen.getByText(/18 of 21 checks passed/)).toBeInTheDocument();
     expect(screen.getByText('dues before identity')).toBeInTheDocument();
-    expect(screen.getByText('1.1 s over 12 replies')).toBeInTheDocument();
-    expect(screen.getByText('n/a')).toBeInTheDocument();
+    // Latency's numbers moved to the timeline (2026-11-23); the scorecard keeps verdicts only.
+    expect(screen.queryByText('1.1 s over 12 replies')).not.toBeInTheDocument();
     expect(screen.queryByText(/Not judged yet/)).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'This call, step by step' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^What happened in the call/ })).toBeInTheDocument();
   });
 
-  it('shows "Tools: needed vs ran" above the transcript, with why and a silent miss in red', async () => {
+  it('a miss in a group moved to the timeline still shows as one verdict line', async () => {
+    const fake = fakeDashboard();
+    const base = await fake.dashboard.call(CALL.id);
+    const scored: CallDetail = {
+      ...base,
+      scorecard: {
+        verdict: 'check',
+        passed: 1,
+        applicable: 2,
+        groups: [
+          {
+            name: 'Tools',
+            checks: [
+              {
+                id: 'no_double_tool',
+                label: 'No tool called twice in a row',
+                status: 'warn',
+                value: 'request_owner_callback twice',
+              },
+            ],
+          },
+        ],
+        toolUse: [],
+        gaps: [],
+      },
+    };
+    const dashboard = { ...fake.dashboard, call: () => Promise.resolve(scored) };
+    render(<CallsPage dashboard={dashboard} id={CALL.id} />);
+    expect(await screen.findByText(/Tools: No tool called twice in a row/)).toBeInTheDocument();
+    expect(screen.queryByText('request_owner_callback twice')).not.toBeInTheDocument();
+  });
+
+  it('the timeline lists tools that did not run; a needed one in red (2026-11-23)', async () => {
     const fake = fakeDashboard();
     const base = await fake.dashboard.call(CALL.id);
     const scored: CallDetail = {
@@ -130,13 +164,6 @@ describe('CallsPage', () => {
         applicable: 4,
         groups: [],
         toolUse: [
-          {
-            tool: 'log_promise',
-            needed: true,
-            timesMs: [444, 618, 125],
-            status: 'pass',
-            why: '"I will pay 2000"',
-          },
           {
             tool: 'record_payment_claim',
             needed: true,
@@ -149,7 +176,7 @@ describe('CallsPage', () => {
             needed: false,
             timesMs: [],
             status: 'na',
-            why: 'not needed',
+            why: 'no dispute, hardship or request for the owner',
           },
         ],
         gaps: [],
@@ -157,23 +184,33 @@ describe('CallsPage', () => {
     };
     const dashboard = { ...fake.dashboard, call: () => Promise.resolve(scored) };
     render(<CallsPage dashboard={dashboard} id={CALL.id} />);
-    const tools = await screen.findByRole('heading', { name: 'Tools: needed vs ran' });
+    const missed = await screen.findByText(/needed but never ran: "I already paid"/);
+    expect(missed.closest('li')).toHaveClass('text-danger');
+    expect(
+      screen.getByText(/not needed, no dispute, hardship or request for the owner/),
+    ).toBeInTheDocument();
+    const timeline = screen.getByRole('heading', { name: /^What happened in the call/ });
     const transcript = screen.getByRole('heading', { name: 'Transcript' });
     expect(
-      tools.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING,
+      timeline.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByText('✓ ×3 (444 ms / 618 ms / 125 ms)')).toBeInTheDocument();
-    expect(screen.getByText('✗ never ran')).toBeInTheDocument();
-    expect(screen.getByText('"I already paid", but it never ran')).toBeInTheDocument();
-    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('a section menu opens the section it names and puts it in the address', async () => {
+    render(<CallsPage dashboard={fakeDashboard().dashboard} id={CALL.id} />);
+    const [link] = await screen.findAllByRole('link', { name: /^Transcript/ });
+    const section = document.getElementById('transcript');
+    expect(section).not.toHaveAttribute('open');
+    link?.click();
+    await waitFor(() => expect(document.getElementById('transcript')).toHaveAttribute('open'));
+    expect(window.location.hash).toBe('#transcript');
   });
 
   it('an older call without a scorecard or steps still shows the rest', async () => {
     render(<CallsPage dashboard={fakeDashboard().dashboard} id={CALL.id} />);
     expect(await screen.findByRole('heading', { name: 'Call with Ramesh' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Call scorecard' })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: 'This call, step by step' }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^Call scorecard/ })).not.toBeInTheDocument();
+    // No recorded steps: the timeline is built from the stored tool calls alone.
+    expect(screen.getByText('Looked up the dues')).toBeInTheDocument();
   });
 });

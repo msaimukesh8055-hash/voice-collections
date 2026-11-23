@@ -4,6 +4,8 @@
 // services as our own calls saw them, and the scheduled jobs. Every number carries a one-line
 // "how it's calculated", and nothing is assumed before the first probe: uptime is "measured
 // since" that probe, and a target with no data says so instead of passing.
+// 2026-11-23 (Saim): Ops is the shared machine only. The agent targets (tool speed, WhatsApp
+// reply time) moved to Agent health (agent-health-routes.ts).
 import type {
   CronJob,
   JobRequests,
@@ -85,7 +87,6 @@ export interface StatusInput {
   readonly row: OpsStatusRow;
   readonly summary: OpsSummary;
   readonly spend: { readonly monthInr: number; readonly capInr: number };
-  readonly toolTargetMs: number;
   readonly now: Date;
 }
 
@@ -357,33 +358,6 @@ function requestsTarget(summary: OpsSummary): Target {
   };
 }
 
-function whatsappTarget(row: OpsStatusRow): Target {
-  const { messages, p95Ms } = row.waReply;
-  return {
-    id: 'whatsapp',
-    name: 'WhatsApp message handled',
-    goal: 'p95 under 5 s, 7 days',
-    now: p95Ms === null ? 'No messages' : `${(p95Ms / 1000).toFixed(1)} s (${messages} messages)`,
-    met: p95Ms === null ? null : p95Ms < 5_000,
-    how: 'Time from the message reaching us to the reply being handed to Meta, 95% of messages ' +
-      'at or under this. Test messages left out.',
-  };
-}
-
-function toolsTarget(summary: OpsSummary, targetMs: number): Target {
-  const over = summary.tools.filter((tool) => tool.p95Ms >= targetMs);
-  return {
-    id: 'tools',
-    name: 'Agent tool replies',
-    goal: `p95 under ${targetMs} ms, every tool`,
-    now: summary.tools.length === 0
-      ? 'No tool calls'
-      : `${summary.tools.length - over.length} of ${summary.tools.length} tools within`,
-    met: summary.tools.length === 0 ? null : over.length === 0,
-    how: "Server time for each of Asha's and Munshi's tools over 7 days (details folded below).",
-  };
-}
-
 function jobsTarget(jobs: readonly Job[]): Target {
   const judged = jobs.filter((job) => job.state !== 'off' && job.state !== 'not_run');
   const behind = judged.filter((job) => job.state !== 'ok');
@@ -410,8 +384,6 @@ export function targetsOf(
   return [
     uptimeTarget(parts.week),
     requestsTarget(summary),
-    whatsappTarget(input.row),
-    toolsTarget(summary, input.toolTargetMs),
     jobsTarget(parts.jobs),
     {
       id: 'queue',

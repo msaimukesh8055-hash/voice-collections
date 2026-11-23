@@ -1,49 +1,64 @@
 // web/src/features/ops/OpsPage.test.tsx
+// Ops is the shared machine only (Saim, 2026-11-23): a top line, then folding sections (Now,
+// Errors, Outside services, Background jobs, Money, Details), each target next to its number.
 import { render, screen, within } from '@testing-library/react';
 import { fakeDashboard, OPS, OPS_STATUS, TRACE_ID } from '../../test/dashboardFakes.ts';
 import { OpsPage } from './OpsPage.tsx';
 
-async function card(name: string | RegExp): Promise<HTMLElement> {
+/** One folding section, found by its heading. */
+async function section(name: string | RegExp): Promise<HTMLElement> {
   const heading = await screen.findByRole('heading', { name });
-  const section = heading.closest('section');
-  if (!section) throw new Error(`No card ${String(name)}`);
-  return section;
-}
-
-function tile(name: RegExp): HTMLElement {
-  const section = screen.getByRole('heading', { name }).closest('section');
-  if (!section) throw new Error(`No tile ${String(name)}`);
-  return section;
+  const found = heading.closest('details');
+  if (!found) throw new Error(`No section ${String(name)}`);
+  return found;
 }
 
 describe('OpsPage', () => {
-  it('shows error rate, rejected LLM answers, the queue and spend against the cap', async () => {
+  it('says in one line what needs attention; nothing about agents or tools', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    await screen.findByRole('heading', { name: /Error rate/ });
-    expect(within(tile(/Error rate/)).getByText('2.5%')).toBeInTheDocument();
-    expect(within(tile(/Error rate/)).getByText('1 of 40 requests failed')).toBeInTheDocument();
-    expect(within(tile(/Error rate/)).getByText('7 days: 10% (30 of 300)')).toBeInTheDocument();
-    expect(within(tile(/Rejected LLM answers/)).getByText('15%')).toBeInTheDocument();
-    expect(
-      within(tile(/Rejected LLM answers/)).getByText('sarvam: 3 rejected, 1 failed of 20'),
-    ).toBeInTheDocument();
-    expect(within(tile(/answered in code/)).getByText('75%')).toBeInTheDocument();
-    expect(within(tile(/Follow-up queue/)).getByText('Clear')).toBeInTheDocument();
-    expect(within(tile(/Spend this month/)).getByText('₹84.49 of ₹1,000')).toBeInTheDocument();
-    expect(
-      within(tile(/Spend this month/)).getByText('Voice ₹41.30 · LLM ₹43.19'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('⚠ 1 thing needs attention: App API up')).toBeInTheDocument();
+    expect(screen.queryByText(/get_dues|Agent tool|WhatsApp answered in code/)).toBeNull();
+    const menu = screen.getAllByRole('navigation', { name: 'Sections' })[0];
+    expect(menu).toHaveTextContent(
+      /Now.*Errors.*Outside services.*Background jobs.*Money.*Details/,
+    );
+  });
+
+  it('all working says so', async () => {
+    const fake = fakeDashboard();
+    const targets = OPS_STATUS.targets.map((one) => ({
+      ...one,
+      met: one.met !== null ? true : null,
+    }));
+    fake.ops = { ...OPS, status: { ...OPS_STATUS, targets } };
+    render(<OpsPage dashboard={fake.dashboard} id={null} />);
+    expect(await screen.findByText('✓ All working')).toBeInTheDocument();
+  });
+
+  it('money: spend against the ₹1,000 cap, with its target beside it', async () => {
+    render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
+    const money = within(await section(/^Money/));
+    expect(money.getByText('₹84.49 of ₹1,000 this month')).toBeInTheDocument();
+    expect(money.getByText(/Voice ₹41.30 · LLM ₹43.19/)).toBeInTheDocument();
+    expect(money.getByText(/× ₹3.50 \+ GST/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '8');
   });
 
-  it('marks each tool against the 500 ms target in words', async () => {
-    render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    const fast = (await screen.findByText('get_dues')).closest('tr');
-    const slow = screen.getByText('book_summary').closest('tr');
-    expect(fast).toHaveTextContent('310 ms');
-    expect(fast).toHaveTextContent('Within');
-    expect(slow).toHaveTextContent('640 ms');
-    expect(slow).toHaveTextContent('Over');
+  it('the Sarvam LLM row says how many answers were rejected', async () => {
+    const fake = fakeDashboard();
+    const sarvam = {
+      name: 'Sarvam LLM (sarvam-105b)',
+      use: 'WhatsApp brain',
+      calls: 20,
+      failed: 1,
+      lastFailedAt: null,
+      state: 'recovered' as const,
+      how: 'Our calls to the model in 7 days.',
+    };
+    fake.ops = { ...OPS, status: { ...OPS_STATUS, services: [sarvam, ...OPS_STATUS.services] } };
+    render(<OpsPage dashboard={fake.dashboard} id={null} />);
+    const services = within(await section(/^Outside services/));
+    expect(services.getByText('3 of 20 answers rejected as badly shaped')).toBeInTheDocument();
   });
 
   it('groups errors by kind, each linking to its latest trace', async () => {
@@ -64,7 +79,7 @@ describe('OpsPage', () => {
 
   it('shows up or down, uptime and since when it is measured', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    const status = within(await card('Status'));
+    const status = within(await section(/^Now/));
     expect(status.getByText('Up')).toBeInTheDocument();
     expect(status.getAllByText('93.33%')).toHaveLength(3);
     expect(status.getAllByText('14 of 15 probes')).toHaveLength(3);
@@ -87,42 +102,46 @@ describe('OpsPage', () => {
       },
     };
     render(<OpsPage dashboard={fake.dashboard} id={null} />);
-    const status = within(await card('Status'));
+    const status = within(await section(/^Now/));
     expect(status.getAllByText('Not measured yet').length).toBeGreaterThan(0);
     expect(status.getAllByText('no probes')).toHaveLength(3);
     expect(status.getByText('The first health probe has not run yet.')).toBeInTheDocument();
   });
 
-  it('service targets: met, missed or no data, each with how it is worked out', async () => {
+  it('each target sits next to its own number: met, missed or no data', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    const targets = within(await card('Service targets'));
-    const row = (name: string): HTMLElement | null => targets.getByText(name).closest('tr');
-    expect(row('App API up')).toHaveTextContent('Missed');
-    expect(row('Requests that worked')).toHaveTextContent('Met');
-    expect(row('WhatsApp message handled')).toHaveTextContent('No data yet');
-    expect(targets.getByText('Requests whose trace has no error step.')).toBeInTheDocument();
+    const now = within(await section(/^Now/));
+    expect(now.getByText('Target: 99.5% of probes, 7 days').closest('div')).toHaveTextContent(
+      'Missed',
+    );
+    const errors = within(await section(/^Errors/));
+    expect(errors.getByText('Target: 99%, 7 days').closest('div')).toHaveTextContent('Met');
+    expect(errors.getByText('Requests whose trace has no error step.')).toBeInTheDocument();
+    const jobs = within(await section(/^Background jobs/));
+    expect(jobs.getByText('Target: Every job, last 24 h').closest('div')).toHaveTextContent(
+      'No data yet',
+    );
   });
 
   it('lists what we depend on and the scheduled jobs, state in words', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    const services = within(await card(/What we depend on/));
+    const services = within(await section(/^Outside services/));
     expect(services.getByText('Sarvam voice agents').closest('tr')).toHaveTextContent(
       'Working (failed earlier)',
     );
     expect(services.getByText('Gemini').closest('tr')).toHaveTextContent('Not used in 7 days');
-    const jobs = within(await card('Scheduled jobs'));
+    const jobs = within(await section(/^Background jobs/));
     expect(jobs.getByText('followup-sweep').closest('tr')).toHaveTextContent('On time');
     expect(jobs.getByText('health-probe').closest('tr')).toHaveTextContent('Not run yet');
     expect(jobs.getByText('1440 of 1440 runs reached the worker.')).toBeInTheDocument();
   });
 
-  it('every tile says how its figure is calculated; latency tables are folded away', async () => {
+  it('only the first section starts open; function times sit in Details', async () => {
     render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    await screen.findByRole('heading', { name: /Error rate/ });
-    expect(within(tile(/Spend this month/)).getByText(/× ₹3.50 \+ GST/)).toBeInTheDocument();
-    expect(within(tile(/Follow-up queue/)).getByText(/stuck means/)).toBeInTheDocument();
-    const folded = screen.getByText('Latency details: tools and functions').closest('details');
-    expect(folded).not.toHaveAttribute('open');
+    expect(await section(/^Now/)).toHaveAttribute('open');
+    const details = await section(/^Details/);
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details).getByText('Time per function · 24 hours')).toBeInTheDocument();
   });
 
   it('says so when a queue is stuck, and copes with nothing recorded yet', async () => {
@@ -139,40 +158,30 @@ describe('OpsPage', () => {
     };
     render(<OpsPage dashboard={fake.dashboard} id={null} />);
     expect(await screen.findByText('2 stuck')).toBeInTheDocument();
-    expect(within(tile(/Error rate/)).getByText('–')).toBeInTheDocument();
-    expect(screen.getByText('No LLM calls recorded yet')).toBeInTheDocument();
-    expect(screen.getByText('No tool calls in the last 7 days.')).toBeInTheDocument();
+    expect(screen.getByText('3 waiting now · 0 failed in 7 days')).toBeInTheDocument();
     expect(screen.getByText('No errors in the last 7 days.')).toBeInTheDocument();
   });
 
-  it('shows one trace as a timeline: time since the start, status in words, facts', async () => {
+  it('shows one trace as the readable timeline, the raw steps in its technical fold', async () => {
     const fake = fakeDashboard();
     render(<OpsPage dashboard={fake.dashboard} id={TRACE_ID} />);
-    expect(await screen.findByText('brain_llm')).toBeInTheDocument();
+    expect(await screen.findByText('AI read the message')).toBeInTheDocument();
     expect(fake.requests).toEqual([`trace:${TRACE_ID}`]);
-    const steps = screen.getAllByRole('listitem');
-    expect(steps).toHaveLength(3);
-    expect(steps[0]).toHaveTextContent('+0 ms');
-    expect(steps[0]).toHaveTextContent('Warning');
-    expect(steps[0]).toHaveTextContent('whatsapp-webhook · 412 ms · sarvam · bad_json');
-    expect(steps[1]).toHaveTextContent('+1.25 s');
-    expect(steps[1]).toHaveTextContent('812 tokens in, 44 out');
-    expect(steps[1]).toHaveTextContent('model: gemini-2.5-flash');
-    expect(steps[2]).toHaveTextContent('Error');
-    expect(screen.getByText('1 failed')).toBeInTheDocument();
+    expect(screen.getByText(/3 steps over .* · 1 failed/)).toBeInTheDocument();
+    const raw = screen.getByText('Technical details').closest('details');
+    expect(raw).not.toHaveAttribute('open');
+    expect(within(raw as HTMLElement).getAllByText('whatsapp_background_failed').length).toBe(1);
     expect(screen.getByRole('link', { name: /All ops/ })).toHaveAttribute('href', '/ops');
   });
 
   it('shows whether reminder calls are running or paused, in words', async () => {
     const running = render(<OpsPage dashboard={fakeDashboard().dashboard} id={null} />);
-    await screen.findByRole('heading', { name: 'Reminder calls' });
-    expect(within(tile(/^Reminder calls$/)).getByText('Running')).toBeInTheDocument();
+    expect(within(await section(/^Now/)).getByText('Running')).toBeInTheDocument();
     running.unmount();
     const fake = fakeDashboard();
     fake.ops = { ...OPS, callsPaused: true };
     render(<OpsPage dashboard={fake.dashboard} id={null} />);
-    await screen.findByRole('heading', { name: 'Reminder calls' });
-    expect(within(tile(/^Reminder calls$/)).getByText('Paused')).toBeInTheDocument();
+    expect(within(await section(/^Now/)).getByText('Paused')).toBeInTheDocument();
     expect(screen.getByText(/until \/resume is sent/)).toBeInTheDocument();
   });
 
