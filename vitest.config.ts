@@ -21,6 +21,7 @@ export default defineConfig({
         'evals/munshi/run.ts',
         'evals/sarvam/run.ts',
         'evals/brain/run.ts',
+        'evals/brain/bakeoff-run.ts',
       ],
       reportsDirectory: 'coverage/root',
     },

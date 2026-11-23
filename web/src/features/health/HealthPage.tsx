@@ -7,6 +7,7 @@
 // pages (Saim, 2026-11-22): every count opens those pages filtered to the calls behind it, and
 // "Why N calls need a look" counts only the calls that need a look or failed. WhatsApp bot
 // (2026-11-22, ADR-0022): a third card, scored per owner message, opening /whatsapp.
+// 2026-11-23: the 14-day trend is hidden until calls fall on at least 7 of those days.
 import { type CallFilter, filteredCallsHref } from '../calls/callFilter.tsx';
 import { checkHelp } from '../calls/checkHelp.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
@@ -303,11 +304,26 @@ function Trend({ health }: { readonly health: AgentHealth }): React.JSX.Element 
   );
 }
 
-/** Tone, prompt versions and the trend: tone and versions only for the voice agents. */
-function Details({ health }: { readonly health: AgentHealth }): React.JSX.Element {
+/** The daily chart says little until calls are spread over a week or more (Saim, 2026-11-23):
+ * it shows once at least this many of the last 14 days had a call. */
+export const TREND_MIN_DAYS = 7;
+
+export function hasEnoughTrend(health: AgentHealth): boolean {
+  const active = health.trend.filter((day) => day.good + day.check + day.failed > 0);
+  return active.length >= TREND_MIN_DAYS;
+}
+
+/** Tone, prompt versions and the trend: tone and versions only for the voice agents; the trend
+ * only once there is enough of it. */
+function Details({ health }: { readonly health: AgentHealth }): React.JSX.Element | null {
   const voiceAgent = AGENTS[health.agent].voiceAgent;
+  const trend = hasEnoughTrend(health);
+  const columns = (voiceAgent ? 2 : 0) + (trend ? 1 : 0);
+  if (columns === 0) return null;
   return (
-    <div className={`grid gap-5 ${voiceAgent ? 'md:grid-cols-3' : ''}`}>
+    <div
+      className={`grid gap-5 ${columns === 3 ? 'md:grid-cols-3' : columns === 2 ? 'md:grid-cols-2' : ''}`}
+    >
       {voiceAgent ? (
         <section>
           <h3 className="mb-2 text-sm font-semibold">Tone (AI judge)</h3>
@@ -320,10 +336,12 @@ function Details({ health }: { readonly health: AgentHealth }): React.JSX.Elemen
           <Versions health={health} />
         </section>
       ) : null}
-      <section>
-        <h3 className="mb-2 text-sm font-semibold">Last 14 days</h3>
-        <Trend health={health} />
-      </section>
+      {trend ? (
+        <section>
+          <h3 className="mb-2 text-sm font-semibold">Last 14 days</h3>
+          <Trend health={health} />
+        </section>
+      ) : null}
     </div>
   );
 }

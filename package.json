@@ -40,7 +40,8 @@
     "brand:png": "node scripts/brand-png.ts",
     "bot:profile": "node --env-file-if-exists=.env scripts/bot-profile.ts",
     "whatsapp:commands": "node --env-file-if-exists=.env scripts/whatsapp-commands.ts",
-    "evals:golden": "node scripts/evals-golden.ts"
+    "evals:golden": "node scripts/evals-golden.ts",
+    "evals:bakeoff": "node --env-file=.env evals/brain/bakeoff-run.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

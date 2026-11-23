@@ -11,6 +11,9 @@
 //   2026-11-23 (new cases run on their own): a run of some cases only (metrics.only) never stands
 //   in for the full release gate. "latest" is the newest full run; a case it does not have comes
 //   from the newest partial run that has it, marked with that run (ranAlone).
+//   2026-11-23 (model choice): bake-off runs (target "brain-model", npm run evals:bakeoff) are not
+//   a release gate, so they are left out of targets and returned as modelChoice, the newest run
+//   per model.
 // The page shows what the runners stored; nothing is re-judged here.
 import type { EvalCaseResult, EvalRun } from '../_shared/db/eval-reads.ts';
 import type { GoldenCase, GoldenTarget } from '../_shared/evals/golden.ts';
@@ -23,6 +26,7 @@ import type { RouteContext, RouteHandler } from './types.ts';
 /** Enough runs to give each target its trend. */
 const RUNS_READ = 40;
 export const TREND_LENGTH = 10;
+export const MODEL_TARGET = 'brain-model';
 
 /** A case of the latest full run, or one a newer partial run added (ranAlone says which). */
 export interface ShownCase extends EvalCaseResult {
@@ -97,9 +101,21 @@ function byTarget(runs: readonly EvalRun[]): ReadonlyMap<string, readonly EvalRu
   return Map.groupBy(runs, (run) => run.target);
 }
 
+/** The newest bake-off run per model, oldest of those first (the order the bake-off runs them). */
+export function modelChoice(runs: readonly EvalRun[]): readonly EvalRun[] {
+  const newest = new Map<string, EvalRun>();
+  for (const run of runs) {
+    const model = run.metrics['model'];
+    if (typeof model !== 'string' || newest.has(model)) continue;
+    newest.set(model, run);
+  }
+  return [...newest.values()].reverse();
+}
+
 async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Response> {
   const reads = deps.dashboard.evals;
-  const groups = [...byTarget(await reads.listRuns(RUNS_READ)).entries()];
+  const all = byTarget(await reads.listRuns(RUNS_READ));
+  const groups = [...all.entries()].filter(([target]) => target !== MODEL_TARGET);
   const targets = await Promise.all(
     groups.map(async ([target, runs]): Promise<EvalTarget | null> => {
       const latest = runs.find((run) => !isPartial(run)) ?? runs[0];
@@ -122,7 +138,12 @@ async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Re
   const listed = targets.filter((target) => target !== null).sort((a, b) =>
     a.target.localeCompare(b.target)
   );
-  return jsonResponse({ targets: listed, generatedAt: deps.clock().toISOString() }, 200, cors);
+  const models = modelChoice(all.get(MODEL_TARGET) ?? []);
+  return jsonResponse(
+    { targets: listed, modelChoice: models, generatedAt: deps.clock().toISOString() },
+    200,
+    cors,
+  );
 }
 
 async function getCase(_req: Request, { deps, cors, params }: RouteContext): Promise<Response> {

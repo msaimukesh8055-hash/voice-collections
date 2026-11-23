@@ -146,6 +146,10 @@ const WorkerEnvSchema = CallsApiEnvSchema.omit({
   DASHBOARD_LINK_SECRET: OptionalText.pipe(
     z.string().min(MIN_DASHBOARD_SECRET_LENGTH).nullable(),
   ),
+  /** Ops redesign (2026-11-23): the health probe calls calls-api, which sits behind Supabase's
+   * JWT check. Supabase gives every function its project's public anon key; blank means the
+   * probe is sent without it (and is recorded as failing, so the gap shows). */
+  SUPABASE_ANON_KEY: OptionalText,
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

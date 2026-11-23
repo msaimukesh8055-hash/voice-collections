@@ -3,6 +3,9 @@
 // 500 ms target, how often an LLM answer was rejected, the follow-up queue, spend against the
 // cap, and the latest errors, each opening its trace (/ops?id=<trace id>). Read-only. A tile at
 // the top links to Agent health (/health), which scores how well the agents do their job.
+// 2026-11-23 (redesign): status and uptime from the health probes, service targets, what we
+// depend on, scheduled jobs and errors grouped by kind come first (OpsStatus.tsx); every figure
+// says how it is calculated; the latency tables are folded away at the bottom.
 import type { ReactNode } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import type { OpsSummary } from '../../lib/opsSchemas.ts';
@@ -10,6 +13,14 @@ import { dateTime, formatInr } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
 import { useLoad } from '../dashboard/useLoad.ts';
 import { AgentQualityLink } from '../health/HealthPage.tsx';
+import {
+  ErrorGroupsCard,
+  How,
+  JobsCard,
+  ServicesCard,
+  StatusCard,
+  TargetsCard,
+} from './OpsStatus.tsx';
 import { TraceView } from './TraceView.tsx';
 import { percent, statusOfRate, type Tone, TONE_CLASSES } from './opsFormat.ts';
 
@@ -22,11 +33,14 @@ function Tile({
   label,
   value,
   tone = 'plain',
+  how,
   children,
 }: {
   readonly label: string;
   readonly value: string;
   readonly tone?: Tone;
+  /** One line: how the figure is worked out. */
+  readonly how: string;
   readonly children?: ReactNode;
 }): React.JSX.Element {
   return (
@@ -34,6 +48,7 @@ function Tile({
       <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</h2>
       <p className={`mt-1 text-2xl font-semibold ${TONE_CLASSES[tone]}`}>{value}</p>
       <div className="mt-1 text-sm text-ink-muted">{children}</div>
+      <How>{how}</How>
     </section>
   );
 }
@@ -45,6 +60,7 @@ function RequestsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element 
       label="Error rate · 24 h"
       value={percent(day.failed, day.requests)}
       tone={statusOfRate(day.failed, day.requests)}
+      how="Requests whose trace has an error step, out of all requests to our functions. Eval traffic left out."
     >
       <p>
         {day.failed} of {day.requests} requests failed
@@ -64,6 +80,7 @@ function RejectedTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element 
       label="Rejected LLM answers · 7 d"
       value={percent(rejected, answers)}
       tone={statusOfRate(rejected, answers)}
+      how="Model answers our code threw away because they were badly shaped, out of all answers."
     >
       {ops.llm.length === 0 ? <p>No LLM calls recorded yet</p> : null}
       {ops.llm.map((row) => (
@@ -81,7 +98,11 @@ function PathsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   const fallback = ops.paths['gemini'] ?? 0;
   const failed = ops.paths['failed'] ?? 0;
   return (
-    <Tile label="WhatsApp answered in code · 7 d" value={percent(inCode, total)}>
+    <Tile
+      label="WhatsApp answered in code · 7 d"
+      value={percent(inCode, total)}
+      how="Owner messages handled by fixed commands or buttons, with no model asked."
+    >
       <p>
         {ops.paths['sarvam'] ?? 0} by Sarvam, {fallback} by the Gemini fallback
       </p>
@@ -97,6 +118,7 @@ function QueueTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
       label="Follow-up queue"
       value={stuck > 0 ? `${stuck} stuck` : 'Clear'}
       tone={stuck > 0 ? 'bad' : 'good'}
+      how="Calls waiting for their follow-up; stuck means due or running for over 10 minutes."
     >
       <p>{waiting} waiting now</p>
       <p>{failedWeek} failed in 7 days</p>
@@ -110,6 +132,7 @@ function CallsTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
       label="Reminder calls"
       value={ops.callsPaused ? 'Paused' : 'Running'}
       tone={ops.callsPaused ? 'warn' : 'good'}
+      how="The /pause switch, read from the demo settings."
     >
       <p>
         {ops.callsPaused
@@ -124,7 +147,11 @@ function SpendTile({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   const { capInr, today, month } = ops.spend;
   const used = Math.min(100, Math.round((month.totalInr / capInr) * 100));
   return (
-    <Tile label="Spend this month" value={`${formatInr(month.totalInr)} of ${formatInr(capInr)}`}>
+    <Tile
+      label="Spend this month"
+      value={`${formatInr(month.totalInr)} of ${formatInr(capInr)}`}
+      how="Live voice minutes (each call rounded up) × ₹3.50 + GST, plus LLM tokens × the price list, eval runs included."
+    >
       <div
         role="progressbar"
         aria-label="Share of the spend cap used"
@@ -246,9 +273,32 @@ function ErrorsCard({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
   );
 }
 
+function LatencyDetails({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  return (
+    <details className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border">
+      <summary className="cursor-pointer text-base font-semibold">
+        Latency details: tools and functions
+      </summary>
+      <div className="mt-3 space-y-4">
+        <ToolsCard ops={ops} />
+        <SourcesCard ops={ops} />
+      </div>
+    </details>
+  );
+}
+
 function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
+  const { status } = ops;
   return (
     <>
+      {status ? (
+        <>
+          <StatusCard status={status} />
+          <TargetsCard targets={status.targets} />
+          <ServicesCard services={status.services} />
+          <JobsCard jobs={status.jobs} />
+        </>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <RequestsTile ops={ops} />
         <RejectedTile ops={ops} />
@@ -257,9 +307,8 @@ function Summary({ ops }: { readonly ops: OpsSummary }): React.JSX.Element {
         <CallsTile ops={ops} />
         <SpendTile ops={ops} />
       </div>
-      <ToolsCard ops={ops} />
-      <SourcesCard ops={ops} />
-      <ErrorsCard ops={ops} />
+      {status ? <ErrorGroupsCard groups={status.errorGroups} /> : <ErrorsCard ops={ops} />}
+      <LatencyDetails ops={ops} />
       <p className="text-xs text-ink-muted">
         As of {dateTime(ops.generatedAt)}. Counts, timings and error codes only: no names, phone
         numbers or amounts are recorded.

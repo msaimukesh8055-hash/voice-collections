@@ -3,6 +3,7 @@
 // stored by the eval runners; every field the page shows is checked here and defaults to
 // something harmless, so an older or odd run shows as "unknown", never as a crash.
 import { z } from 'zod';
+import { ModelChoiceSchema } from './modelChoiceSchemas.ts';
 
 const VerdictSchema = z.object({
   name: z.string(),
@@ -146,6 +147,8 @@ export const EvalsSchema = z.object({
       golden: z.array(GoldenCaseSchema).catch([]).default([]),
     }),
   ),
+  /** The brain's model bake-off, newest run per model (2026-11-23). */
+  modelChoice: ModelChoiceSchema,
   generatedAt: z.string(),
 });
 

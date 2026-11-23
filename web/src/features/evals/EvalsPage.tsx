@@ -6,9 +6,10 @@
 // each target (CaseHistory.tsx): every case across runs, what changed, and before / after.
 // 2026-11-23 (golden outcomes): each case shows its expected outcome; opening one shows the test,
 // expected vs this run row by row, and the conversation (CaseDetail.tsx).
+// 2026-11-23 (model choice): under the brain, the model bake-off table (ModelChoice.tsx).
 import type { TestDraft } from '../../lib/testDraftSchemas.ts';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { EvalCase, EvalRun, Evals, EvalTarget, GoldenCase } from '../../lib/evalsSchemas.ts';
 import { dateTime } from '../dashboard/format.ts';
 import { Card, Layout, LoadState } from '../dashboard/Layout.tsx';
@@ -16,6 +17,7 @@ import { useLoad } from '../dashboard/useLoad.ts';
 import { TONE_CLASSES } from '../ops/opsFormat.ts';
 import { CaseDetail } from './CaseDetail.tsx';
 import { CaseHistory } from './CaseHistory.tsx';
+import { ModelChoice } from './ModelChoice.tsx';
 
 const TARGETS: Readonly<Record<string, { title: string; how: string; agent: string }>> = {
   asha: {
@@ -226,7 +228,10 @@ function Summary({
   return (
     <>
       {evals.targets.map((target) => (
-        <Target key={target.target} target={target} dashboard={dashboard} />
+        <Fragment key={target.target}>
+          <Target target={target} dashboard={dashboard} />
+          {target.target === 'brain' ? <ModelChoice runs={evals.modelChoice} /> : null}
+        </Fragment>
       ))}
       <p className="text-xs text-ink-muted">
         As of {dateTime(evals.generatedAt)}. Every shopkeeper, shop and amount on this page is fake

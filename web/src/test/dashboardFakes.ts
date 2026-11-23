@@ -1,6 +1,7 @@
 // web/src/test/dashboardFakes.ts
 // A fake dashboard client for page tests (M6): fixed fake figures, a switch to act as "no link",
 // and a record of what the page asked for.
+import { MODEL_RUNS, OPS_STATUS, TRACE_ID } from './statusFakes.ts';
 import type { ExchangeDetail, ExchangeListItem } from '../lib/whatsappSchemas.ts';
 import type { NewTestDraft, TestDraft } from '../lib/testDraftSchemas.ts';
 import type { HealthSummary } from '../lib/healthSchemas.ts';
@@ -116,8 +117,6 @@ export const CALL: CallDetail = {
   followup: { path: 'rule', decision: 'check_promise', reasoning: 'Promise logged' },
 };
 
-export const TRACE_ID = '55555555-5555-4555-8555-555555555555';
-
 export const OPS: OpsSummary = {
   day: { requests: 40, failed: 1 },
   week: { requests: 300, failed: 30 },
@@ -156,6 +155,7 @@ export const OPS: OpsSummary = {
     today: { voiceInr: 8.26, llmInr: 4.32, totalInr: 12.58 },
     month: { voiceInr: 41.3, llmInr: 43.19, totalInr: 84.49 },
   },
+  status: OPS_STATUS,
   generatedAt: '2026-11-11T05:30:00.000Z',
 };
 
@@ -379,6 +379,7 @@ const BRAIN_10_GOLDEN: GoldenCase = {
 
 export const EVALS: Evals = {
   generatedAt: '2026-11-11T16:45:00.000Z',
+  modelChoice: MODEL_RUNS,
   targets: [
     {
       target: 'asha',
@@ -754,3 +755,5 @@ export function fakeDashboard(): FakeDashboard {
   }
   return fake;
 }
+
+export { MODEL_RUNS, OPS_STATUS, TRACE_ID };

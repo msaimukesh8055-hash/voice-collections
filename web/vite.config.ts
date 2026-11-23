@@ -26,6 +26,9 @@ export default defineConfig(function config({ mode }) {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./vitest.setup.ts'],
+      // The first page test in a file also pays for transforming the page under coverage; on
+      // this Windows machine that alone passed 5 s (2026-11-23). 15 s still catches a hang.
+      testTimeout: 15_000,
       coverage: {
         provider: 'v8',
         include: ['src/**/*.{ts,tsx}', 'dev/**/*.ts'],

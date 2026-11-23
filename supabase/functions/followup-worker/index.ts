@@ -9,6 +9,7 @@ import {
   traceLink,
 } from '../_shared/auth/dashboard-link.ts';
 import { createSupabaseOpsRepository } from '../_shared/db/supabase-ops-repository.ts';
+import { healthUrlOf, runHealthProbe } from '../_shared/ops/probe.ts';
 import { runOpsWatch, withoutErrors } from '../_shared/ops/watch.ts';
 import { createSupabaseVoiceActionRepository } from '../_shared/db/supabase-voice-action-repository.ts';
 import { sendOwnerRequest } from '../_shared/reminders/owner-send.ts';
@@ -195,6 +196,15 @@ const deps: WorkerDeps = {
   promiseCheck: () => runPromiseCheck(jobDeps),
   ownerSend: (actionId) => sendOwnerRequest(actionId, ownerSendDeps),
   opsWatch: () => runOpsWatch(opsWatchDeps),
+  healthProbe: () =>
+    runHealthProbe({
+      healthUrl: healthUrlOf(env.SUPABASE_URL),
+      anonKey: env.SUPABASE_ANON_KEY,
+      fetchImpl: fetch,
+      now: () => Date.now(),
+      record: (check) => opsWatchDeps.ops.recordHealthCheck(check),
+      log,
+    }),
   log,
 };
 

@@ -166,6 +166,24 @@ Deno.test('usage › Sarvam token counts are logged with the provider and model'
   ]]);
 });
 
+Deno.test('chat › another Sarvam model can be asked for (model bake-off)', async () => {
+  const reply = {
+    choices: [{ message: { content: '{}' } }],
+    usage: { prompt_tokens: 10, completion_tokens: 2 },
+  };
+  const { config: c, seen } = config(reply);
+  const lines: [string, LogFields][] = [];
+  const logged = {
+    ...c,
+    log: (_level: string, event: string, fields: LogFields = {}) => lines.push([event, fields]),
+  };
+  await askSarvamChat(logged, { ...REQUEST, model: 'sarvam-105b-conversations' });
+  assertEquals(seen[0]?.body.model, 'sarvam-105b-conversations');
+  assertEquals(lines[0]?.[1].model, 'sarvam-105b-conversations');
+  await askSarvamChat(c, REQUEST);
+  assertEquals(seen[1]?.body.model, 'sarvam-105b');
+});
+
 Deno.test('usage › Gemini token counts are logged with the provider and model', async () => {
   const reply = {
     candidates: [{ content: { parts: [{ text: '{}' }] } }],

@@ -1,6 +1,7 @@
 // supabase/functions/_shared/db/ops-repository.ts
 // What the ops page reads (M9 Build A): one summary worked out in the database (ops_summary) and
 // the steps of one trace. Counts, timings and codes only; never names, numbers or amounts.
+import type { HealthCheck } from '../ops/probe.ts';
 import type { OpsStatus } from '../ops/trace.ts';
 
 export interface RequestCount {
@@ -95,8 +96,94 @@ export interface AlertClaim {
   readonly traceId: string | null;
 }
 
+/** Ops redesign (2026-11-23): health probes, timers, grouped errors and outside services, as
+ * ops_status() counts them. Times are ISO strings; null when nothing happened yet. */
+export interface ProbeCounts {
+  readonly firstAt: string | null;
+  readonly dayTotal: number;
+  readonly dayOk: number;
+  readonly weekTotal: number;
+  readonly weekOk: number;
+  readonly allTotal: number;
+  readonly allOk: number;
+  readonly weekP95Ms: number | null;
+}
+
+export interface LastProbe {
+  readonly checkedAt: string;
+  readonly ok: boolean;
+  readonly statusCode: number | null;
+  readonly durationMs: number;
+  readonly database: 'ok' | 'fail' | null;
+  readonly version: string | null;
+  readonly errorCode: string | null;
+}
+
+/** A timer's requests as the follow-up worker saw them (by route). */
+export interface JobRequests {
+  readonly route: string;
+  readonly dayRuns: number;
+  readonly dayFailed: number;
+  readonly weekRuns: number;
+  readonly lastAt: string | null;
+}
+
+/** A pg_cron job and what pg_cron recorded about its runs. */
+export interface CronJob {
+  readonly name: string;
+  readonly schedule: string;
+  readonly active: boolean;
+  readonly lastRunAt: string | null;
+  readonly lastStatus: string | null;
+  readonly dayRuns: number;
+  readonly dayFailed: number;
+}
+
+export interface ErrorGroup {
+  readonly source: string;
+  readonly step: string;
+  readonly errorCode: string | null;
+  readonly count: number;
+  readonly lastAt: string;
+  readonly traceId: string;
+}
+
+export interface ServiceUse {
+  readonly calls: number;
+  readonly failed: number;
+  readonly lastOkAt: string | null;
+  readonly lastFailedAt: string | null;
+}
+
+export interface OpsStatusRow {
+  readonly probes: ProbeCounts;
+  readonly lastProbe: LastProbe | null;
+  readonly jobRequests: readonly JobRequests[];
+  readonly jobs: readonly CronJob[];
+  readonly errorGroups: readonly ErrorGroup[];
+  readonly providers: readonly (ServiceUse & { readonly provider: string })[];
+  readonly voice: ServiceUse;
+  readonly whatsapp: {
+    readonly repliesSent: number;
+    readonly repliesFailed: number;
+    /** When a reply to the owner last went through. */
+    readonly lastOkAt: string | null;
+    readonly sendFailures: number;
+    readonly lastFailedAt: string | null;
+  };
+  readonly waReply: {
+    readonly messages: number;
+    readonly p50Ms: number | null;
+    readonly p95Ms: number | null;
+  };
+}
+
 export interface OpsRepository {
   getSummary(): Promise<OpsSummary>;
+  /** Ops redesign: the numbers behind status, targets, services, timers and grouped errors. */
+  getStatus(): Promise<OpsStatusRow>;
+  /** One health probe's result (health_checks). */
+  recordHealthCheck(check: HealthCheck): Promise<void>;
   /** Error steps since `sinceIso`, newest first, capped. */
   listErrorsSince(sinceIso: string): Promise<readonly OpsError[]>;
   /** True for the first claim of a problem in a window; false when it was already alerted. */

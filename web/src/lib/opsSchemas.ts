@@ -2,6 +2,7 @@
 // Shapes of the ops page's two replies (M9 Build A): the summary and one trace. Checked with Zod
 // like every other dashboard reply.
 import { z } from 'zod';
+import { OpsStatusSchema } from './opsStatusSchemas.ts';
 
 const RequestCountSchema = z.object({ requests: z.number(), failed: z.number() });
 const SpendSchema = z.object({ voiceInr: z.number(), llmInr: z.number(), totalInr: z.number() });
@@ -48,6 +49,8 @@ export const OpsSummarySchema = z.object({
   /** M9 pause switch; a server from before it reads as not paused. */
   callsPaused: z.boolean().catch(false),
   spend: z.object({ capInr: z.number(), today: SpendSchema, month: SpendSchema }),
+  /** Ops redesign (2026-11-23); null from a server before it, or if it does not parse. */
+  status: OpsStatusSchema.nullable().catch(null).default(null),
   generatedAt: z.string(),
 });
 

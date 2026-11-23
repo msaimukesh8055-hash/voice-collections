@@ -142,6 +142,8 @@ export interface ChatRequest {
   readonly temperature?: number;
   /** Tools the model may call (Sarvam only; Asha in simulated calls). */
   readonly tools?: readonly ChatTool[];
+  /** Another Sarvam chat model (the model bake-off, 2026-11-23); default sarvam-105b. */
+  readonly model?: string;
 }
 
 /** One tool as declared to the model: its arguments as a JSON Schema. */
@@ -201,8 +203,9 @@ export async function askSarvamChat(
   config: SarvamChatConfig,
   request: ChatRequest,
 ): Promise<string> {
+  const model = request.model ?? SARVAM_MODEL;
   const body = {
-    model: SARVAM_MODEL,
+    model,
     messages: [{ role: 'system', content: request.system }, ...request.messages.map(sarvamMessage)],
     temperature: request.temperature ?? 0,
     max_tokens: request.maxTokens,
@@ -213,7 +216,7 @@ export async function askSarvamChat(
   const reply = SarvamReply.parse(await postJson(config, { url: SARVAM_CHAT_URL, headers, body }));
   if (reply.usage) {
     const { prompt_tokens: tokensIn, completion_tokens: tokensOut } = reply.usage;
-    logUsage(config.log, { provider: 'sarvam', model: SARVAM_MODEL, tokensIn, tokensOut });
+    logUsage(config.log, { provider: 'sarvam', model, tokensIn, tokensOut });
   }
   const message = reply.choices[0]?.message;
   return message ? sarvamText(message) : '';

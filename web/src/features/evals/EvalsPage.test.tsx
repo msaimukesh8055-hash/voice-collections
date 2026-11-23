@@ -110,6 +110,15 @@ describe('EvalsPage', () => {
     expect(within(trend).getAllByRole('listitem')[0]).toHaveTextContent('only asha-10');
   });
 
+  it('shows the model choice table right after the WhatsApp brain', async () => {
+    render(<EvalsPage dashboard={fakeDashboard().dashboard} />);
+    const model = await screen.findByRole('heading', { name: 'Model choice' });
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((one) => one.textContent);
+    const brain = headings.findIndex((text) => text?.startsWith('WhatsApp brain'));
+    expect(headings[brain + 1]).toBe(model.textContent);
+    expect(screen.getByText('sarvam-105b')).toBeInTheDocument();
+  });
+
   it('says how to run evals when nothing is stored yet', async () => {
     const fake = fakeDashboard();
     fake.evals = { ...EVALS, targets: [] };

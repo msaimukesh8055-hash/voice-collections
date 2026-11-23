@@ -1,8 +1,8 @@
 // web/src/features/health/HealthPage.test.tsx
 import { render, screen } from '@testing-library/react';
-import { fakeDashboard } from '../../test/dashboardFakes.ts';
+import { fakeDashboard, HEALTH } from '../../test/dashboardFakes.ts';
 import { OpsPage } from '../ops/OpsPage.tsx';
-import { HealthPage } from './HealthPage.tsx';
+import { hasEnoughTrend, HealthPage, TREND_MIN_DAYS } from './HealthPage.tsx';
 
 describe('HealthPage', () => {
   it('shows each agent: verdicts, guardrail fails, cost, top problems linking to their calls', async () => {
@@ -64,5 +64,29 @@ describe('HealthPage', () => {
       await screen.findByText('Asha 2/4 went well · Munshi 0/0 went well · WhatsApp 1/3 went well'),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Agent quality/ })).toHaveAttribute('href', '/health');
+  });
+
+  it('keeps problems and prompt versions, hides the 14-day trend while calls span few days', async () => {
+    render(<HealthPage dashboard={fakeDashboard().dashboard} />);
+    expect(await screen.findByText('By prompt version')).toBeInTheDocument();
+    expect(screen.queryByText('Last 14 days')).toBeNull();
+    expect(screen.queryByLabelText('Calls per day, last 14 days')).toBeNull();
+  });
+
+  it('the trend shows once calls fall on 7 of the last 14 days', () => {
+    const [asha] = HEALTH.agents;
+    if (!asha) throw new Error('needs Asha');
+    const day = (n: number): (typeof asha.trend)[number] => ({
+      date: `2026-11-${String(n).padStart(2, '0')}`,
+      good: n % 2,
+      check: 1 - (n % 2),
+      failed: 0,
+    });
+    const quietDay = { date: '2026-11-01', good: 0, check: 0, failed: 0 };
+    const six = { ...asha, trend: [quietDay, ...[1, 2, 3, 4, 5, 6].map(day)] };
+    const seven = { ...asha, trend: [...six.trend, day(7)] };
+    expect(TREND_MIN_DAYS).toBe(7);
+    expect(hasEnoughTrend(six)).toBe(false);
+    expect(hasEnoughTrend(seven)).toBe(true);
   });
 });

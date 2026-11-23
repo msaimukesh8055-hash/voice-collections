@@ -4,10 +4,14 @@
 //   GET /v1/dashboard/ops/traces/:id   → every step of one request, oldest first
 // Spend is priced here from the database's minutes and token counts (cost.ts), so the price
 // list lives in one place.
+// 2026-11-23 (ops redesign): the reply also carries `status` (ops/status.ts): up or down from the
+// health probes, uptime since the first probe, service targets, outside services, scheduled jobs
+// and errors grouped by kind.
 import { llmCost, SPEND_CAP_INR, voiceCost } from '../_shared/calls/cost.ts';
 import type { OpsSummary, SourceStats, TokenUse } from '../_shared/db/ops-repository.ts';
 import { errorResponse, jsonResponse } from '../_shared/http.ts';
 import { leadErrors } from '../_shared/ops/lead-errors.ts';
+import { buildStatus } from '../_shared/ops/status.ts';
 import { isTraceId } from '../_shared/ops/trace.ts';
 import { openInDemo } from './dashboard-routes.ts';
 import type { RouteContext, RouteHandler } from './types.ts';
@@ -53,10 +57,19 @@ function spendFor(summary: OpsSummary, period: 'today' | 'month'): Spend {
 }
 
 async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Response> {
-  const [summary, settings] = await Promise.all([
+  const [summary, settings, row] = await Promise.all([
     deps.dashboard.ops.getSummary(),
     deps.repo.getDemoSettings(),
+    deps.dashboard.ops.getStatus(),
   ]);
+  const month = spendFor(summary, 'month');
+  const status = buildStatus({
+    row,
+    summary,
+    spend: { monthInr: month.totalInr, capInr: SPEND_CAP_INR },
+    toolTargetMs: TOOL_TARGET_MS,
+    now: deps.clock(),
+  });
   const body = {
     ...summary,
     // One row per failed request, not one per error step (Saim, 2026-11-11).
@@ -68,8 +81,9 @@ async function getOps(_req: Request, { deps, cors }: RouteContext): Promise<Resp
     spend: {
       capInr: SPEND_CAP_INR,
       today: spendFor(summary, 'today'),
-      month: spendFor(summary, 'month'),
+      month,
     },
+    status,
     generatedAt: deps.clock().toISOString(),
   };
   return jsonResponse(body, 200, cors);

@@ -51,6 +51,10 @@ function setup(overrides: Partial<WorkerDeps> = {}): WorkerSetup {
       jobs.push('opsWatch');
       return Promise.resolve();
     },
+    healthProbe: () => {
+      jobs.push('healthProbe');
+      return Promise.resolve();
+    },
     ownerSend: (actionId) => {
       jobs.push(`ownerSend:${actionId}`);
       return Promise.resolve('sent');
@@ -175,4 +179,15 @@ Deno.test('worker › POST /ops-watch starts the failure watch, only with the se
   const response = await handleWorkerRequest(new Request(url, { method: 'POST', headers }), deps);
   await Promise.all(tasks);
   assertEquals([response.status, jobs], [202, ['opsWatch']]);
+});
+
+Deno.test('worker › POST /health-probe starts one health probe, only with the secret', async () => {
+  const { deps, jobs, tasks } = setup();
+  const url = 'https://ref.supabase.co/functions/v1/followup-worker/health-probe';
+  const refused = await handleWorkerRequest(new Request(url, { method: 'POST' }), deps);
+  assertEquals([refused.status, jobs], [401, []]);
+  const headers = { authorization: `Bearer ${SECRET}` };
+  const response = await handleWorkerRequest(new Request(url, { method: 'POST', headers }), deps);
+  await Promise.all(tasks);
+  assertEquals([response.status, jobs], [202, ['healthProbe']]);
 });

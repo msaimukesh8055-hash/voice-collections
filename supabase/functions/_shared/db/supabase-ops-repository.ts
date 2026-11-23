@@ -3,7 +3,14 @@
 // ops_summary() database function; its JSON is checked here, so a drift between the SQL and the
 // page fails loudly in one place.
 import { z } from 'zod';
-import type { OpsError, OpsRepository, OpsSummary, TraceStep } from './ops-repository.ts';
+import type {
+  OpsError,
+  OpsRepository,
+  OpsStatusRow,
+  OpsSummary,
+  TraceStep,
+} from './ops-repository.ts';
+import { parseStatusRow } from './ops-status-row.ts';
 import { createRowInserter, type PostgrestClient } from './postgrest.ts';
 
 /** Matches MAX_EVENTS_PER_TRACE per function; a trace can span two functions (a worker kick). */
@@ -11,7 +18,12 @@ const MAX_TRACE_STEPS = 400;
 /** A call touches a handful of traces (queue, accept, each tool, end, follow-up). */
 const MAX_CALL_TRACES = 40;
 /** The follow-up worker's timer requests share a trace with what kicked them; not call steps. */
-const TIMER_ROUTES: readonly string[] = ['/sweep', '/simulations/next', '/ops-watch'];
+const TIMER_ROUTES: readonly string[] = [
+  '/sweep',
+  '/simulations/next',
+  '/ops-watch',
+  '/health-probe',
+];
 
 const TraceIdRow = z.object({ trace_id: z.string() });
 
@@ -136,6 +148,29 @@ function toStep(row: z.infer<typeof StepRow>): TraceStep {
   };
 }
 
+/** Ops redesign (2026-11-23): the status numbers and the health probe's write. */
+function statusReads(
+  query: PostgrestClient,
+): Pick<OpsRepository, 'getStatus' | 'recordHealthCheck'> {
+  const rows = createRowInserter(query);
+  return {
+    async getStatus(): Promise<OpsStatusRow> {
+      const { rows } = await query('getOpsStatus', 'rpc/ops_status', { method: 'POST', body: {} });
+      return parseStatusRow(rows);
+    },
+    async recordHealthCheck(check): Promise<void> {
+      await rows.insert('recordHealthCheck', 'health_checks', {
+        ok: check.ok,
+        status_code: check.statusCode,
+        duration_ms: check.durationMs,
+        database: check.database,
+        version: check.version,
+        error_code: check.errorCode,
+      });
+    },
+  };
+}
+
 export function createSupabaseOpsRepository(query: PostgrestClient): OpsRepository {
   const rows = createRowInserter(query);
   return {
@@ -159,6 +194,7 @@ export function createSupabaseOpsRepository(query: PostgrestClient): OpsReposito
       });
       return toSummary(SummaryRow.parse(rows));
     },
+    ...statusReads(query),
     async listCallSteps(callId): Promise<readonly TraceStep[]> {
       const one = encodeURIComponent(callId);
       const idPath = `ops_events?select=trace_id&or=(detail->>callId.eq.${one},` +

@@ -110,6 +110,20 @@ Deno.test('ops routes › nothing recorded yet gives zeros, not an error', async
   assertEquals(status, 200);
   assertEquals((body.spend as { today: unknown }).today, { voiceInr: 0, llmInr: 0, totalInr: 0 });
   assertEquals(body.recentErrors, []);
+  // No probe yet: status says so instead of claiming uptime.
+  const shown = body.status as {
+    measuredSince: unknown;
+    now: { state: string };
+    targets: unknown[];
+  };
+  assertEquals([shown.measuredSince, shown.now.state, shown.targets.length], [null, 'unknown', 7]);
+});
+
+Deno.test('ops routes › status is built from the probes, with this month spend against the cap', async () => {
+  const { body } = await get('/v1/dashboard/ops', deps({ summary: SUMMARY }));
+  const shown = body.status as { targets: Array<{ id: string; now: string }> };
+  const spend = shown.targets.find((one) => one.id === 'spend');
+  assertEquals(spend?.now, '₹84.49');
 });
 
 Deno.test('ops routes › a trace returns its steps in order', async () => {

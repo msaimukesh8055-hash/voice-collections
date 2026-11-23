@@ -207,3 +207,111 @@ Deno.test('ops repository › a call no trace names has no steps (one read only)
   assertEquals(await createSupabaseOpsRepository(query).listCallSteps('nope'), []);
   assertEquals(calls.length, 1);
 });
+
+const STATUS_JSON = {
+  probes: {
+    first_at: '2026-11-23T10:00:00+00:00',
+    day_total: '24',
+    day_ok: 23,
+    week_total: 24,
+    week_ok: 23,
+    all_total: 24,
+    all_ok: 23,
+    week_p95_ms: 410,
+  },
+  last_probe: {
+    checked_at: '2026-11-23T12:00:00+00:00',
+    ok: true,
+    status_code: 200,
+    duration_ms: 140,
+    database: 'ok',
+    version: 'abc',
+    error_code: null,
+  },
+  job_requests: [{
+    route: '/sweep',
+    day_runs: 1440,
+    day_failed: 0,
+    week_runs: 10080,
+    last_at: '2026-11-23T11:59:00+00:00',
+  }],
+  jobs: [{
+    name: 'followup-sweep',
+    schedule: '* * * * *',
+    active: true,
+    last_run_at: '2026-11-23T11:59:00+00:00',
+    last_status: 'succeeded',
+    day_runs: 1440,
+    day_failed: 0,
+  }],
+  error_groups: [{
+    source: 'followup-worker',
+    step: 'worker_job_failed',
+    error_code: 'TimeoutError',
+    count: 10,
+    last_at: '2026-11-22T10:00:00+00:00',
+    trace_id: TRACE_ID,
+  }],
+  providers: [{
+    provider: 'sarvam',
+    calls: 18,
+    failed: 0,
+    last_ok_at: '2026-11-23T09:00:00+00:00',
+    last_failed_at: null,
+  }],
+  voice: { calls: 14, failed: 2, last_ok_at: null, last_failed_at: null },
+  whatsapp: { replies_sent: 20, replies_failed: 0, send_failures: 1, last_failed_at: null },
+  wa_reply: { messages: 20, p50_ms: 1200, p95_ms: 4100 },
+};
+
+Deno.test('ops repository › the status is one database function call, mapped to camel case', async () => {
+  const { query, calls } = fakeQuery(STATUS_JSON);
+  const status = await createSupabaseOpsRepository(query).getStatus();
+  assertEquals(calls, [['getOpsStatus', 'rpc/ops_status', { method: 'POST', body: {} }]]);
+  assertEquals(status.probes.dayTotal, 24);
+  assertEquals(status.lastProbe?.database, 'ok');
+  assertEquals(status.jobs[0]?.lastStatus, 'succeeded');
+  assertEquals(status.jobRequests[0]?.weekRuns, 10080);
+  assertEquals(status.errorGroups[0], {
+    source: 'followup-worker',
+    step: 'worker_job_failed',
+    errorCode: 'TimeoutError',
+    count: 10,
+    lastAt: '2026-11-22T10:00:00+00:00',
+    traceId: TRACE_ID,
+  });
+  assertEquals(status.providers[0]?.lastOkAt, '2026-11-23T09:00:00+00:00');
+  assertEquals(status.whatsapp.sendFailures, 1);
+  assertEquals(status.waReply, { messages: 20, p50Ms: 1200, p95Ms: 4100 });
+});
+
+Deno.test('ops repository › no probe yet reads as a null last probe; a drifted status fails', async () => {
+  const empty = { ...STATUS_JSON, last_probe: null };
+  const status = await createSupabaseOpsRepository(fakeQuery(empty).query).getStatus();
+  assertEquals(status.lastProbe, null);
+  const drifted = { ...STATUS_JSON, probes: undefined };
+  await assertRejects(() => createSupabaseOpsRepository(fakeQuery(drifted).query).getStatus());
+});
+
+Deno.test('ops repository › a health probe is one insert into health_checks', async () => {
+  const { query, calls } = fakeQuery([]);
+  await createSupabaseOpsRepository(query).recordHealthCheck({
+    ok: false,
+    statusCode: null,
+    durationMs: 10_000,
+    database: null,
+    version: null,
+    errorCode: 'TimeoutError',
+  });
+  assertEquals(calls.map(([operation, path]) => [operation, path]), [
+    ['recordHealthCheck', 'health_checks'],
+  ]);
+  assertEquals(calls[0]?.[2]?.body, {
+    ok: false,
+    status_code: null,
+    duration_ms: 10_000,
+    database: null,
+    version: null,
+    error_code: 'TimeoutError',
+  });
+});

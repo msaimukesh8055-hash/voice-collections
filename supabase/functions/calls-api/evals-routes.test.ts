@@ -7,7 +7,7 @@ import { createFakeRepository, FAKE_NOW } from '../_shared/db/fake-repository.ts
 import { handleCallsApi } from './handler.ts';
 import { dashboardSetup, type FakeEvals, LINK_SECRET } from './__fixtures__/dashboard.ts';
 import { munshiSetup } from './__fixtures__/munshi.ts';
-import { TREND_LENGTH } from './evals-routes.ts';
+import { MODEL_TARGET, TREND_LENGTH } from './evals-routes.ts';
 import type { CallsApiDeps } from './types.ts';
 
 const BASE = 'https://ref.supabase.co/functions/v1/calls-api';
@@ -106,6 +106,23 @@ Deno.test('evals route › a newer run of some cases only keeps the full run as 
     { ...newCase, ranAlone: { runId: alone.id, createdAt: alone.createdAt } },
   ]);
   assertEquals(asha?.history.map((one) => one.id), [alone.id, RUN_ID]);
+});
+
+Deno.test('evals route › bake-off runs are model choice, the newest per model, not a target', async () => {
+  const model = (name: string, minute: number): EvalRun => ({
+    ...run(MODEL_TARGET, minute),
+    metrics: { kind: 'model-bakeoff', model: name },
+  });
+  const newer = model('sarvam-105b', 40);
+  const gemini = model('gemini-2.5-flash', 30);
+  const older = model('sarvam-105b', 20);
+  const odd = { ...run(MODEL_TARGET, 10), metrics: {} };
+  const brain = run('brain', 5);
+  const { body } = await get(deps({ runs: [newer, gemini, older, odd, brain], results: {} }));
+  assertEquals((body.targets as EvalRun[]).map((one) => one.target), ['brain']);
+  // Oldest model first, so the table keeps the order the models were run in.
+  assertEquals(body.modelChoice, [gemini, newer]);
+  assertEquals((await get(deps({ runs: [], results: {} }))).body.modelChoice, []);
 });
 
 Deno.test('evals route › a target with no golden set gets an empty list', async () => {
