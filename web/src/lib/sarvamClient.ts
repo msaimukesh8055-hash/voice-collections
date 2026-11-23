@@ -9,6 +9,20 @@ import { CALL_TOKEN_VARIABLE, OWNER_CALL_TOKEN_VARIABLE } from '@shared/sarvam.t
 import { SARVAM_LANGUAGE_NAMES } from '@shared/schemas/shopkeeper.ts';
 import type { AcceptedCall, AcceptedMunshiCall, SarvamProxy } from './appApi.ts';
 import { createSpeechDetector } from './micLevel.ts';
+import {
+  createReplyTimer,
+  USER_INTERRUPT,
+  USER_SPEECH_END,
+  USER_SPEECH_START,
+} from './replyTimer.ts';
+
+export {
+  createReplyTimer,
+  MAX_REPLY_TIMES,
+  USER_INTERRUPT,
+  USER_SPEECH_END,
+  USER_SPEECH_START,
+} from './replyTimer.ts';
 
 const CONNECT_TIMEOUT_SECONDS = 15;
 export const MIC_ERROR = 'Microphone blocked. Allow microphone access for this page and try again.';
@@ -71,37 +85,9 @@ export interface CallEvents {
 export interface VoiceSession {
   /** Hangs up (safe to call twice) and returns Sarvam's interaction id, if one was assigned. */
   readonly stop: () => Promise<string | null>;
-  /** Live evals (2026-11-20): ms from the person's speech ending to Asha's voice starting, one
-   * per reply, as this page heard it. Empty when Sarvam sent no speech events. */
+  /** Live evals (2026-11-20): ms from the person's speech ending to the agent's voice starting,
+   * one per reply, as this page heard it (Sarvam's speech events, else the mic level). */
   readonly replyTimes: () => readonly number[];
-}
-
-/** At most this many reply times are kept for one call. */
-export const MAX_REPLY_TIMES = 100;
-
-/**
- * Asha's reply time, as the caller hears it: from Sarvam's "speech ended" event to the agent's
- * `speaking` state on this page. Speech starting again before she answers restarts the wait.
- */
-export function createReplyTimer(now: () => number): {
-  readonly onServerEvent: (type: string) => void;
-  readonly onState: (state: string) => void;
-  readonly times: () => readonly number[];
-} {
-  let waitingSince: number | null = null;
-  const times: number[] = [];
-  return {
-    onServerEvent(type) {
-      if (type === USER_SPEECH_END) waitingSince = now();
-      else if (type === USER_SPEECH_START || type === USER_INTERRUPT) waitingSince = null;
-    },
-    onState(state) {
-      if (state !== 'speaking' || waitingSince === null) return;
-      if (times.length < MAX_REPLY_TIMES) times.push(Math.max(0, Math.round(now() - waitingSince)));
-      waitingSince = null;
-    },
-    times: () => [...times],
-  };
 }
 
 export interface VoiceClient {
@@ -174,11 +160,6 @@ function isMicError(error: unknown): boolean {
   );
 }
 
-/** Sarvam's speech events for the person on the page (SDK ServerMsgType values). */
-export const USER_SPEECH_START = 'server.event.user_speech_start';
-export const USER_SPEECH_END = 'server.event.user_speech_end';
-export const USER_INTERRUPT = 'server.event.user_interrupt';
-
 type SpeakerCallbacks = Pick<AgentCallbacks, 'onState' | 'onInputLevel' | 'onServerEvent'>;
 
 /**
@@ -249,7 +230,10 @@ function createCallbacks(
       speakers.onState(state);
       replies.onState(state);
     },
-    onInputLevel: speakers.onInputLevel,
+    onInputLevel(rms) {
+      speakers.onInputLevel(rms);
+      replies.onInputLevel(rms);
+    },
     onServerEvent(type) {
       speakers.onServerEvent(type);
       replies.onServerEvent(type);

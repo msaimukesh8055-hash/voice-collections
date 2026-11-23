@@ -18,6 +18,7 @@ import {
   USER_SPEECH_END,
   USER_SPEECH_START,
 } from './sarvamClient.ts';
+import { MAX_REPLY_WAIT_MS } from './replyTimer.ts';
 
 const PROXY: SarvamProxy = { baseUrl: 'https://x/v1/sarvam/', headers: { 'x-call-token': TOKEN } };
 
@@ -291,6 +292,73 @@ describe('reply times (live evals)', () => {
       timer.onState('speaking');
     }
     expect(timer.times()).toHaveLength(MAX_REPLY_TIMES);
+  });
+
+  it('without Sarvam speech events, times from the last loud mic moment (2026-11-23)', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    timer.onState('speaking');
+    for (clock = 1000; clock <= 2000; clock += 100) timer.onInputLevel(0.2);
+    clock = 2300;
+    timer.onInputLevel(0.001);
+    clock = 3100;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([1100]);
+  });
+
+  it('ignores a short sound and a reply after a long silence', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    timer.onInputLevel(0.2);
+    clock = 100;
+    timer.onInputLevel(0.2);
+    clock = 900;
+    timer.onState('speaking');
+    for (clock = 2000; clock <= 3000; clock += 100) timer.onInputLevel(0.2);
+    clock = 3000 + MAX_REPLY_WAIT_MS + 1;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([]);
+  });
+
+  it('a pause shorter than the hold keeps one stretch of speech', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    timer.onInputLevel(0.2);
+    clock = 200;
+    timer.onInputLevel(0.2);
+    clock = 600;
+    timer.onInputLevel(0.2);
+    clock = 1400;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([800]);
+  });
+
+  it('once Sarvam sends speech events, the mic level is not used', () => {
+    let clock = 0;
+    const timer = createReplyTimer(() => clock);
+    timer.onServerEvent(USER_SPEECH_START);
+    for (clock = 0; clock <= 1000; clock += 100) timer.onInputLevel(0.2);
+    clock = 1500;
+    timer.onState('speaking');
+    expect(timer.times()).toEqual([]);
+  });
+
+  it('a live session times replies from the mic level', async () => {
+    let clock = 0;
+    const fake = fakeAgent();
+    const { events } = recorder();
+    const client = createSarvamClient(
+      function make(_request, callbacks) {
+        fake.callbacks = callbacks;
+        return fake.handle;
+      },
+      () => clock,
+    );
+    const session = await client.startMunshi(ACCEPTED_MUNSHI_CALL, PROXY, events);
+    for (clock = 0; clock <= 600; clock += 100) fake.callbacks?.onInputLevel(0.2);
+    clock = 1500;
+    fake.callbacks?.onState('speaking');
+    expect(session.replyTimes()).toEqual([900]);
   });
 
   it('a live session reports the reply times it heard', async () => {
