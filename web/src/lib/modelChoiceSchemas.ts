@@ -26,6 +26,11 @@ const ModelRunSchema = z.object({
     passed: z.boolean().catch(false),
     reasons: z.array(z.string()).catch([]),
   }),
+  /** Money messages it answered wrongly, and whether our code reads each first (2026-11-24). */
+  moneyMisses: z
+    .array(z.object({ text: z.string(), codeAnswers: z.boolean() }))
+    .catch([])
+    .default([]),
 });
 
 export const ModelChoiceSchema = z.array(ModelRunSchema).catch([]).default([]);

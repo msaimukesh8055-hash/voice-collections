@@ -1,7 +1,8 @@
 // web/src/features/dashboard/Layout.tsx
 // The dashboard's frame (M6, SPEC §12): title, navigation (the shop's pages, then the "Agent ops"
 // section: Asha calls, Munshi calls, WhatsApp chats, Agent health, Ops, Evals), and the shared loading / error /
-// "open from WhatsApp" states. One light theme (very light blue; see CLAUDE.md).
+// "open from WhatsApp" states. One light theme (very light blue; see CLAUDE.md). Full laptop width
+// (Saim, 2026-11-24), up to 100rem on a big monitor; a card's own paragraphs stay readable-width.
 import { type ReactNode, useEffect, useState } from 'react';
 import type { DashboardApi } from '../../lib/dashboardApi.ts';
 import { useSectionTitle } from './Sections.tsx';
@@ -113,7 +114,7 @@ export function Layout({ current, dashboard, children }: LayoutProps): React.JSX
     <div className="min-h-screen text-ink">
       <ConsoleNote />
       <header className="border-b border-gold bg-surface/95">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-[100rem] flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-brand">
               Sri Lakshmi Traders · Anantapur
@@ -131,7 +132,9 @@ export function Layout({ current, dashboard, children }: LayoutProps): React.JSX
           <Navigation current={current} />
         </div>
       </header>
-      <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6">{children}</main>
+      <main className="mx-auto flex max-w-[100rem] flex-col gap-5 px-4 py-6 md:px-8">
+        {children}
+      </main>
     </div>
   );
 }
@@ -147,7 +150,7 @@ export function Card({
   const sectionTitle = useSectionTitle();
   const shownTitle = title && title !== sectionTitle ? title : null;
   return (
-    <section className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border">
+    <section className="rounded-2xl bg-surface/95 p-5 shadow-sm ring-1 ring-border [&>p]:max-w-[90ch]">
       {shownTitle ? <h2 className="mb-3 text-base font-semibold">{shownTitle}</h2> : null}
       {children}
     </section>

@@ -124,6 +124,7 @@ export const MODEL_RUNS: Evals['modelChoice'] = [
       passed: true,
       reasons: [],
     },
+    moneyMisses: [],
   },
   {
     id: 'model-run-2',
@@ -147,5 +148,9 @@ export const MODEL_RUNS: Evals['modelChoice'] = [
       passed: false,
       reasons: ['2 money cases wrong'],
     },
+    moneyMisses: [
+      { text: 'Ramesh 5000 due 15th', codeAnswers: true },
+      { text: 'Suresh ko kal kuch paisa', codeAnswers: false },
+    ],
   },
 ];

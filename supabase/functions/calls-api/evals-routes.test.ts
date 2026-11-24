@@ -121,8 +121,38 @@ Deno.test('evals route › bake-off runs are model choice, the newest per model,
   const { body } = await get(deps({ runs: [newer, gemini, older, odd, brain], results: {} }));
   assertEquals((body.targets as EvalRun[]).map((one) => one.target), ['brain']);
   // Oldest model first, so the table keeps the order the models were run in.
-  assertEquals(body.modelChoice, [gemini, newer]);
+  assertEquals(body.modelChoice, [
+    { ...gemini, moneyMisses: [] },
+    { ...newer, moneyMisses: [] },
+  ]);
   assertEquals((await get(deps({ runs: [], results: {} }))).body.modelChoice, []);
+});
+
+Deno.test('evals route › a bake-off run lists its money mistakes and whether code answers each', async () => {
+  const sarvam = {
+    ...run(MODEL_TARGET, 40),
+    metrics: { kind: 'model-bakeoff', model: 'sarvam-105b' },
+  };
+  const money = (id: string, text: string, detail: string): EvalCaseResult => ({
+    scenarioId: id,
+    scores: { name: text, category: 'money', checks: [{ id: 'x', passed: false, detail }] },
+    transcript: '',
+    pass: false,
+  });
+  const results = [
+    money('brain-05', 'Ramesh 5000 due 15th', 'got add_credit, amount 500'),
+    money('brain-09', 'give Suresh some money tomorrow maybe', 'got mark_paid'),
+    money('brain-11', 'Lakshmi paid 300', 'no answer (the call failed)'),
+    { ...money('brain-12', 'Ravi paid 200', 'ok'), pass: true },
+    { ...CASE, scenarioId: 'brain-20', scores: { name: 'pending', category: 'read' } },
+  ];
+  const { body } = await get(deps({ runs: [sarvam], results: { [sarvam.id]: results } }));
+  const [only] = body.modelChoice as Array<{ moneyMisses: unknown }>;
+  // A call with no answer is not a money mistake; a read message is not a money message.
+  assertEquals(only?.moneyMisses, [
+    { text: 'Ramesh 5000 due 15th', codeAnswers: true },
+    { text: 'give Suresh some money tomorrow maybe', codeAnswers: false },
+  ]);
 });
 
 Deno.test('evals route › a target with no golden set gets an empty list', async () => {

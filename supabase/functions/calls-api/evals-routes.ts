@@ -14,7 +14,12 @@
 //   2026-11-23 (model choice): bake-off runs (target "brain-model", npm run evals:bakeoff) are not
 //   a release gate, so they are left out of targets and returned as modelChoice, the newest run
 //   per model.
+//   2026-11-24 (simpler model choice): each bake-off run also lists the money messages it got
+//   wrong (not the ones with no answer), each with whether our code parser answers that message
+//   before any model is asked, so the page can say if the owner would ever see the mistake.
 // The page shows what the runners stored; nothing is re-judged here.
+import { parseCommand } from '../_shared/brain/commands.ts';
+import { istDate } from '../_shared/clock.ts';
 import type { EvalCaseResult, EvalRun } from '../_shared/db/eval-reads.ts';
 import type { GoldenCase, GoldenTarget } from '../_shared/evals/golden.ts';
 import { GOLDEN } from '../_shared/evals/golden-cases.ts';
@@ -112,6 +117,39 @@ export function modelChoice(runs: readonly EvalRun[]): readonly EvalRun[] {
   return [...newest.values()].reverse();
 }
 
+/** A money message a model got wrong, and whether our code answers it before any model. */
+export interface MoneyMiss {
+  readonly text: string;
+  readonly codeAnswers: boolean;
+}
+
+/** The call failed: a miss, but not a money mistake (the bake-off counts these apart). */
+function noAnswer(result: EvalCaseResult): boolean {
+  const checks = result.scores['checks'];
+  if (!Array.isArray(checks)) return false;
+  const detail: unknown = (checks[0] as Record<string, unknown> | undefined)?.['detail'];
+  return typeof detail === 'string' && detail.startsWith('no answer');
+}
+
+/** Each bake-off run with the money messages it answered wrongly. */
+function withMoneyMisses(
+  reads: RouteContext['deps']['dashboard']['evals'],
+  runs: readonly EvalRun[],
+  today: string,
+): Promise<ReadonlyArray<EvalRun & { readonly moneyMisses: readonly MoneyMiss[] }>> {
+  return Promise.all(runs.map(async (run) => {
+    const results = await reads.listResults(run.id);
+    const moneyMisses = results
+      .filter((one) => !one.pass && one.scores['category'] === 'money' && !noAnswer(one))
+      .map((one) => {
+        const name = one.scores['name'];
+        const text = typeof name === 'string' ? name : one.scenarioId;
+        return { text, codeAnswers: parseCommand(text, today) !== null };
+      });
+    return { ...run, moneyMisses };
+  }));
+}
+
 async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Response> {
   const reads = deps.dashboard.evals;
   const all = byTarget(await reads.listRuns(RUNS_READ));
@@ -138,7 +176,8 @@ async function getEvals(_req: Request, { deps, cors }: RouteContext): Promise<Re
   const listed = targets.filter((target) => target !== null).sort((a, b) =>
     a.target.localeCompare(b.target)
   );
-  const models = modelChoice(all.get(MODEL_TARGET) ?? []);
+  const today = istDate(deps.clock());
+  const models = await withMoneyMisses(reads, modelChoice(all.get(MODEL_TARGET) ?? []), today);
   return jsonResponse(
     { targets: listed, modelChoice: models, generatedAt: deps.clock().toISOString() },
     200,
